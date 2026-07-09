@@ -56,6 +56,7 @@ export default function TerminModal({ onClose, onSave, locationId }: { onClose: 
   const [dateTo, setDateTo] = useState<string>(new Date().toISOString().slice(0, 10));
   const [halfDay, setHalfDay] = useState(false);
   const [halfDayPeriod, setHalfDayPeriod] = useState<'vormittag' | 'nachmittag'>('vormittag');
+  const [absenceNotes, setAbsenceNotes] = useState('');
 
   useEffect(() => {
     if (artists.length && !absenceArtist) setAbsenceArtist(artists[0].id);
@@ -102,6 +103,7 @@ export default function TerminModal({ onClose, onSave, locationId }: { onClose: 
         start_date: dateFrom,
         end_date: dateTo,
         half_day: halfDay ? (halfDayPeriod === 'vormittag' ? 'am' : 'pm') : 'none',
+        notes: absenceNotes.trim() || null,
       });
       onSave();
     } catch (e: any) {
@@ -262,6 +264,10 @@ export default function TerminModal({ onClose, onSave, locationId }: { onClose: 
                 <div style={{ fontSize: 12, color: halfDayPeriod === 'nachmittag' ? '#111' : '#999', fontWeight: halfDayPeriod === 'nachmittag' ? 600 : 400 }}>Nachmittag</div>
               </div>
             )}
+          </div>
+          <div style={{ marginBottom: 22 }}>
+            {fieldLabel('Notiz (optional)')}
+            <textarea value={absenceNotes} onChange={(e) => setAbsenceNotes(e.target.value)} style={{ ...boxStyle, width: '100%', minHeight: 44, fontFamily: 'var(--font-body)' }} placeholder="z.B. Grund der Absenz…" />
           </div>
         </>
       )}

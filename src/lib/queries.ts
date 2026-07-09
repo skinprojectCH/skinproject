@@ -445,6 +445,16 @@ export async function createVoucher(input: { code: string; value: number; buyer_
 }
 
 // ---------- Absences / Shifts ----------
+export interface Absence {
+  id: string;
+  artist_id: string;
+  type: 'ferien' | 'krank' | 'abwesend';
+  start_date: string;
+  end_date: string;
+  half_day: 'none' | 'am' | 'pm';
+  notes: string | null;
+}
+
 export async function fetchAbsences() {
   const { data, error } = await supabase.from('absences').select('*, artists(name)').order('start_date', { ascending: false });
   if (error) throw error;
@@ -457,10 +467,21 @@ export async function createAbsence(input: {
   start_date: string;
   end_date: string;
   half_day?: 'none' | 'am' | 'pm';
+  notes?: string | null;
 }) {
   const { data, error } = await supabase.from('absences').insert(input).select().single();
   if (error) throw error;
   return data;
+}
+
+export async function updateAbsence(id: string, patch: Partial<Absence>) {
+  const { error } = await supabase.from('absences').update(patch).eq('id', id);
+  if (error) throw error;
+}
+
+export async function deleteAbsence(id: string) {
+  const { error } = await supabase.from('absences').delete().eq('id', id);
+  if (error) throw error;
 }
 
 export async function fetchShifts(artistId: string) {
