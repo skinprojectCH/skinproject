@@ -26,6 +26,8 @@ export default function KundeDetail() {
   const [birthdate, setBirthdate] = useState('');
   const [phone, setPhone] = useState('');
   const [email, setEmail] = useState('');
+  const [strasse, setStrasse] = useState('');
+  const [plzOrt, setPlzOrt] = useState('');
   const [notes, setNotes] = useState('');
 
   const [documents, setDocuments] = useState<CustomerDocument[]>([]);
@@ -66,6 +68,8 @@ export default function KundeDetail() {
         setBirthdate(c.birthdate || '');
         setPhone(c.phone || '');
         setEmail(c.email || '');
+        setStrasse(c.strasse || '');
+        setPlzOrt(c.plz_ort || '');
         setNotes(c.notes || '');
       })
       .catch((e) => setError(e.message))
@@ -91,6 +95,8 @@ export default function KundeDetail() {
         birthdate: birthdate || null,
         phone: phone.trim() || null,
         email: email.trim() || null,
+        strasse: strasse.trim() || null,
+        plz_ort: plzOrt.trim() || null,
         notes: notes.trim() || null,
       });
       setSaved(true);
@@ -197,6 +203,20 @@ export default function KundeDetail() {
               E-Mail
             </div>
             <input value={email} onChange={(e) => setEmail(e.target.value)} style={inputStyle} placeholder="—" />
+          </div>
+
+          <div style={{ margin: '14px 0 6px' }}>
+            <div className="label-uppercase" style={{ marginBottom: 4 }}>
+              Strasse
+            </div>
+            <input value={strasse} onChange={(e) => setStrasse(e.target.value)} style={inputStyle} placeholder="—" />
+          </div>
+
+          <div style={{ margin: '14px 0 20px' }}>
+            <div className="label-uppercase" style={{ marginBottom: 4 }}>
+              PLZ / Ort
+            </div>
+            <input value={plzOrt} onChange={(e) => setPlzOrt(e.target.value)} style={inputStyle} placeholder="—" />
           </div>
 
           <div style={{ border: '1px solid #eee', borderRadius: 6, padding: 14, marginBottom: 20 }}>

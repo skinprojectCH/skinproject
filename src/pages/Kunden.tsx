@@ -20,6 +20,8 @@ function NewCustomerModal({ onClose, onCreated }: { onClose: () => void; onCreat
   const [email, setEmail] = useState('');
   const [phone, setPhone] = useState('');
   const [birthdate, setBirthdate] = useState('');
+  const [strasse, setStrasse] = useState('');
+  const [plzOrt, setPlzOrt] = useState('');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [attempted, setAttempted] = useState(false);
@@ -39,6 +41,8 @@ function NewCustomerModal({ onClose, onCreated }: { onClose: () => void; onCreat
         email: email.trim() || null,
         phone: phone.trim() || null,
         birthdate: birthdate || null,
+        strasse: strasse.trim() || null,
+        plz_ort: plzOrt.trim() || null,
       });
       onCreated(created.id);
     } catch (e: any) {
@@ -84,11 +88,25 @@ function NewCustomerModal({ onClose, onCreated }: { onClose: () => void; onCreat
           <input value={email} onChange={(e) => setEmail(e.target.value)} style={inputStyle} placeholder="optional" />
         </div>
       </div>
-      <div style={{ marginBottom: 22 }}>
+      <div style={{ marginBottom: 14 }}>
         <div className="label-uppercase" style={{ marginBottom: 4 }}>
-          Geburtsdatum
+          Strasse
         </div>
-        <input type="date" value={birthdate} onChange={(e) => setBirthdate(e.target.value)} style={inputStyle} />
+        <input value={strasse} onChange={(e) => setStrasse(e.target.value)} style={inputStyle} placeholder="optional" />
+      </div>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 14 }}>
+        <div>
+          <div className="label-uppercase" style={{ marginBottom: 4 }}>
+            PLZ / Ort
+          </div>
+          <input value={plzOrt} onChange={(e) => setPlzOrt(e.target.value)} style={inputStyle} placeholder="optional" />
+        </div>
+        <div>
+          <div className="label-uppercase" style={{ marginBottom: 4 }}>
+            Geburtsdatum
+          </div>
+          <input type="date" value={birthdate} onChange={(e) => setBirthdate(e.target.value)} style={inputStyle} />
+        </div>
       </div>
       {error && <div style={{ fontSize: 12, color: 'var(--color-destructive)', marginBottom: 12 }}>{error}</div>}
       <div style={{ display: 'flex', gap: 10 }}>

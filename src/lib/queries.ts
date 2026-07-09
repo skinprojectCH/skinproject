@@ -27,6 +27,8 @@ export interface Customer {
   birthdate: string | null;
   notes: string | null;
   health_notice: string | null;
+  strasse: string | null;
+  plz_ort: string | null;
 }
 
 export interface ServiceCategory {
