@@ -1,4 +1,6 @@
 import { useState } from 'react';
+import TerminModal from '../components/TerminModal';
+import EditTerminModal from '../components/EditTerminModal';
 
 type ViewMode = 'tag' | 'woche' | 'liste';
 
@@ -78,7 +80,7 @@ function ViewToggle({ view, onChange }: { view: ViewMode; onChange: (v: ViewMode
   );
 }
 
-function DayView() {
+function DayView({ onSelectAppointment }: { onSelectAppointment: (a: Appointment) => void }) {
   const byArtist = ARTISTS.map((_, i) => APPOINTMENTS.filter((a) => a.artistIndex === i));
 
   return (
@@ -124,6 +126,7 @@ function DayView() {
                 <div key={artistIndex + slot} style={{ background: '#fff', padding: 8 }}>
                   {appt && (
                     <div
+                      onClick={() => onSelectAppointment(appt)}
                       style={{
                         background: 'var(--color-accent-fill)',
                         borderLeft: `3px solid ${ARTISTS[artistIndex].color}`,
@@ -134,6 +137,7 @@ function DayView() {
                         display: 'flex',
                         alignItems: 'center',
                         justifyContent: 'space-between',
+                        cursor: 'pointer',
                       }}
                     >
                       {appt.label} · {appt.customer}
@@ -257,6 +261,8 @@ function WeekView() {
 
 export default function Kalender() {
   const [view, setView] = useState<ViewMode>('tag');
+  const [showNewTermin, setShowNewTermin] = useState(false);
+  const [selectedAppointment, setSelectedAppointment] = useState<Appointment | null>(null);
 
   return (
     <div>
@@ -268,12 +274,29 @@ export default function Kalender() {
             Mi, 8. Juli
           </div>
           <div className="btn btn-accent">Heute</div>
+          <button className="btn btn-primary" onClick={() => setShowNewTermin(true)}>
+            + Neuer Termin
+          </button>
         </div>
       </div>
 
-      {view === 'tag' && <DayView />}
+      {view === 'tag' && <DayView onSelectAppointment={setSelectedAppointment} />}
       {view === 'woche' && <WeekView />}
       {view === 'liste' && <ListView />}
+
+      {showNewTermin && <TerminModal onClose={() => setShowNewTermin(false)} onSave={() => setShowNewTermin(false)} />}
+      {selectedAppointment && (
+        <EditTerminModal
+          onClose={() => setSelectedAppointment(null)}
+          customer={selectedAppointment.customer}
+          artist={ARTISTS[selectedAppointment.artistIndex].name}
+          date="Mi, 8. Juli"
+          time={selectedAppointment.time}
+          serviceName={selectedAppointment.label}
+          durationMin={90}
+          price={220}
+        />
+      )}
     </div>
   );
 }
