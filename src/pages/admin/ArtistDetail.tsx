@@ -6,8 +6,10 @@ import {
   fetchServices,
   fetchArtistServiceIds,
   setArtistServiceIds,
+  fetchLocations,
   type Artist,
   type Service,
+  type Location,
 } from '../../lib/queries';
 
 const ARTIST_COLORS = [
@@ -50,6 +52,8 @@ export default function ArtistDetail() {
   const [mwstProzent, setMwstProzent] = useState('');
   const [revenueShare, setRevenueShare] = useState('');
   const [color, setColor] = useState(ARTIST_COLORS[0]);
+  const [locationId, setLocationId] = useState<string>('');
+  const [locations, setLocations] = useState<Location[]>([]);
 
   const [services, setServices] = useState<Service[]>([]);
   const [selectedServiceIds, setSelectedServiceIds] = useState<string[]>([]);
@@ -61,8 +65,8 @@ export default function ArtistDetail() {
 
   useEffect(() => {
     if (!id) return;
-    Promise.all([fetchArtists(), fetchServices(), fetchArtistServiceIds(id)])
-      .then(([artists, allServices, assignedIds]) => {
+    Promise.all([fetchArtists(), fetchServices(), fetchArtistServiceIds(id), fetchLocations()])
+      .then(([artists, allServices, assignedIds, allLocations]) => {
         const found = artists.find((a) => a.id === id) || null;
         if (!found) {
           setError('Artist nicht gefunden.');
@@ -81,6 +85,8 @@ export default function ArtistDetail() {
         setMwstProzent(found.mwst_prozent != null ? String(found.mwst_prozent) : '');
         setRevenueShare(String(found.revenue_share_pct));
         setColor(found.calendar_color);
+        setLocationId(found.location_id || '');
+        setLocations(allLocations);
         setServices(allServices);
         setSelectedServiceIds(assignedIds);
       })
@@ -111,6 +117,7 @@ export default function ArtistDetail() {
         email: email.trim() || null,
         phone: phone.trim() || null,
         status: active ? 'active' : 'inactive',
+        location_id: locationId || null,
         strasse: strasse.trim() || null,
         plz_ort: plzOrt.trim() || null,
         ahv_nummer: ahvNummer.trim() || null,
@@ -153,6 +160,20 @@ export default function ArtistDetail() {
               style={attempted && !nameValid ? { ...inputStyle, border: '1px solid var(--color-destructive)' } : inputStyle}
             />
             {attempted && !nameValid && <div style={{ fontSize: 11, color: 'var(--color-destructive)', marginTop: 4 }}>Bitte einen Namen eingeben.</div>}
+          </div>
+
+          <div style={{ marginBottom: 14 }}>
+            <div className="label-uppercase" style={{ marginBottom: 4 }}>
+              Standort
+            </div>
+            <select value={locationId} onChange={(e) => setLocationId(e.target.value)} style={inputStyle}>
+              <option value="">Keiner zugewiesen</option>
+              {locations.map((l) => (
+                <option key={l.id} value={l.id}>
+                  {l.name}
+                </option>
+              ))}
+            </select>
           </div>
 
           <div style={{ marginBottom: 14 }}>

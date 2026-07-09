@@ -9,6 +9,7 @@ export interface Artist {
   revenue_share_pct: number;
   calendar_color: string;
   status: 'active' | 'inactive';
+  location_id: string | null;
   strasse: string | null;
   plz_ort: string | null;
   ahv_nummer: string | null;
@@ -75,6 +76,61 @@ export interface Location {
   name: string;
   address: string | null;
   vat_number: string | null;
+  strasse: string | null;
+  plz_ort: string | null;
+  telefon: string | null;
+  email: string | null;
+  mwst_prozent: number | null;
+}
+
+export interface LocationManager {
+  id: string;
+  location_id: string;
+  vorname: string;
+  name: string;
+  email: string | null;
+  telefon: string | null;
+}
+
+// ---------- Locations ----------
+export async function fetchLocations() {
+  const { data, error } = await supabase.from('locations').select('*').order('name');
+  if (error) throw error;
+  return data as Location[];
+}
+
+export async function createLocation(input: { name: string; strasse: string | null; plz_ort: string | null; telefon: string | null; email: string | null; vat_number: string | null; mwst_prozent: number | null }) {
+  const { data, error } = await supabase.from('locations').insert(input).select().single();
+  if (error) throw error;
+  return data as Location;
+}
+
+export async function updateLocation(id: string, patch: Partial<Location>) {
+  const { error } = await supabase.from('locations').update(patch).eq('id', id);
+  if (error) throw error;
+}
+
+// ---------- Location-Manager ----------
+export async function fetchLocationManagers(locationId: string) {
+  const { data, error } = await supabase.from('location_managers').select('*').eq('location_id', locationId);
+  if (error) throw error;
+  return data as LocationManager[];
+}
+
+export async function createLocationManager(input: { location_id: string; vorname: string; name: string; email: string | null; telefon: string | null }) {
+  const { data, error } = await supabase.from('location_managers').insert(input).select().single();
+  if (error) throw error;
+  return data as LocationManager;
+}
+
+export async function updateLocationManager(id: string, patch: Partial<LocationManager>) {
+  const { error } = await supabase.from('location_managers').update(patch).eq('id', id);
+  if (error) throw error;
+}
+
+export async function deleteLocationManager(id: string) {
+  const { error } = await supabase.from('location_managers').delete().eq('id', id);
+  if (error) throw error;
 }
 
 export interface Voucher {
@@ -297,15 +353,17 @@ export async function deleteProduct(id: string) {
 }
 
 // ---------- Appointments ----------
-export async function fetchAppointmentsForDay(dateISO: string) {
+export async function fetchAppointmentsForDay(dateISO: string, locationId?: string) {
   const start = `${dateISO}T00:00:00`;
   const end = `${dateISO}T23:59:59`;
-  const { data, error } = await supabase
+  let query = supabase
     .from('appointments')
     .select('*, customers(vorname, name), artists(name, calendar_color)')
     .gte('start_time', start)
     .lte('start_time', end)
     .order('start_time');
+  if (locationId) query = query.eq('location_id', locationId);
+  const { data, error } = await query;
   if (error) throw error;
   return data;
 }
@@ -313,6 +371,7 @@ export async function fetchAppointmentsForDay(dateISO: string) {
 export async function createAppointment(input: {
   customer_id: string | null;
   artist_id: string;
+  location_id?: string | null;
   start_time: string;
   end_time: string;
   type?: 'termin' | 'absenz';
@@ -358,13 +417,6 @@ export async function addOrderLineItems(
 export async function addPayments(orderId: string, payments: { method: string; amount: number }[]) {
   const { error } = await supabase.from('payments').insert(payments.map((p) => ({ ...p, order_id: orderId })));
   if (error) throw error;
-}
-
-// ---------- Locations ----------
-export async function fetchLocations() {
-  const { data, error } = await supabase.from('locations').select('*').order('name');
-  if (error) throw error;
-  return data as Location[];
 }
 
 // ---------- Vouchers ----------

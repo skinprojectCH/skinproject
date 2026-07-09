@@ -18,7 +18,7 @@ function fieldLabel(text: string) {
 
 const boxStyle: React.CSSProperties = { border: '1px solid #ddd', borderRadius: 4, padding: '9px 10px', fontSize: 13 };
 
-export default function TerminModal({ onClose, onSave }: { onClose: () => void; onSave: () => void }) {
+export default function TerminModal({ onClose, onSave, locationId }: { onClose: () => void; onSave: () => void; locationId?: string }) {
   const [tab, setTab] = useState<'termin' | 'absenz'>('termin');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -30,10 +30,11 @@ export default function TerminModal({ onClose, onSave }: { onClose: () => void; 
   useEffect(() => {
     Promise.all([fetchArtists(), fetchCustomers(), fetchServices()])
       .then(([a, c, s]) => {
-        setArtists(a);
+        const scopedArtists = locationId ? a.filter((art) => art.location_id === locationId) : a;
+        setArtists(scopedArtists);
         setCustomers(c);
         setServices(s.filter((sv) => sv.active));
-        if (a.length) setSelectedArtist(a[0].id);
+        if (scopedArtists.length) setSelectedArtist(scopedArtists[0].id);
         if (s.length) setSelectedServices([s[0].id]);
       })
       .catch((e) => setError(e.message));
@@ -74,6 +75,7 @@ export default function TerminModal({ onClose, onSave }: { onClose: () => void; 
       await createAppointment({
         customer_id: selectedCustomer || null,
         artist_id: selectedArtist,
+        location_id: locationId || null,
         start_time: startISO,
         end_time: endDate.toISOString(),
         type: 'termin',
