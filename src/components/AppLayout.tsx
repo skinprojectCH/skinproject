@@ -5,7 +5,7 @@ export default function AppLayout() {
   return (
     <div style={{ display: 'flex', minHeight: '100vh' }}>
       <Sidebar />
-      <div style={{ flex: 1, padding: 32, maxWidth: 1180 }}>
+      <div style={{ flex: 1, padding: 32, minWidth: 0 }}>
         <Outlet />
       </div>
     </div>
