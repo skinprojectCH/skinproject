@@ -88,6 +88,45 @@ export async function fetchArtists() {
   return data as Artist[];
 }
 
+export async function createArtist(input: {
+  name: string;
+  email: string | null;
+  phone: string | null;
+  revenue_share_pct: number;
+  calendar_color: string;
+  status: 'active' | 'inactive';
+}) {
+  const { data, error } = await supabase.from('artists').insert(input).select().single();
+  if (error) throw error;
+  return data as Artist;
+}
+
+export async function updateArtist(id: string, patch: Partial<Artist>) {
+  const { error } = await supabase.from('artists').update(patch).eq('id', id);
+  if (error) throw error;
+}
+
+export async function deleteArtist(id: string) {
+  const { error } = await supabase.from('artists').delete().eq('id', id);
+  if (error) throw error;
+}
+
+export async function fetchArtistServiceIds(artistId: string) {
+  const { data, error } = await supabase.from('artist_services').select('service_id').eq('artist_id', artistId);
+  if (error) throw error;
+  return (data || []).map((row) => row.service_id as string);
+}
+
+// Ersetzt die komplette Zuordnung (löscht bestehende, fügt neue ein) — einfacher und
+// robuster als ein Diff, für die überschaubare Anzahl Services pro Artist unproblematisch.
+export async function setArtistServiceIds(artistId: string, serviceIds: string[]) {
+  const { error: deleteError } = await supabase.from('artist_services').delete().eq('artist_id', artistId);
+  if (deleteError) throw deleteError;
+  if (serviceIds.length === 0) return;
+  const { error: insertError } = await supabase.from('artist_services').insert(serviceIds.map((service_id) => ({ artist_id: artistId, service_id })));
+  if (insertError) throw insertError;
+}
+
 // ---------- Customers ----------
 export async function fetchCustomers() {
   const { data, error } = await supabase.from('customers').select('*').order('name');
