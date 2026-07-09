@@ -3,7 +3,12 @@ import { useNavigate } from 'react-router-dom';
 import { fetchArtists, createArtist, type Artist } from '../../lib/queries';
 import Modal from '../../components/Modal';
 
-const ARTIST_COLORS = ['#B08D3D', '#7A8A99', '#8B5A5A', '#6B5B45', '#5B7A6B', '#7A5B77'];
+const ARTIST_COLORS = [
+  '#B08D3D', '#7A8A99', '#8B5A5A', '#6B5B45', '#5B7A6B', '#7A5B77',
+  '#4A6B7A', '#7A6B4A', '#6B4A5B', '#4A7A5E', '#7A4A4A', '#5B6B7A',
+  '#8A7A5B', '#5B4A6B', '#7A5B4A', '#4A5B6B', '#6B7A4A', '#7A4A6B',
+  '#4A6B6B', '#8A5B6B',
+];
 const inputStyle: React.CSSProperties = { border: '1px solid #ddd', borderRadius: 4, padding: '9px 10px', fontSize: 13, width: '100%', fontFamily: 'var(--font-body)' };
 
 function EditIcon() {
@@ -97,12 +102,12 @@ function NewArtistModal({ existingColors, onClose, onCreated }: { existingColors
         <div className="label-uppercase" style={{ marginBottom: 4 }}>
           Kalenderfarbe
         </div>
-        <div style={{ display: 'flex', gap: 8 }}>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
           {ARTIST_COLORS.map((c) => (
             <div
               key={c}
               onClick={() => setColor(c)}
-              style={{ width: 26, height: 26, borderRadius: '50%', background: c, border: color === c ? '2px solid #111' : '2px solid transparent', cursor: 'pointer' }}
+              style={{ width: 24, height: 24, borderRadius: '50%', background: c, border: color === c ? '2px solid #111' : '2px solid transparent', cursor: 'pointer' }}
             />
           ))}
         </div>

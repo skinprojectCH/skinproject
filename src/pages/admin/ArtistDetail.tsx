@@ -1,9 +1,8 @@
 import { useEffect, useState } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useParams } from 'react-router-dom';
 import {
   fetchArtists,
   updateArtist,
-  deleteArtist,
   fetchServices,
   fetchArtistServiceIds,
   setArtistServiceIds,
@@ -11,7 +10,13 @@ import {
   type Service,
 } from '../../lib/queries';
 
-const ARTIST_COLORS = ['#B08D3D', '#7A8A99', '#8B5A5A', '#6B5B45', '#5B7A6B', '#7A5B77'];
+const ARTIST_COLORS = [
+  '#B08D3D', '#7A8A99', '#8B5A5A', '#6B5B45', '#5B7A6B', '#7A5B77',
+  '#4A6B7A', '#7A6B4A', '#6B4A5B', '#4A7A5E', '#7A4A4A', '#5B6B7A',
+  '#8A7A5B', '#5B4A6B', '#7A5B4A', '#4A5B6B', '#6B7A4A', '#7A4A6B',
+  '#4A6B6B', '#8A5B6B',
+];
+
 const inputStyle: React.CSSProperties = { border: '1px solid #ddd', borderRadius: 4, padding: '9px 10px', fontSize: 13, width: '100%', fontFamily: 'var(--font-body)' };
 
 function StatusToggle({ value, onChange }: { value: boolean; onChange: (v: boolean) => void }) {
@@ -29,7 +34,6 @@ function StatusToggle({ value, onChange }: { value: boolean; onChange: (v: boole
 
 export default function ArtistDetail() {
   const { id } = useParams();
-  const navigate = useNavigate();
   const [artist, setArtist] = useState<Artist | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -38,6 +42,12 @@ export default function ArtistDetail() {
   const [email, setEmail] = useState('');
   const [phone, setPhone] = useState('');
   const [active, setActive] = useState(true);
+  const [strasse, setStrasse] = useState('');
+  const [plzOrt, setPlzOrt] = useState('');
+  const [ahvNummer, setAhvNummer] = useState('');
+  const [mwstAktiv, setMwstAktiv] = useState(true);
+  const [mwstNummer, setMwstNummer] = useState('');
+  const [mwstProzent, setMwstProzent] = useState('');
   const [revenueShare, setRevenueShare] = useState('');
   const [color, setColor] = useState(ARTIST_COLORS[0]);
 
@@ -47,8 +57,6 @@ export default function ArtistDetail() {
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
-  const [confirmDelete, setConfirmDelete] = useState(false);
-  const [deleting, setDeleting] = useState(false);
   const [attempted, setAttempted] = useState(false);
 
   useEffect(() => {
@@ -65,6 +73,12 @@ export default function ArtistDetail() {
         setEmail(found.email || '');
         setPhone(found.phone || '');
         setActive(found.status === 'active');
+        setStrasse(found.strasse || '');
+        setPlzOrt(found.plz_ort || '');
+        setAhvNummer(found.ahv_nummer || '');
+        setMwstAktiv(found.mwst_aktiv ?? true);
+        setMwstNummer(found.mwst_nummer || '');
+        setMwstProzent(found.mwst_prozent != null ? String(found.mwst_prozent) : '');
         setRevenueShare(String(found.revenue_share_pct));
         setColor(found.calendar_color);
         setServices(allServices);
@@ -75,9 +89,14 @@ export default function ArtistDetail() {
   }, [id]);
 
   const nameValid = name.trim().length > 0;
+  const allSelected = services.length > 0 && selectedServiceIds.length === services.length;
 
   function toggleService(serviceId: string) {
     setSelectedServiceIds((prev) => (prev.includes(serviceId) ? prev.filter((s) => s !== serviceId) : [...prev, serviceId]));
+  }
+
+  function toggleAllServices() {
+    setSelectedServiceIds(allSelected ? [] : services.map((s) => s.id));
   }
 
   async function handleSave() {
@@ -92,6 +111,12 @@ export default function ArtistDetail() {
         email: email.trim() || null,
         phone: phone.trim() || null,
         status: active ? 'active' : 'inactive',
+        strasse: strasse.trim() || null,
+        plz_ort: plzOrt.trim() || null,
+        ahv_nummer: ahvNummer.trim() || null,
+        mwst_aktiv: mwstAktiv,
+        mwst_nummer: mwstNummer.trim() || null,
+        mwst_prozent: mwstProzent ? parseFloat(mwstProzent) : null,
         revenue_share_pct: parseFloat(revenueShare) || 0,
         calendar_color: color,
       });
@@ -102,23 +127,6 @@ export default function ArtistDetail() {
       setSaveError(e.message);
     } finally {
       setSaving(false);
-    }
-  }
-
-  async function handleDelete() {
-    if (!artist) return;
-    setDeleting(true);
-    setSaveError(null);
-    try {
-      await deleteArtist(artist.id);
-      navigate('/admin/artists');
-    } catch (e: any) {
-      setSaveError(
-        e.message?.includes('foreign key')
-          ? 'Dieser Artist hat bereits Termine/Bestellungen und kann nicht gelöscht werden — stattdessen auf "Inaktiv" setzen.'
-          : e.message
-      );
-      setDeleting(false);
     }
   }
 
@@ -147,6 +155,20 @@ export default function ArtistDetail() {
             {attempted && !nameValid && <div style={{ fontSize: 11, color: 'var(--color-destructive)', marginTop: 4 }}>Bitte einen Namen eingeben.</div>}
           </div>
 
+          <div style={{ marginBottom: 14 }}>
+            <div className="label-uppercase" style={{ marginBottom: 4 }}>
+              Strasse
+            </div>
+            <input value={strasse} onChange={(e) => setStrasse(e.target.value)} style={inputStyle} placeholder="—" />
+          </div>
+
+          <div style={{ marginBottom: 14 }}>
+            <div className="label-uppercase" style={{ marginBottom: 4 }}>
+              PLZ / Ort
+            </div>
+            <input value={plzOrt} onChange={(e) => setPlzOrt(e.target.value)} style={inputStyle} placeholder="—" />
+          </div>
+
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14, marginBottom: 14 }}>
             <div>
               <div className="label-uppercase" style={{ marginBottom: 4 }}>
@@ -162,15 +184,45 @@ export default function ArtistDetail() {
             </div>
           </div>
 
-          <div style={{ fontSize: 11, color: '#999', marginTop: 20 }}>
-            Adresse, AHV- und MWST-Angaben pro Artist folgen in einer späteren Ausbaustufe.
+          <div style={{ marginBottom: 14 }}>
+            <div className="label-uppercase" style={{ marginBottom: 4 }}>
+              PWA Passwort
+            </div>
+            <input disabled style={{ ...inputStyle, color: '#bbb', background: '#f7f7f5' }} placeholder="••••••••" />
+            <div style={{ fontSize: 11, color: '#999', marginTop: 4 }}>Wird aktiv, sobald die Artist-PWA mit echtem Login existiert (dann verschlüsselt über Supabase Auth, nie im Klartext).</div>
+          </div>
+
+          <div style={{ marginBottom: 14 }}>
+            <div className="label-uppercase" style={{ marginBottom: 4 }}>
+              AHV-Nummer
+            </div>
+            <input value={ahvNummer} onChange={(e) => setAhvNummer(e.target.value)} style={inputStyle} placeholder="756.xxxx.xxxx.xx" />
+          </div>
+
+          <div style={{ marginBottom: 10, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <div style={{ fontSize: 12 }}>MwSt.</div>
+            <StatusToggle value={mwstAktiv} onChange={setMwstAktiv} />
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 90px', gap: 14, marginBottom: 6 }}>
+            <div>
+              <div className="label-uppercase" style={{ marginBottom: 4 }}>
+                MwSt.-Nummer
+              </div>
+              <input value={mwstNummer} onChange={(e) => setMwstNummer(e.target.value)} style={inputStyle} placeholder="CHE-xxx.xxx.xxx" />
+            </div>
+            <div>
+              <div className="label-uppercase" style={{ marginBottom: 4 }}>
+                MwSt. %
+              </div>
+              <input value={mwstProzent} onChange={(e) => setMwstProzent(e.target.value)} style={inputStyle} placeholder="8.1" inputMode="decimal" />
+            </div>
           </div>
         </div>
 
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ marginBottom: 20 }}>
             <div className="label-uppercase" style={{ marginBottom: 4 }}>
-              Umsatzbeteiligung in %
+              Miet- &amp; Serviceanteil in %
             </div>
             <input value={revenueShare} onChange={(e) => setRevenueShare(e.target.value)} style={{ ...inputStyle, width: 120 }} inputMode="decimal" />
             <div style={{ fontSize: 11, color: '#999', marginTop: 4 }}>z.B. 60% Artist / 40% SkinProject (nur auf Dienstleistungen)</div>
@@ -179,6 +231,26 @@ export default function ArtistDetail() {
           <div style={{ marginBottom: 20 }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
               <div style={{ fontSize: 12, fontWeight: 700 }}>Dienstleistungen zuweisen</div>
+              {services.length > 0 && (
+                <button onClick={toggleAllServices} style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>
+                  <div
+                    style={{
+                      width: 14,
+                      height: 14,
+                      border: allSelected ? '1.5px solid #111' : '1.5px solid #ddd',
+                      background: allSelected ? '#111' : 'transparent',
+                      borderRadius: 4,
+                      color: '#fff',
+                      fontSize: 10,
+                      textAlign: 'center',
+                      lineHeight: '13px',
+                    }}
+                  >
+                    {allSelected ? '✓' : ''}
+                  </div>
+                  <div style={{ fontSize: 11, color: '#555' }}>Alle markieren</div>
+                </button>
+              )}
             </div>
             {services.length === 0 ? (
               <div style={{ fontSize: 12, color: '#999' }}>Noch keine Dienstleistungen erfasst.</div>
@@ -225,12 +297,12 @@ export default function ArtistDetail() {
             <div className="label-uppercase" style={{ marginBottom: 4 }}>
               Farbe auswählen für Termine im Kalender
             </div>
-            <div style={{ display: 'flex', gap: 8, marginBottom: 4 }}>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 4, maxWidth: 340 }}>
               {ARTIST_COLORS.map((c) => (
                 <div
                   key={c}
                   onClick={() => setColor(c)}
-                  style={{ width: 26, height: 26, borderRadius: '50%', background: c, border: color === c ? '2px solid #111' : '2px solid transparent', cursor: 'pointer' }}
+                  style={{ width: 24, height: 24, borderRadius: '50%', background: c, border: color === c ? '2px solid #111' : '2px solid transparent', cursor: 'pointer' }}
                 />
               ))}
             </div>
@@ -240,31 +312,9 @@ export default function ArtistDetail() {
           {saveError && <div style={{ fontSize: 12, color: 'var(--color-destructive)', marginBottom: 12 }}>{saveError}</div>}
           {saved && <div style={{ fontSize: 12, color: '#1a7a3f', marginBottom: 12 }}>✓ Gespeichert.</div>}
 
-          <div style={{ display: 'flex', gap: 10, marginBottom: 14 }}>
-            <button className="btn btn-primary" style={{ opacity: saving ? 0.6 : 1 }} disabled={saving} onClick={handleSave}>
-              {saving ? 'Speichert…' : 'Speichern'}
-            </button>
-          </div>
-
-          {!confirmDelete ? (
-            <button className="btn btn-destructive" onClick={() => setConfirmDelete(true)}>
-              Artist löschen
-            </button>
-          ) : (
-            <div style={{ display: 'flex', gap: 10 }}>
-              <button className="btn btn-secondary" onClick={() => setConfirmDelete(false)}>
-                Doch nicht
-              </button>
-              <button
-                className="btn btn-destructive"
-                style={{ background: 'var(--color-destructive)', color: '#fff', opacity: deleting ? 0.6 : 1 }}
-                disabled={deleting}
-                onClick={handleDelete}
-              >
-                {deleting ? 'Löscht…' : 'Wirklich löschen'}
-              </button>
-            </div>
-          )}
+          <button className="btn btn-primary" style={{ opacity: saving ? 0.6 : 1 }} disabled={saving} onClick={handleSave}>
+            {saving ? 'Speichert…' : 'Speichern'}
+          </button>
         </div>
       </div>
     </div>

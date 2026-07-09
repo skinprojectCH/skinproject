@@ -9,6 +9,12 @@ export interface Artist {
   revenue_share_pct: number;
   calendar_color: string;
   status: 'active' | 'inactive';
+  strasse: string | null;
+  plz_ort: string | null;
+  ahv_nummer: string | null;
+  mwst_aktiv: boolean;
+  mwst_nummer: string | null;
+  mwst_prozent: number | null;
 }
 
 export interface Customer {
