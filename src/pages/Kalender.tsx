@@ -10,6 +10,8 @@ type ViewMode = 'tag' | 'woche' | 'liste';
 interface LoadedAppointment {
   id: string;
   time: string;
+  startMinutes: number;
+  endMinutes: number;
   label: string;
   customer: string;
   artistId: string;
@@ -81,53 +83,156 @@ function ViewToggle({ view, onChange }: { view: ViewMode; onChange: (v: ViewMode
   );
 }
 
-function DayView({ appointments, artists, shifts, onSelectAppointment }: { appointments: LoadedAppointment[]; artists: Artist[]; shifts: Shift[]; onSelectAppointment: (a: LoadedAppointment) => void }) {
-  function shiftLabelFor(artistId: string) {
-    const artistShifts = shifts.filter((s) => s.artist_id === artistId);
-    if (artistShifts.length === 0) return null;
-    return artistShifts.map((s) => `${s.start_time.slice(0, 5)}–${s.end_time.slice(0, 5)}`).join(', ');
+const DISPLAY_START_MIN = 8 * 60; // 08:00
+const DISPLAY_END_MIN = 20 * 60; // 20:00
+const PX_PER_MIN = 1.4; // 1h = 84px
+const GRID_HEIGHT = (DISPLAY_END_MIN - DISPLAY_START_MIN) * PX_PER_MIN;
+
+function timeToMinutes(iso: string) {
+  const d = new Date(iso);
+  return d.getHours() * 60 + d.getMinutes();
+}
+
+function minutesLabel(min: number) {
+  const h = Math.floor(min / 60);
+  const m = min % 60;
+  return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+}
+
+function shiftWindowsForArtist(shifts: Shift[], artistId: string) {
+  return shifts
+    .filter((s) => s.artist_id === artistId)
+    .map((s) => {
+      const [sh, sm] = s.start_time.slice(0, 5).split(':').map(Number);
+      const [eh, em] = s.end_time.slice(0, 5).split(':').map(Number);
+      return { start: sh * 60 + sm, end: eh * 60 + em };
+    })
+    .sort((a, b) => a.start - b.start);
+}
+
+// Liefert die Zeitbereiche AUSSERHALB der Schicht (innerhalb des angezeigten Fensters) — für die Schraffur.
+function offWindowsForArtist(shifts: Shift[], artistId: string) {
+  const windows = shiftWindowsForArtist(shifts, artistId);
+  const off: { start: number; end: number }[] = [];
+  let cursor = DISPLAY_START_MIN;
+  for (const w of windows) {
+    const start = Math.max(w.start, DISPLAY_START_MIN);
+    const end = Math.min(w.end, DISPLAY_END_MIN);
+    if (start > cursor) off.push({ start: cursor, end: Math.min(start, DISPLAY_END_MIN) });
+    cursor = Math.max(cursor, end);
   }
+  if (cursor < DISPLAY_END_MIN) off.push({ start: cursor, end: DISPLAY_END_MIN });
+  return off;
+}
+
+const HATCH_BG = 'repeating-linear-gradient(45deg, #fafafa, #fafafa 6px, #f0f0f0 6px, #f0f0f0 12px)';
+
+function DayView({ appointments, artists, shifts, onSelectAppointment }: { appointments: LoadedAppointment[]; artists: Artist[]; shifts: Shift[]; onSelectAppointment: (a: LoadedAppointment) => void }) {
+  const hourMarks: number[] = [];
+  for (let m = DISPLAY_START_MIN; m <= DISPLAY_END_MIN; m += 60) hourMarks.push(m);
 
   return (
-    <div>
-      <div style={{ display: 'grid', gridTemplateColumns: `60px repeat(${artists.length || 1}, 1fr)`, gap: 1, background: '#eee', border: '1px solid #eee' }}>
-        <div style={{ background: '#fff', padding: 10, fontSize: 11, color: '#999' }}>Zeit</div>
+    <div style={{ border: '1px solid #eee', borderRadius: 6, overflow: 'hidden' }}>
+      {/* Kopfzeile: Artist-Namen + Schichtzeiten */}
+      <div style={{ display: 'flex', borderBottom: '1px solid #eee' }}>
+        <div style={{ width: 56, flexShrink: 0, background: '#fff' }} />
         {artists.map((artist) => {
-          const shiftLabel = shiftLabelFor(artist.id);
+          const windows = shiftWindowsForArtist(shifts, artist.id);
+          const label = windows.length ? windows.map((w) => `${minutesLabel(w.start)}–${minutesLabel(w.end)}`).join(', ') : null;
           return (
-            <div key={artist.id} style={{ background: '#fbfaf8', padding: 10, textAlign: 'center' }}>
+            <div key={artist.id} style={{ flex: 1, minWidth: 0, background: '#fbfaf8', padding: '10px 8px', textAlign: 'center', borderLeft: '1px solid #eee' }}>
               <div style={{ fontFamily: 'var(--font-heading)', fontSize: 13, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
-                <span style={{ width: 8, height: 8, borderRadius: '50%', background: artist.calendar_color, display: 'inline-block' }} />
-                {artist.name}
+                <span style={{ width: 8, height: 8, borderRadius: '50%', background: artist.calendar_color, display: 'inline-block', flexShrink: 0 }} />
+                <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{artist.name}</span>
               </div>
-              <div style={{ fontSize: 10, color: shiftLabel ? '#999' : 'var(--color-destructive)' }}>{shiftLabel ? `Schicht ${shiftLabel}` : 'Kein Dienst heute'}</div>
+              <div style={{ fontSize: 10, color: label ? '#999' : 'var(--color-destructive)' }}>{label ? `Schicht ${label}` : 'Kein Dienst heute'}</div>
             </div>
           );
         })}
+        {artists.length === 0 && <div style={{ flex: 1, padding: '10px 8px', fontSize: 12, color: '#999' }}>Keine Artists an dieser Location.</div>}
       </div>
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 1, background: '#eee', border: '1px solid #eee', borderTop: 'none' }}>
-        {appointments.length === 0 && <div style={{ background: '#fff', padding: 24, textAlign: 'center', fontSize: 13, color: '#999' }}>Keine Termine für diesen Tag.</div>}
-        {appointments.map((appt) => (
-          <div
-            key={appt.id}
-            onClick={() => onSelectAppointment(appt)}
-            style={{
-              background: 'var(--color-accent-fill)',
-              borderLeft: `3px solid ${appt.artistColor}`,
-              padding: 10,
-              fontSize: 12,
-              fontWeight: 500,
-              display: 'flex',
-              justifyContent: 'space-between',
-              cursor: 'pointer',
-            }}
-          >
-            <div>
-              {appt.time} · {appt.label} · {appt.customer} <span style={{ color: '#999' }}>({appt.artistName})</span>
+
+      {/* Zeitraster */}
+      <div style={{ display: 'flex', position: 'relative' }}>
+        {/* Zeitachse */}
+        <div style={{ width: 56, flexShrink: 0, position: 'relative', height: GRID_HEIGHT, background: '#fff' }}>
+          {hourMarks.map((m) => (
+            <div key={m} style={{ position: 'absolute', top: (m - DISPLAY_START_MIN) * PX_PER_MIN - 6, right: 8, fontSize: 10, color: '#999' }}>
+              {minutesLabel(m)}
             </div>
-            <div style={statusPillStyle(appt.status)}>{appt.status}</div>
-          </div>
-        ))}
+          ))}
+        </div>
+
+        {/* Spalten */}
+        {artists.map((artist) => {
+          const offWindows = offWindowsForArtist(shifts, artist.id);
+          const artistAppointments = appointments.filter((a) => a.artistId === artist.id);
+          return (
+            <div
+              key={artist.id}
+              style={{
+                flex: 1,
+                minWidth: 0,
+                position: 'relative',
+                height: GRID_HEIGHT,
+                borderLeft: '1px solid #eee',
+                backgroundImage: `repeating-linear-gradient(180deg, transparent, transparent ${60 * PX_PER_MIN - 1}px, #f2f2f2 ${60 * PX_PER_MIN - 1}px, #f2f2f2 ${60 * PX_PER_MIN}px)`,
+              }}
+            >
+              {offWindows.map((w, i) => (
+                <div
+                  key={i}
+                  style={{
+                    position: 'absolute',
+                    top: (w.start - DISPLAY_START_MIN) * PX_PER_MIN,
+                    height: Math.max(0, (w.end - w.start) * PX_PER_MIN),
+                    left: 0,
+                    right: 0,
+                    background: HATCH_BG,
+                    pointerEvents: 'none',
+                  }}
+                />
+              ))}
+
+              {artistAppointments.map((appt) => {
+                const top = Math.max(0, (appt.startMinutes - DISPLAY_START_MIN) * PX_PER_MIN);
+                const height = Math.max(18, (appt.endMinutes - appt.startMinutes) * PX_PER_MIN);
+                return (
+                  <div
+                    key={appt.id}
+                    onClick={() => onSelectAppointment(appt)}
+                    style={{
+                      position: 'absolute',
+                      top,
+                      height,
+                      left: 4,
+                      right: 4,
+                      background: 'var(--color-accent-fill)',
+                      borderLeft: `3px solid ${appt.artistColor}`,
+                      borderRadius: '0 4px 4px 0',
+                      padding: '4px 6px',
+                      fontSize: 11,
+                      fontWeight: 500,
+                      cursor: 'pointer',
+                      overflow: 'hidden',
+                      boxShadow: '0 1px 2px rgba(0,0,0,0.06)',
+                    }}
+                    title={`${appt.time} · ${appt.label} · ${appt.customer}`}
+                  >
+                    <div style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{appt.time} · {appt.label}</div>
+                    <div style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', color: '#555' }}>{appt.customer}</div>
+                  </div>
+                );
+              })}
+            </div>
+          );
+        })}
+        {artists.length === 0 && <div style={{ flex: 1, height: GRID_HEIGHT }} />}
+      </div>
+
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 12px', fontSize: 11, color: '#999', borderTop: '1px solid #eee' }}>
+        <span style={{ width: 12, height: 12, background: HATCH_BG, display: 'inline-block', borderRadius: 2 }} />
+        Ausserhalb der Arbeitszeit — kann nicht gebucht werden.
       </div>
     </div>
   );
@@ -181,7 +286,7 @@ export default function Kalender() {
   const [favoriteLocationId, setFavoriteLocationId] = useState<string | null>(() => localStorage.getItem(FAVORITE_LOCATION_KEY));
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [date] = useState(todayISO());
+  const [date, setDate] = useState(todayISO());
   const [locationsLoaded, setLocationsLoaded] = useState(false);
 
   // Locations einmalig laden, danach Standort vorauswählen:
@@ -213,6 +318,8 @@ export default function Kalender() {
       const mapped: LoadedAppointment[] = (rawAppointments as any[]).map((a) => ({
         id: a.id,
         time: formatTime(a.start_time),
+        startMinutes: timeToMinutes(a.start_time),
+        endMinutes: timeToMinutes(a.end_time),
         label: a.type === 'absenz' ? 'Absenz' : 'Termin',
         customer: a.customers ? `${a.customers.vorname} ${a.customers.name}` : 'Laufkunde',
         artistId: a.artist_id,
@@ -243,6 +350,12 @@ export default function Kalender() {
       localStorage.setItem(FAVORITE_LOCATION_KEY, selectedLocationId);
       setFavoriteLocationId(selectedLocationId);
     }
+  }
+
+  function shiftDate(days: number) {
+    const d = new Date(date);
+    d.setDate(d.getDate() + days);
+    setDate(d.toISOString().slice(0, 10));
   }
 
   if (locationsLoaded && locations.length === 0) {
@@ -282,9 +395,26 @@ export default function Kalender() {
             </button>
           </div>
           <ViewToggle view={view} onChange={setView} />
-          <div style={{ border: '1px solid var(--color-border)', padding: '7px 14px', fontSize: 12, color: '#333', borderRadius: 4 }}>
-            {new Date(date).toLocaleDateString('de-CH', { weekday: 'short', day: 'numeric', month: 'long' })}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+            <button
+              onClick={() => shiftDate(-1)}
+              style={{ width: 28, height: 28, borderRadius: 4, background: 'var(--color-bg)', border: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14, color: '#333', cursor: 'pointer' }}
+            >
+              ‹
+            </button>
+            <div style={{ border: '1px solid var(--color-border)', padding: '7px 14px', fontSize: 12, color: '#333', borderRadius: 4 }}>
+              {new Date(date).toLocaleDateString('de-CH', { weekday: 'short', day: 'numeric', month: 'long' })}
+            </div>
+            <button
+              onClick={() => shiftDate(1)}
+              style={{ width: 28, height: 28, borderRadius: 4, background: 'var(--color-bg)', border: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14, color: '#333', cursor: 'pointer' }}
+            >
+              ›
+            </button>
           </div>
+          <button className="btn btn-accent" onClick={() => setDate(todayISO())}>
+            Heute
+          </button>
           <button className="btn btn-primary" onClick={() => setShowNewTermin(true)}>
             + Neuer Termin
           </button>
@@ -305,6 +435,7 @@ export default function Kalender() {
       {showNewTermin && (
         <TerminModal
           locationId={selectedLocationId}
+          initialDate={date}
           onClose={() => setShowNewTermin(false)}
           onSave={() => {
             setShowNewTermin(false);

@@ -18,7 +18,7 @@ function fieldLabel(text: string) {
 
 const boxStyle: React.CSSProperties = { border: '1px solid #ddd', borderRadius: 4, padding: '9px 10px', fontSize: 13 };
 
-export default function TerminModal({ onClose, onSave, locationId }: { onClose: () => void; onSave: () => void; locationId?: string }) {
+export default function TerminModal({ onClose, onSave, locationId, initialDate }: { onClose: () => void; onSave: () => void; locationId?: string; initialDate?: string }) {
   const [tab, setTab] = useState<'termin' | 'absenz'>('termin');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -43,7 +43,7 @@ export default function TerminModal({ onClose, onSave, locationId }: { onClose: 
   // Termin-State
   const [selectedCustomer, setSelectedCustomer] = useState<string>('');
   const [selectedArtist, setSelectedArtist] = useState<string>('');
-  const [date, setDate] = useState<string>(new Date().toISOString().slice(0, 10));
+  const [date, setDate] = useState<string>(initialDate || new Date().toISOString().slice(0, 10));
   const [time, setTime] = useState<string>('14:00');
   const [selectedServices, setSelectedServices] = useState<string[]>([]);
   const totalDuration = selectedServices.reduce((sum, id) => sum + (services.find((s) => s.id === id)?.duration_minutes || 0), 0);
@@ -52,8 +52,8 @@ export default function TerminModal({ onClose, onSave, locationId }: { onClose: 
   // Absenz-State
   const [absenceType, setAbsenceType] = useState<'ferien' | 'krank' | 'abwesend'>('ferien');
   const [absenceArtist, setAbsenceArtist] = useState<string>('');
-  const [dateFrom, setDateFrom] = useState<string>(new Date().toISOString().slice(0, 10));
-  const [dateTo, setDateTo] = useState<string>(new Date().toISOString().slice(0, 10));
+  const [dateFrom, setDateFrom] = useState<string>(initialDate || new Date().toISOString().slice(0, 10));
+  const [dateTo, setDateTo] = useState<string>(initialDate || new Date().toISOString().slice(0, 10));
   const [halfDay, setHalfDay] = useState(false);
   const [halfDayPeriod, setHalfDayPeriod] = useState<'vormittag' | 'nachmittag'>('vormittag');
   const [absenceNotes, setAbsenceNotes] = useState('');
