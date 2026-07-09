@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import TerminModal from '../components/TerminModal';
 import EditTerminModal from '../components/EditTerminModal';
-import { fetchAppointmentsForDay, fetchArtists, fetchLocations, type Artist, type Location } from '../lib/queries';
+import { fetchAppointmentsForDay, fetchArtists, fetchLocations, fetchCurrentUserLocationId, type Artist, type Location } from '../lib/queries';
 
 const FAVORITE_LOCATION_KEY = 'skinproject:favoriteLocationId';
 
@@ -173,13 +173,18 @@ export default function Kalender() {
   const [date] = useState(todayISO());
   const [locationsLoaded, setLocationsLoaded] = useState(false);
 
-  // Locations einmalig laden, danach bevorzugte Location vorauswählen (falls vorhanden und noch gültig).
+  // Locations einmalig laden, danach Standort vorauswählen:
+  // 1. Standort, der dem eingeloggten Account zugewiesen ist (app_users.location_id) — hat Vorrang
+  // 2. sonst lokaler Browser-Favorit
+  // 3. sonst die erste Location
   useEffect(() => {
-    fetchLocations()
-      .then((data) => {
+    Promise.all([fetchLocations(), fetchCurrentUserLocationId()])
+      .then(([data, accountLocationId]) => {
         setLocations(data);
         const fav = localStorage.getItem(FAVORITE_LOCATION_KEY);
-        const initial = (fav && data.some((l) => l.id === fav)) ? fav : data[0]?.id || '';
+        const accountValid = accountLocationId && data.some((l) => l.id === accountLocationId);
+        const favValid = fav && data.some((l) => l.id === fav);
+        const initial = accountValid ? accountLocationId! : favValid ? fav! : data[0]?.id || '';
         setSelectedLocationId(initial);
       })
       .catch((e) => setError(e.message))

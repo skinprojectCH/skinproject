@@ -93,6 +93,14 @@ export interface LocationManager {
 }
 
 // ---------- Locations ----------
+export async function fetchCurrentUserLocationId() {
+  const { data: userData } = await supabase.auth.getUser();
+  if (!userData.user) return null;
+  const { data, error } = await supabase.from('app_users').select('location_id').eq('id', userData.user.id).maybeSingle();
+  if (error) return null; // z.B. noch kein app_users-Eintrag für diesen Login vorhanden
+  return data?.location_id ?? null;
+}
+
 export async function fetchLocations() {
   const { data, error } = await supabase.from('locations').select('*').order('name');
   if (error) throw error;

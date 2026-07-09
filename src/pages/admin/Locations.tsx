@@ -23,6 +23,13 @@ interface ManagerDraft {
   deleted: boolean;
 }
 
+interface LoginState {
+  password: string;
+  creating: boolean;
+  error: string | null;
+  success: boolean;
+}
+
 function NewLocationModal({ onClose, onCreated }: { onClose: () => void; onCreated: () => void }) {
   const [name, setName] = useState('');
   const [strasse, setStrasse] = useState('');
@@ -142,6 +149,7 @@ export default function Locations() {
   const [vatNumber, setVatNumber] = useState('');
   const [mwstProzent, setMwstProzent] = useState('');
   const [managers, setManagers] = useState<ManagerDraft[]>([]);
+  const [loginStates, setLoginStates] = useState<Record<string, LoginState>>({});
 
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
@@ -192,6 +200,38 @@ export default function Locations() {
 
   function removeManager(key: string) {
     setManagers((prev) => prev.map((m) => (m.key === key ? { ...m, deleted: true } : m)).filter((m) => !(m.id === null && m.key === key)));
+  }
+
+  function setLoginState(key: string, patch: Partial<LoginState>) {
+    setLoginStates((prev) => {
+      const current: LoginState = prev[key] || { password: '', creating: false, error: null, success: false };
+      return { ...prev, [key]: { ...current, ...patch } };
+    });
+  }
+
+  async function handleCreateLogin(manager: ManagerDraft) {
+    const state = loginStates[manager.key] || { password: '', creating: false, error: null, success: false };
+    if (!manager.email.trim()) {
+      setLoginState(manager.key, { error: 'Bitte zuerst eine E-Mail-Adresse beim Manager eintragen.' });
+      return;
+    }
+    if (state.password.length < 8) {
+      setLoginState(manager.key, { error: 'Passwort muss mindestens 8 Zeichen haben.' });
+      return;
+    }
+    setLoginState(manager.key, { creating: true, error: null });
+    try {
+      const res = await fetch('/api/create-manager-login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: manager.email.trim(), password: state.password, location_id: selectedId }),
+      });
+      const body = await res.json();
+      if (!res.ok) throw new Error(body.error || 'Unbekannter Fehler.');
+      setLoginState(manager.key, { creating: false, success: true, password: '' });
+    } catch (e: any) {
+      setLoginState(manager.key, { creating: false, error: e.message });
+    }
   }
 
   async function handleSave() {
@@ -313,18 +353,18 @@ export default function Locations() {
 
           <div style={{ border: '1px solid #eee', borderRadius: 6, padding: 14, marginBottom: 24 }}>
             <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 12 }}>MWST</div>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 90px', gap: 14 }}>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 140px', gap: 14 }}>
               <div>
-                <div className="label-uppercase" style={{ marginBottom: 4 }}>
+                <div className="label-uppercase" style={{ marginBottom: 4, whiteSpace: 'nowrap' }}>
                   MWST-Nummer
                 </div>
                 <input value={vatNumber} onChange={(e) => setVatNumber(e.target.value)} style={inputStyle} placeholder="CHE-xxx.xxx.xxx" />
               </div>
               <div>
-                <div className="label-uppercase" style={{ marginBottom: 4 }}>
-                  MWST-Satz in %
+                <div className="label-uppercase" style={{ marginBottom: 4, whiteSpace: 'nowrap' }}>
+                  MWST-Satz %
                 </div>
-                <input value={mwstProzent} onChange={(e) => setMwstProzent(e.target.value)} style={inputStyle} inputMode="decimal" />
+                <input value={mwstProzent} onChange={(e) => setMwstProzent(e.target.value)} style={inputStyle} inputMode="decimal" placeholder="8.1" />
               </div>
             </div>
           </div>
@@ -379,6 +419,34 @@ export default function Locations() {
                     </div>
                     <input value={m.telefon} onChange={(e) => updateManagerField(m.key, 'telefon', e.target.value)} style={inputStyle} />
                   </div>
+                </div>
+
+                <div style={{ borderTop: '1px solid #eee', marginTop: 14, paddingTop: 14 }}>
+                  <div className="label-uppercase" style={{ marginBottom: 6 }}>
+                    Login-Zugang (lädt automatisch den Kalender dieser Location)
+                  </div>
+                  {loginStates[m.key]?.success ? (
+                    <div style={{ fontSize: 12, color: '#1a7a3f' }}>✓ Login-Account erstellt — {m.email} kann sich jetzt einloggen.</div>
+                  ) : (
+                    <div style={{ display: 'flex', gap: 8, alignItems: 'flex-start' }}>
+                      <input
+                        type="password"
+                        value={loginStates[m.key]?.password || ''}
+                        onChange={(e) => setLoginState(m.key, { password: e.target.value })}
+                        style={{ ...inputStyle, flex: 1 }}
+                        placeholder="Passwort vergeben (min. 8 Zeichen)"
+                      />
+                      <button
+                        className="btn btn-secondary"
+                        style={{ whiteSpace: 'nowrap', opacity: loginStates[m.key]?.creating ? 0.6 : 1 }}
+                        disabled={loginStates[m.key]?.creating}
+                        onClick={() => handleCreateLogin(m)}
+                      >
+                        {loginStates[m.key]?.creating ? 'Erstellt…' : 'Login erstellen'}
+                      </button>
+                    </div>
+                  )}
+                  {loginStates[m.key]?.error && <div style={{ fontSize: 11, color: 'var(--color-destructive)', marginTop: 6 }}>{loginStates[m.key]?.error}</div>}
                 </div>
               </div>
             ))}
