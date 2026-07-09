@@ -188,8 +188,6 @@ export default function Locations() {
       .catch((e) => setSaveError(e.message));
   }, [selectedId, locations]);
 
-  const nameValid = name.trim().length > 0;
-
   function addManager() {
     setManagers((prev) => [...prev, { key: `new-${crypto.randomUUID()}`, id: null, vorname: '', name: '', email: '', telefon: '', deleted: false }]);
   }
@@ -234,9 +232,13 @@ export default function Locations() {
     }
   }
 
+  const nameValid = name.trim().length > 0;
+  const mwstProzentMissing = vatNumber.trim().length > 0 && mwstProzent.trim().length === 0;
+  const canSave = nameValid && !mwstProzentMissing;
+
   async function handleSave() {
     setAttempted(true);
-    if (!nameValid || !selectedId) return;
+    if (!canSave || !selectedId) return;
     setSaving(true);
     setSaveError(null);
     setSaved(false);
@@ -364,7 +366,14 @@ export default function Locations() {
                 <div className="label-uppercase" style={{ marginBottom: 4, whiteSpace: 'nowrap' }}>
                   MWST-Satz %
                 </div>
-                <input value={mwstProzent} onChange={(e) => setMwstProzent(e.target.value)} style={inputStyle} inputMode="decimal" placeholder="8.1" />
+                <input
+                  value={mwstProzent}
+                  onChange={(e) => setMwstProzent(e.target.value)}
+                  style={attempted && mwstProzentMissing ? { ...inputStyle, border: '1px solid var(--color-destructive)' } : inputStyle}
+                  inputMode="decimal"
+                  placeholder="8.1"
+                />
+                {attempted && mwstProzentMissing && <div style={{ fontSize: 11, color: 'var(--color-destructive)', marginTop: 4 }}>Satz fehlt, wenn eine MWST-Nummer eingetragen ist.</div>}
               </div>
             </div>
           </div>
