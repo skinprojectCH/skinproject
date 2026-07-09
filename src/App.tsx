@@ -7,6 +7,7 @@ import Kunden from './pages/Kunden';
 import KundeDetail from './pages/KundeDetail';
 import AdminIndex from './pages/admin/AdminIndex';
 import Artists from './pages/admin/Artists';
+import ArtistDetail from './pages/admin/ArtistDetail';
 import Dienstleistungen from './pages/admin/Dienstleistungen';
 import Produkte from './pages/admin/Produkte';
 import Schichtplan from './pages/admin/Schichtplan';
@@ -30,6 +31,7 @@ export default function App() {
 
         <Route path="/admin" element={<AdminIndex />} />
         <Route path="/admin/artists" element={<Artists />} />
+        <Route path="/admin/artists/:id" element={<ArtistDetail />} />
         <Route path="/admin/dienstleistungen" element={<Dienstleistungen />} />
         <Route path="/admin/produkte" element={<Produkte />} />
         <Route path="/admin/schichtplan" element={<Schichtplan />} />
