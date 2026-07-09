@@ -484,8 +484,53 @@ export async function deleteAbsence(id: string) {
   if (error) throw error;
 }
 
-export async function fetchShifts(artistId: string) {
+export interface Shift {
+  id: string;
+  artist_id: string;
+  location_id: string | null;
+  weekday: number;
+  start_time: string;
+  end_time: string;
+  valid_from: string;
+  valid_to: string | null;
+}
+
+export async function fetchShiftsForArtist(artistId: string) {
   const { data, error } = await supabase.from('shifts').select('*').eq('artist_id', artistId).order('weekday');
   if (error) throw error;
-  return data;
+  return data as Shift[];
+}
+
+// Ersetzt den kompletten Wochenplan eines Artists (an dieser Location) durch die neuen
+// Zeitfenster + Gültigkeitszeitraum. Einfacher und robuster als ein Diff.
+export async function replaceArtistShifts(
+  artistId: string,
+  locationId: string,
+  validFrom: string,
+  validTo: string | null,
+  slots: { weekday: number; start_time: string; end_time: string }[]
+) {
+  const { error: deleteError } = await supabase.from('shifts').delete().eq('artist_id', artistId);
+  if (deleteError) throw deleteError;
+  if (slots.length === 0) return;
+  const { error: insertError } = await supabase.from('shifts').insert(
+    slots.map((s) => ({ artist_id: artistId, location_id: locationId, weekday: s.weekday, start_time: s.start_time, end_time: s.end_time, valid_from: validFrom, valid_to: validTo }))
+  );
+  if (insertError) throw insertError;
+}
+
+// Für den Kalender: alle Schichten für eine Liste von Artists an einem bestimmten Datum
+// (berücksichtigt Wochentag + Gültigkeitszeitraum).
+export async function fetchShiftsForDate(artistIds: string[], dateISO: string) {
+  if (artistIds.length === 0) return [];
+  const weekday = (new Date(dateISO).getDay() + 6) % 7; // JS: So=0..Sa=6 -> wir wollen Mo=0..So=6
+  const { data, error } = await supabase
+    .from('shifts')
+    .select('*')
+    .in('artist_id', artistIds)
+    .eq('weekday', weekday)
+    .lte('valid_from', dateISO)
+    .or(`valid_to.is.null,valid_to.gte.${dateISO}`);
+  if (error) throw error;
+  return data as Shift[];
 }

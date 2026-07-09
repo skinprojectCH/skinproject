@@ -1,4 +1,5 @@
-import { useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+import { fetchLocations, fetchArtists, fetchShiftsForArtist, replaceArtistShifts, type Location, type Artist, type Shift } from '../../lib/queries';
 
 interface Slot {
   id: string;
@@ -6,76 +7,220 @@ interface Slot {
   to: string;
 }
 
-const WEEKDAYS = ['Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So'];
+const WEEKDAYS = ['Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So']; // Index 0 = Montag, passend zu shifts.weekday
 
-const INITIAL_SCHEDULE: Record<string, Slot[]> = {
-  Mo: [
-    { id: '1', from: '09:00', to: '12:00' },
-    { id: '2', from: '14:00', to: '18:00' },
-  ],
-  Di: [{ id: '3', from: '09:00', to: '18:00' }],
-  Mi: [{ id: '4', from: '09:00', to: '18:00' }],
-  Do: [{ id: '5', from: '09:00', to: '18:00' }],
-  Fr: [{ id: '6', from: '09:00', to: '18:00' }],
-  Sa: [{ id: '7', from: '10:00', to: '16:00' }],
-  So: [],
-};
+function emptySchedule(): Record<number, Slot[]> {
+  return { 0: [], 1: [], 2: [], 3: [], 4: [], 5: [], 6: [] };
+}
+
+const selectStyle: React.CSSProperties = { border: '1px solid #ddd', borderRadius: 4, padding: '8px 14px', fontSize: 12, fontFamily: 'var(--font-body)' };
 
 export default function Schichtplan() {
-  const [schedule, setSchedule] = useState(INITIAL_SCHEDULE);
+  const [locations, setLocations] = useState<Location[]>([]);
+  const [artists, setArtists] = useState<Artist[]>([]);
+  const [selectedLocationId, setSelectedLocationId] = useState('');
+  const [selectedArtistId, setSelectedArtistId] = useState('');
+  const [schedule, setSchedule] = useState<Record<number, Slot[]>>(emptySchedule());
+  const [validFrom, setValidFrom] = useState(new Date().toISOString().slice(0, 10));
+  const [validTo, setValidTo] = useState('');
+  const [unbefristet, setUnbefristet] = useState(true);
 
-  function addSlot(day: string) {
-    setSchedule((prev) => ({
-      ...prev,
-      [day]: [...prev[day], { id: crypto.randomUUID(), from: '09:00', to: '18:00' }],
-    }));
+  const [loading, setLoading] = useState(true);
+  const [loadingShifts, setLoadingShifts] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [saveError, setSaveError] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
+  const [existingShifts, setExistingShifts] = useState<Shift[]>([]);
+
+  useEffect(() => {
+    Promise.all([fetchLocations(), fetchArtists()])
+      .then(([locs, arts]) => {
+        setLocations(locs);
+        setArtists(arts);
+        if (locs.length) setSelectedLocationId(locs[0].id);
+      })
+      .catch((e) => setError(e.message))
+      .finally(() => setLoading(false));
+  }, []);
+
+  const artistsAtLocation = useMemo(() => artists.filter((a) => a.location_id === selectedLocationId), [artists, selectedLocationId]);
+
+  useEffect(() => {
+    if (artistsAtLocation.length && !artistsAtLocation.some((a) => a.id === selectedArtistId)) {
+      setSelectedArtistId(artistsAtLocation[0].id);
+    } else if (artistsAtLocation.length === 0) {
+      setSelectedArtistId('');
+      setSchedule(emptySchedule());
+      setExistingShifts([]);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [artistsAtLocation]);
+
+  useEffect(() => {
+    if (!selectedArtistId) return;
+    setLoadingShifts(true);
+    setSaved(false);
+    setSaveError(null);
+    fetchShiftsForArtist(selectedArtistId)
+      .then((shifts) => {
+        setExistingShifts(shifts);
+        const next = emptySchedule();
+        for (const s of shifts) {
+          next[s.weekday] = [...(next[s.weekday] || []), { id: s.id, from: s.start_time.slice(0, 5), to: s.end_time.slice(0, 5) }];
+        }
+        setSchedule(next);
+        if (shifts.length > 0) {
+          setValidFrom(shifts[0].valid_from);
+          setValidTo(shifts[0].valid_to || '');
+          setUnbefristet(!shifts[0].valid_to);
+        } else {
+          setValidFrom(new Date().toISOString().slice(0, 10));
+          setValidTo('');
+          setUnbefristet(true);
+        }
+      })
+      .catch((e) => setError(e.message))
+      .finally(() => setLoadingShifts(false));
+  }, [selectedArtistId]);
+
+  function addSlot(weekday: number) {
+    setSchedule((prev) => ({ ...prev, [weekday]: [...prev[weekday], { id: crypto.randomUUID(), from: '09:00', to: '18:00' }] }));
   }
 
-  function removeSlot(day: string, id: string) {
-    setSchedule((prev) => ({ ...prev, [day]: prev[day].filter((s) => s.id !== id) }));
+  function updateSlot(weekday: number, id: string, field: 'from' | 'to', value: string) {
+    setSchedule((prev) => ({ ...prev, [weekday]: prev[weekday].map((s) => (s.id === id ? { ...s, [field]: value } : s)) }));
   }
+
+  function removeSlot(weekday: number, id: string) {
+    setSchedule((prev) => ({ ...prev, [weekday]: prev[weekday].filter((s) => s.id !== id) }));
+  }
+
+  async function handleApply() {
+    if (!selectedArtistId || !selectedLocationId) return;
+    setSaving(true);
+    setSaveError(null);
+    setSaved(false);
+    try {
+      const slots = WEEKDAYS.flatMap((_, weekday) => schedule[weekday].map((s) => ({ weekday, start_time: s.from, end_time: s.to })));
+      await replaceArtistShifts(selectedArtistId, selectedLocationId, validFrom, unbefristet ? null : validTo || null, slots);
+      setSaved(true);
+      setTimeout(() => setSaved(false), 2500);
+    } catch (e: any) {
+      setSaveError(e.message);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  if (loading) return <div style={{ fontSize: 13, color: '#999' }}>Lädt…</div>;
+  if (error) return <div style={{ fontSize: 13, color: 'var(--color-destructive)' }}>Fehler: {error}</div>;
 
   return (
     <div>
       <h1 style={{ fontSize: 24, marginBottom: 20 }}>Schichtplan · Arbeitszeiten</h1>
 
-      <div style={{ display: 'flex', gap: 14, marginBottom: 20, flexWrap: 'wrap' }}>
-        <select style={{ border: '1px solid #ddd', padding: '8px 14px', fontSize: 12, borderRadius: 4 }}>
-          <option>Location auswählen</option>
+      <div style={{ display: 'flex', gap: 14, marginBottom: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+        <select value={selectedLocationId} onChange={(e) => setSelectedLocationId(e.target.value)} style={selectStyle}>
+          {locations.length === 0 && <option value="">Keine Location</option>}
+          {locations.map((l) => (
+            <option key={l.id} value={l.id}>
+              {l.name}
+            </option>
+          ))}
         </select>
-        <select style={{ border: '1px solid #ddd', padding: '8px 14px', fontSize: 12, borderRadius: 4 }}>
-          <option>Nina</option>
-          <option>Tom</option>
+        <select value={selectedArtistId} onChange={(e) => setSelectedArtistId(e.target.value)} style={selectStyle} disabled={artistsAtLocation.length === 0}>
+          {artistsAtLocation.length === 0 && <option value="">Kein Artist an dieser Location</option>}
+          {artistsAtLocation.map((a) => (
+            <option key={a.id} value={a.id}>
+              {a.name}
+            </option>
+          ))}
         </select>
-        <button className="btn btn-accent">Wochenplan übernehmen</button>
       </div>
 
-      <div style={{ fontSize: 12, fontWeight: 700, marginBottom: 4 }}>Wochenplan</div>
-      <div style={{ fontSize: 11, color: '#999', marginBottom: 12 }}>Pro Tag können mehrere Zeitfenster erfasst werden.</div>
+      {locations.length === 0 && <div style={{ fontSize: 12, color: '#999', marginBottom: 20 }}>Zuerst unter Admin → Locations eine Location anlegen.</div>}
+      {locations.length > 0 && artistsAtLocation.length === 0 && (
+        <div style={{ fontSize: 12, color: '#999', marginBottom: 20 }}>Dieser Location ist noch kein Artist zugewiesen (Admin → Artists → Standort setzen).</div>
+      )}
 
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-        {WEEKDAYS.map((day) => (
-          <div key={day} style={{ display: 'grid', gridTemplateColumns: '60px 1fr', gap: 12, alignItems: 'center' }}>
-            <div style={{ fontSize: 12, fontWeight: 600, color: schedule[day].length === 0 ? '#999' : '#111' }}>{day}</div>
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center' }}>
-              {schedule[day].length === 0 && <div style={{ fontSize: 12, color: '#ccc' }}>frei</div>}
-              {schedule[day].map((slot) => (
-                <div key={slot.id} style={{ display: 'flex', alignItems: 'center', gap: 4, border: '1px solid #ddd', borderRadius: 4, padding: '6px 10px', fontSize: 12 }}>
-                  <div>{slot.from}</div>
-                  <div>–</div>
-                  <div>{slot.to}</div>
-                  <div onClick={() => removeSlot(day, slot.id)} style={{ color: '#999', marginLeft: 6, cursor: 'pointer' }}>
-                    ✕
-                  </div>
-                </div>
-              ))}
-              <div onClick={() => addSlot(day)} style={{ fontSize: 11, color: 'var(--color-accent)', fontWeight: 600, cursor: 'pointer' }}>
-                + Zeitfenster
+      {selectedArtistId && (
+        <>
+          <div style={{ display: 'flex', gap: 14, marginBottom: 20, flexWrap: 'wrap', alignItems: 'flex-end' }}>
+            <div>
+              <div className="label-uppercase" style={{ marginBottom: 4 }}>
+                Gültig von
               </div>
+              <input type="date" value={validFrom} onChange={(e) => setValidFrom(e.target.value)} style={selectStyle} />
             </div>
+            <div>
+              <div className="label-uppercase" style={{ marginBottom: 4 }}>
+                Gültig bis
+              </div>
+              <input type="date" value={validTo} onChange={(e) => setValidTo(e.target.value)} style={{ ...selectStyle, opacity: unbefristet ? 0.4 : 1 }} disabled={unbefristet} />
+            </div>
+            <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: '#555', paddingBottom: 8, cursor: 'pointer' }}>
+              <input type="checkbox" checked={unbefristet} onChange={(e) => setUnbefristet(e.target.checked)} />
+              Unbefristet
+            </label>
           </div>
-        ))}
-      </div>
+
+          {loadingShifts ? (
+            <div style={{ fontSize: 13, color: '#999' }}>Lädt bestehenden Plan…</div>
+          ) : (
+            <>
+              <div style={{ fontSize: 12, fontWeight: 700, marginBottom: 4 }}>Wochenplan</div>
+              <div style={{ fontSize: 11, color: '#999', marginBottom: 12 }}>Pro Tag können mehrere Zeitfenster erfasst werden. Gilt für den oben gewählten Artist an dieser Location.</div>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 24 }}>
+                {WEEKDAYS.map((day, weekday) => (
+                  <div key={day} style={{ display: 'grid', gridTemplateColumns: '60px 1fr', gap: 12, alignItems: 'center' }}>
+                    <div style={{ fontSize: 12, fontWeight: 600, color: schedule[weekday].length === 0 ? '#999' : '#111' }}>{day}</div>
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center' }}>
+                      {schedule[weekday].length === 0 && <div style={{ fontSize: 12, color: '#ccc' }}>frei</div>}
+                      {schedule[weekday].map((slot) => (
+                        <div key={slot.id} style={{ display: 'flex', alignItems: 'center', gap: 4, border: '1px solid #ddd', borderRadius: 4, padding: '4px 8px', fontSize: 12 }}>
+                          <input
+                            type="time"
+                            value={slot.from}
+                            onChange={(e) => updateSlot(weekday, slot.id, 'from', e.target.value)}
+                            style={{ border: 'none', fontSize: 12, width: 72, fontFamily: 'var(--font-body)' }}
+                          />
+                          <div>–</div>
+                          <input
+                            type="time"
+                            value={slot.to}
+                            onChange={(e) => updateSlot(weekday, slot.id, 'to', e.target.value)}
+                            style={{ border: 'none', fontSize: 12, width: 72, fontFamily: 'var(--font-body)' }}
+                          />
+                          <div onClick={() => removeSlot(weekday, slot.id)} style={{ color: '#999', marginLeft: 4, cursor: 'pointer' }}>
+                            ✕
+                          </div>
+                        </div>
+                      ))}
+                      <div onClick={() => addSlot(weekday)} style={{ fontSize: 11, color: 'var(--color-accent)', fontWeight: 600, cursor: 'pointer' }}>
+                        + Zeitfenster
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {saveError && <div style={{ fontSize: 12, color: 'var(--color-destructive)', marginBottom: 12 }}>{saveError}</div>}
+              {saved && <div style={{ fontSize: 12, color: '#1a7a3f', marginBottom: 12 }}>✓ Wochenplan übernommen.</div>}
+
+              <button className="btn btn-primary" style={{ opacity: saving ? 0.6 : 1 }} disabled={saving} onClick={handleApply}>
+                {saving ? 'Übernimmt…' : 'Wochenplan übernehmen'}
+              </button>
+              {existingShifts.length > 0 && (
+                <div style={{ fontSize: 11, color: '#999', marginTop: 10 }}>
+                  Ersetzt den kompletten bisherigen Wochenplan dieses Artists (an allen Locations) durch die obige Vorlage.
+                </div>
+              )}
+            </>
+          )}
+        </>
+      )}
     </div>
   );
 }

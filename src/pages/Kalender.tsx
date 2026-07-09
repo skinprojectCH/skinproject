@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import TerminModal from '../components/TerminModal';
 import EditTerminModal from '../components/EditTerminModal';
-import { fetchAppointmentsForDay, fetchArtists, fetchLocations, fetchCurrentUserLocationId, type Artist, type Location } from '../lib/queries';
+import { fetchAppointmentsForDay, fetchArtists, fetchLocations, fetchCurrentUserLocationId, fetchShiftsForDate, type Artist, type Location, type Shift } from '../lib/queries';
 
 const FAVORITE_LOCATION_KEY = 'skinproject:favoriteLocationId';
 
@@ -81,19 +81,29 @@ function ViewToggle({ view, onChange }: { view: ViewMode; onChange: (v: ViewMode
   );
 }
 
-function DayView({ appointments, artists, onSelectAppointment }: { appointments: LoadedAppointment[]; artists: Artist[]; onSelectAppointment: (a: LoadedAppointment) => void }) {
+function DayView({ appointments, artists, shifts, onSelectAppointment }: { appointments: LoadedAppointment[]; artists: Artist[]; shifts: Shift[]; onSelectAppointment: (a: LoadedAppointment) => void }) {
+  function shiftLabelFor(artistId: string) {
+    const artistShifts = shifts.filter((s) => s.artist_id === artistId);
+    if (artistShifts.length === 0) return null;
+    return artistShifts.map((s) => `${s.start_time.slice(0, 5)}–${s.end_time.slice(0, 5)}`).join(', ');
+  }
+
   return (
     <div>
       <div style={{ display: 'grid', gridTemplateColumns: `60px repeat(${artists.length || 1}, 1fr)`, gap: 1, background: '#eee', border: '1px solid #eee' }}>
         <div style={{ background: '#fff', padding: 10, fontSize: 11, color: '#999' }}>Zeit</div>
-        {artists.map((artist) => (
-          <div key={artist.id} style={{ background: '#fbfaf8', padding: 10, textAlign: 'center' }}>
-            <div style={{ fontFamily: 'var(--font-heading)', fontSize: 13, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
-              <span style={{ width: 8, height: 8, borderRadius: '50%', background: artist.calendar_color, display: 'inline-block' }} />
-              {artist.name}
+        {artists.map((artist) => {
+          const shiftLabel = shiftLabelFor(artist.id);
+          return (
+            <div key={artist.id} style={{ background: '#fbfaf8', padding: 10, textAlign: 'center' }}>
+              <div style={{ fontFamily: 'var(--font-heading)', fontSize: 13, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
+                <span style={{ width: 8, height: 8, borderRadius: '50%', background: artist.calendar_color, display: 'inline-block' }} />
+                {artist.name}
+              </div>
+              <div style={{ fontSize: 10, color: shiftLabel ? '#999' : 'var(--color-destructive)' }}>{shiftLabel ? `Schicht ${shiftLabel}` : 'Kein Dienst heute'}</div>
             </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 1, background: '#eee', border: '1px solid #eee', borderTop: 'none' }}>
         {appointments.length === 0 && <div style={{ background: '#fff', padding: 24, textAlign: 'center', fontSize: 13, color: '#999' }}>Keine Termine für diesen Tag.</div>}
@@ -165,6 +175,7 @@ export default function Kalender() {
   const [selectedAppointment, setSelectedAppointment] = useState<LoadedAppointment | null>(null);
   const [appointments, setAppointments] = useState<LoadedAppointment[]>([]);
   const [artists, setArtists] = useState<Artist[]>([]);
+  const [shifts, setShifts] = useState<Shift[]>([]);
   const [locations, setLocations] = useState<Location[]>([]);
   const [selectedLocationId, setSelectedLocationId] = useState<string>('');
   const [favoriteLocationId, setFavoriteLocationId] = useState<string | null>(() => localStorage.getItem(FAVORITE_LOCATION_KEY));
@@ -195,7 +206,10 @@ export default function Kalender() {
     if (!selectedLocationId) return;
     try {
       const [rawAppointments, artistList] = await Promise.all([fetchAppointmentsForDay(date, selectedLocationId), fetchArtists()]);
-      setArtists(artistList.filter((a) => a.location_id === selectedLocationId));
+      const scopedArtists = artistList.filter((a) => a.location_id === selectedLocationId);
+      setArtists(scopedArtists);
+      const dayShifts = await fetchShiftsForDate(scopedArtists.map((a) => a.id), date);
+      setShifts(dayShifts);
       const mapped: LoadedAppointment[] = (rawAppointments as any[]).map((a) => ({
         id: a.id,
         time: formatTime(a.start_time),
@@ -282,7 +296,7 @@ export default function Kalender() {
 
       {!loading && !error && (
         <>
-          {view === 'tag' && <DayView appointments={appointments} artists={artists} onSelectAppointment={setSelectedAppointment} />}
+          {view === 'tag' && <DayView appointments={appointments} artists={artists} shifts={shifts} onSelectAppointment={setSelectedAppointment} />}
           {view === 'woche' && <div style={{ fontSize: 13, color: '#999' }}>Wochenansicht folgt (Mehrtages-Query).</div>}
           {view === 'liste' && <ListView appointments={appointments} />}
         </>
