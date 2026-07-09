@@ -4,6 +4,7 @@ import Login from './pages/Login';
 import Kalender from './pages/Kalender';
 import Kasse from './pages/Kasse';
 import Kunden from './pages/Kunden';
+import KundeDetail from './pages/KundeDetail';
 import AdminIndex from './pages/admin/AdminIndex';
 import Artists from './pages/admin/Artists';
 import Dienstleistungen from './pages/admin/Dienstleistungen';
@@ -25,6 +26,7 @@ export default function App() {
         <Route path="/kalender" element={<Kalender />} />
         <Route path="/kasse" element={<Kasse />} />
         <Route path="/kunden" element={<Kunden />} />
+        <Route path="/kunden/:id" element={<KundeDetail />} />
 
         <Route path="/admin" element={<AdminIndex />} />
         <Route path="/admin/artists" element={<Artists />} />
