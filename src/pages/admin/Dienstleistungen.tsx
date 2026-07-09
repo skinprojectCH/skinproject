@@ -9,6 +9,7 @@ import {
   createServiceCategory,
   updateServiceCategory,
   deleteServiceCategory,
+  countServicesInCategory,
   type Service,
   type ServiceCategory,
 } from '../../lib/queries';
@@ -206,9 +207,19 @@ function ServiceModal({
 function CategoryModal({ category, onClose, onSaved }: { category: ServiceCategory | null; onClose: () => void; onSaved: () => void }) {
   const isNew = category === null;
   const [name, setName] = useState(category?.name || '');
+  const [active, setActive] = useState(category?.active ?? true);
+  const [serviceCount, setServiceCount] = useState<number | null>(null);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [confirmDelete, setConfirmDelete] = useState(false);
+
+  useEffect(() => {
+    if (!isNew) {
+      countServicesInCategory(category!.id).then(setServiceCount).catch(() => setServiceCount(null));
+    }
+  }, [isNew, category]);
+
+  const willDeactivateServices = !isNew && active === false && category!.active === true && !!serviceCount;
 
   async function handleSave() {
     if (!name.trim()) {
@@ -221,7 +232,7 @@ function CategoryModal({ category, onClose, onSaved }: { category: ServiceCatego
       if (isNew) {
         await createServiceCategory(name.trim());
       } else {
-        await updateServiceCategory(category!.id, name.trim());
+        await updateServiceCategory(category!.id, name.trim(), active);
       }
       onSaved();
     } catch (e: any) {
@@ -239,18 +250,49 @@ function CategoryModal({ category, onClose, onSaved }: { category: ServiceCatego
     } catch (e: any) {
       setError(e.message);
       setSaving(false);
+      setConfirmDelete(false);
     }
   }
 
+  const canDelete = serviceCount === 0;
+
   return (
-    <Modal title={isNew ? 'Neue Kategorie' : 'Kategorie bearbeiten'} onClose={onClose} width={360}>
-      <div style={{ marginBottom: 22 }}>
+    <Modal title={isNew ? 'Neue Kategorie' : 'Kategorie bearbeiten'} onClose={onClose} width={380}>
+      <div style={{ marginBottom: 14 }}>
         <div className="label-uppercase" style={{ marginBottom: 4 }}>
           Name
         </div>
         <input value={name} onChange={(e) => setName(e.target.value)} style={inputStyle} placeholder="z.B. Piercing…" autoFocus />
       </div>
+
+      {!isNew && (
+        <div style={{ marginBottom: 14, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <div style={{ fontSize: 12, fontWeight: 600 }}>Status</div>
+          <div style={{ display: 'flex', border: '1px solid #ddd', borderRadius: 12, overflow: 'hidden', fontSize: 11 }}>
+            <button onClick={() => setActive(true)} style={{ padding: '4px 10px', background: active ? '#111' : 'transparent', color: active ? '#fff' : '#999', border: 'none' }}>
+              Aktiv
+            </button>
+            <button onClick={() => setActive(false)} style={{ padding: '4px 10px', background: !active ? '#111' : 'transparent', color: !active ? '#fff' : '#999', border: 'none' }}>
+              Inaktiv
+            </button>
+          </div>
+        </div>
+      )}
+
+      {willDeactivateServices && (
+        <div style={{ fontSize: 11, color: '#8A6D2E', background: 'var(--color-warn-bg)', border: '1px solid var(--color-warn-border)', borderRadius: 4, padding: '8px 10px', marginBottom: 14 }}>
+          Diese Kategorie hat {serviceCount} Dienstleistung{serviceCount === 1 ? '' : 'en'}. Beim Speichern werden alle automatisch mit auf "Inaktiv" gesetzt.
+        </div>
+      )}
+
+      {!isNew && serviceCount !== null && serviceCount > 0 && (
+        <div style={{ fontSize: 11, color: '#999', marginBottom: 14 }}>
+          {serviceCount} Dienstleistung{serviceCount === 1 ? '' : 'en'} zugeordnet.
+        </div>
+      )}
+
       {error && <div style={{ fontSize: 12, color: 'var(--color-destructive)', marginBottom: 12 }}>{error}</div>}
+
       <div style={{ display: 'flex', gap: 10, marginBottom: isNew ? 0 : 10 }}>
         <button className="btn btn-secondary" style={{ flex: 1, justifyContent: 'center' }} onClick={onClose}>
           Abbrechen
@@ -259,24 +301,24 @@ function CategoryModal({ category, onClose, onSaved }: { category: ServiceCatego
           {saving ? 'Speichert…' : isNew ? 'Erstellen' : 'Speichern'}
         </button>
       </div>
+
       {!isNew &&
         (!confirmDelete ? (
-          <button className="btn btn-destructive" style={{ width: '100%', justifyContent: 'center' }} onClick={() => setConfirmDelete(true)}>
+          <button
+            className="btn btn-destructive"
+            style={{ width: '100%', justifyContent: 'center', opacity: canDelete ? 1 : 0.4, cursor: canDelete ? 'pointer' : 'not-allowed' }}
+            onClick={() => (canDelete ? setConfirmDelete(true) : setError(`Diese Kategorie enthält noch ${serviceCount} Dienstleistung${serviceCount === 1 ? '' : 'en'} und kann nicht gelöscht werden — stattdessen auf "Inaktiv" setzen.`))}
+          >
             Kategorie löschen
           </button>
         ) : (
-          <div>
-            <div style={{ fontSize: 11, color: '#999', marginBottom: 8 }}>
-              Dienstleistungen in dieser Kategorie verlieren die Zuordnung, werden aber nicht gelöscht.
-            </div>
-            <div style={{ display: 'flex', gap: 10 }}>
-              <button className="btn btn-secondary" style={{ flex: 1, justifyContent: 'center' }} onClick={() => setConfirmDelete(false)}>
-                Doch nicht
-              </button>
-              <button className="btn btn-destructive" style={{ flex: 1, justifyContent: 'center', background: 'var(--color-destructive)', color: '#fff' }} onClick={handleDelete}>
-                Wirklich löschen
-              </button>
-            </div>
+          <div style={{ display: 'flex', gap: 10 }}>
+            <button className="btn btn-secondary" style={{ flex: 1, justifyContent: 'center' }} onClick={() => setConfirmDelete(false)}>
+              Doch nicht
+            </button>
+            <button className="btn btn-destructive" style={{ flex: 1, justifyContent: 'center', background: 'var(--color-destructive)', color: '#fff' }} onClick={handleDelete}>
+              Wirklich löschen
+            </button>
           </div>
         ))}
     </Modal>
@@ -354,8 +396,9 @@ export default function Dienstleistungen() {
                 style={{
                   flex: 1,
                   padding: '8px 10px',
-                  color: categoryId === c.id ? '#111' : '#555',
+                  color: categoryId === c.id ? '#111' : c.active ? '#555' : '#bbb',
                   fontWeight: categoryId === c.id ? 700 : 400,
+                  fontStyle: c.active ? 'normal' : 'italic',
                   border: 'none',
                   background: 'none',
                   textAlign: 'left',
@@ -363,6 +406,7 @@ export default function Dienstleistungen() {
                 }}
               >
                 {c.name}
+                {!c.active && <span style={{ fontSize: 10, marginLeft: 4 }}>(inaktiv)</span>}
               </button>
               <button
                 onClick={() => setEditingCategory(c)}

@@ -25,6 +25,7 @@ export interface Customer {
 export interface ServiceCategory {
   id: string;
   name: string;
+  active: boolean;
 }
 
 export interface Service {
@@ -117,12 +118,34 @@ export async function createServiceCategory(name: string) {
   return data as ServiceCategory;
 }
 
-export async function updateServiceCategory(id: string, name: string) {
-  const { error } = await supabase.from('service_categories').update({ name }).eq('id', id);
+// Zählt, wie viele Dienstleistungen dieser Kategorie zugeordnet sind (unabhängig vom Aktiv-Status).
+export async function countServicesInCategory(categoryId: string) {
+  const { count, error } = await supabase.from('services').select('id', { count: 'exact', head: true }).eq('category_id', categoryId);
   if (error) throw error;
+  return count || 0;
 }
 
+// Kategorie aktualisieren. Beim Deaktivieren werden alle zugeordneten Dienstleistungen
+// automatisch mitdeaktiviert (Kaskade), damit sie z.B. in der Kasse nicht mehr auswählbar sind.
+// Historische Daten (Termine, Bestellungen) bleiben davon unberührt — es wird nichts gelöscht.
+export async function updateServiceCategory(id: string, name: string, active: boolean) {
+  const { error } = await supabase.from('service_categories').update({ name, active }).eq('id', id);
+  if (error) throw error;
+  if (!active) {
+    const { error: cascadeError } = await supabase.from('services').update({ active: false }).eq('category_id', id);
+    if (cascadeError) throw cascadeError;
+  }
+}
+
+// Löschen ist nur erlaubt, wenn keine Dienstleistung (aktiv oder inaktiv) dieser Kategorie
+// zugeordnet ist — so bleibt die Historie unangetastet und es entstehen keine verwaisten Referenzen.
 export async function deleteServiceCategory(id: string) {
+  const count = await countServicesInCategory(id);
+  if (count > 0) {
+    throw new Error(
+      `Diese Kategorie enthält noch ${count} Dienstleistung${count === 1 ? '' : 'en'}. Kategorien mit zugeordneten Dienstleistungen können nicht gelöscht werden — stattdessen auf "Inaktiv" setzen.`
+    );
+  }
   const { error } = await supabase.from('service_categories').delete().eq('id', id);
   if (error) throw error;
 }
