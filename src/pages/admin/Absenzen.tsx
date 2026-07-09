@@ -3,12 +3,15 @@ import Modal from '../../components/Modal';
 import { fetchAbsences, createAbsence, updateAbsence, deleteAbsence, fetchArtists, type Artist } from '../../lib/queries';
 
 type AbsenceType = 'ferien' | 'krank' | 'abwesend';
+type AbsenceTabFilter = 'alle' | AbsenceType;
 
 const TABS: { key: AbsenceType; label: string }[] = [
   { key: 'ferien', label: 'Ferien' },
   { key: 'krank', label: 'Krank' },
   { key: 'abwesend', label: 'Abwesend' },
 ];
+
+const FILTER_TABS: { key: AbsenceTabFilter; label: string }[] = [{ key: 'alle', label: 'Alle' }, ...TABS];
 
 const inputStyle: React.CSSProperties = { border: '1px solid #ddd', borderRadius: 4, padding: '9px 10px', fontSize: 13, width: '100%', fontFamily: 'var(--font-body)' };
 
@@ -217,7 +220,7 @@ function AbsenceModal({
 }
 
 export default function Absenzen() {
-  const [tab, setTab] = useState<AbsenceType>('ferien');
+  const [tab, setTab] = useState<AbsenceTabFilter>('alle');
   const [artistFilter, setArtistFilter] = useState('alle');
   const [showNew, setShowNew] = useState(false);
   const [editing, setEditing] = useState<any | null>(null);
@@ -242,7 +245,7 @@ export default function Absenzen() {
 
   const filtered = useMemo(() => {
     return absences.filter((a) => {
-      if (a.type !== tab) return false;
+      if (tab !== 'alle' && a.type !== tab) return false;
       if (artistFilter !== 'alle' && a.artist_id !== artistFilter) return false;
       return true;
     });
@@ -259,7 +262,7 @@ export default function Absenzen() {
 
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20, flexWrap: 'wrap', gap: 10 }}>
         <div style={{ display: 'flex', borderBottom: '1px solid var(--color-border)', fontSize: 13 }}>
-          {TABS.map((t) => (
+          {FILTER_TABS.map((t) => (
             <button
               key={t.key}
               onClick={() => setTab(t.key)}
