@@ -4,6 +4,7 @@ import { supabase } from './supabaseClient';
 export interface Artist {
   id: string;
   name: string;
+  kuenstlername: string | null;
   email: string | null;
   phone: string | null;
   revenue_share_pct: number;

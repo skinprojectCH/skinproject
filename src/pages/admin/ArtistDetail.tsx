@@ -44,6 +44,7 @@ export default function ArtistDetail() {
   const [error, setError] = useState<string | null>(null);
 
   const [name, setName] = useState('');
+  const [kuenstlername, setKuenstlername] = useState('');
   const [email, setEmail] = useState('');
   const [phone, setPhone] = useState('');
   const [active, setActive] = useState(true);
@@ -90,6 +91,7 @@ export default function ArtistDetail() {
         }
         setArtist(found);
         setName(found.name);
+        setKuenstlername(found.kuenstlername || '');
         setEmail(found.email || '');
         setPhone(found.phone || '');
         setActive(found.status === 'active');
@@ -131,6 +133,7 @@ export default function ArtistDetail() {
     try {
       const payload = {
         name: name.trim(),
+        kuenstlername: kuenstlername.trim() || null,
         email: email.trim() || null,
         phone: phone.trim() || null,
         status: (active ? 'active' : 'inactive') as 'active' | 'inactive',
@@ -186,6 +189,13 @@ export default function ArtistDetail() {
               style={attempted && !nameValid ? { ...inputStyle, border: '1px solid var(--color-destructive)' } : inputStyle}
             />
             {attempted && !nameValid && <div style={{ fontSize: 11, color: 'var(--color-destructive)', marginTop: 4 }}>Bitte einen Namen eingeben.</div>}
+          </div>
+
+          <div style={{ marginBottom: 14 }}>
+            <div className="label-uppercase" style={{ marginBottom: 4 }}>
+              Künstlername
+            </div>
+            <input value={kuenstlername} onChange={(e) => setKuenstlername(e.target.value)} style={inputStyle} placeholder="optional, wird später im Kalender angezeigt" />
           </div>
 
           <div style={{ marginBottom: 14 }}>
