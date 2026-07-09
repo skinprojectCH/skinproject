@@ -41,6 +41,7 @@ export interface Service {
 export interface ProductCategory {
   id: string;
   name: string;
+  active: boolean;
 }
 
 export interface Product {
@@ -49,6 +50,7 @@ export interface Product {
   name: string;
   price: number;
   barcode: string | null;
+  description: string | null;
   active: boolean;
 }
 
@@ -185,10 +187,68 @@ export async function fetchProductCategories() {
   return data as ProductCategory[];
 }
 
+export async function createProductCategory(name: string) {
+  const { data, error } = await supabase.from('product_categories').insert({ name }).select().single();
+  if (error) throw error;
+  return data as ProductCategory;
+}
+
+export async function countProductsInCategory(categoryId: string) {
+  const { count, error } = await supabase.from('products').select('id', { count: 'exact', head: true }).eq('category_id', categoryId);
+  if (error) throw error;
+  return count || 0;
+}
+
+// Beim Deaktivieren werden alle zugeordneten Produkte automatisch mitdeaktiviert (Kaskade).
+// Historische Daten (Bestellungen) bleiben unberührt — es wird nichts gelöscht.
+export async function updateProductCategory(id: string, name: string, active: boolean) {
+  const { error } = await supabase.from('product_categories').update({ name, active }).eq('id', id);
+  if (error) throw error;
+  if (!active) {
+    const { error: cascadeError } = await supabase.from('products').update({ active: false }).eq('category_id', id);
+    if (cascadeError) throw cascadeError;
+  }
+}
+
+// Löschen nur erlaubt, wenn kein Produkt (aktiv oder inaktiv) dieser Kategorie zugeordnet ist.
+export async function deleteProductCategory(id: string) {
+  const count = await countProductsInCategory(id);
+  if (count > 0) {
+    throw new Error(
+      `Diese Kategorie enthält noch ${count} Produkt${count === 1 ? '' : 'e'}. Kategorien mit zugeordneten Produkten können nicht gelöscht werden — stattdessen auf "Inaktiv" setzen.`
+    );
+  }
+  const { error } = await supabase.from('product_categories').delete().eq('id', id);
+  if (error) throw error;
+}
+
 export async function fetchProducts() {
   const { data, error } = await supabase.from('products').select('*').order('name');
   if (error) throw error;
   return data as Product[];
+}
+
+export async function createProduct(input: {
+  name: string;
+  price: number;
+  barcode: string | null;
+  description: string | null;
+  category_id: string | null;
+  active: boolean;
+}) {
+  const { data, error } = await supabase.from('products').insert(input).select().single();
+  if (error) throw error;
+  return data as Product;
+}
+
+export async function updateProduct(id: string, patch: Partial<Product>) {
+  const { error } = await supabase.from('products').update(patch).eq('id', id);
+  if (error) throw error;
+}
+
+export async function deleteProduct(id: string) {
+  const { error } = await supabase.from('products').delete().eq('id', id);
+  if (error) throw error;
 }
 
 // ---------- Appointments ----------
