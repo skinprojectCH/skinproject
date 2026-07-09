@@ -209,6 +209,54 @@ export async function createCustomer(input: Partial<Customer>) {
   return data as Customer;
 }
 
+export async function updateCustomer(id: string, patch: Partial<Customer>) {
+  const { error } = await supabase.from('customers').update(patch).eq('id', id);
+  if (error) throw error;
+}
+
+export async function deleteCustomer(id: string) {
+  const { error } = await supabase.from('customers').delete().eq('id', id);
+  if (error) throw error;
+}
+
+// ---------- Kunden-Dokumente & Fotos (Supabase Storage: Bucket "customer-files") ----------
+export interface CustomerDocument {
+  id: string;
+  customer_id: string;
+  type: 'id_photo' | 'signature' | 'photo' | 'document';
+  storage_path: string;
+  created_at: string;
+}
+
+export async function fetchCustomerDocuments(customerId: string) {
+  const { data, error } = await supabase.from('customer_documents').select('*').eq('customer_id', customerId).order('created_at', { ascending: false });
+  if (error) throw error;
+  return data as CustomerDocument[];
+}
+
+export async function uploadCustomerFile(customerId: string, file: File, type: 'document' | 'photo') {
+  const ext = file.name.split('.').pop();
+  const path = `${customerId}/${type}/${crypto.randomUUID()}.${ext}`;
+  const { error: uploadError } = await supabase.storage.from('customer-files').upload(path, file);
+  if (uploadError) throw uploadError;
+  const { data, error } = await supabase.from('customer_documents').insert({ customer_id: customerId, type, storage_path: path }).select().single();
+  if (error) throw error;
+  return data as CustomerDocument;
+}
+
+export async function getCustomerFileUrl(storagePath: string) {
+  const { data, error } = await supabase.storage.from('customer-files').createSignedUrl(storagePath, 60 * 5);
+  if (error) throw error;
+  return data.signedUrl;
+}
+
+export async function deleteCustomerDocument(doc: CustomerDocument) {
+  const { error: storageError } = await supabase.storage.from('customer-files').remove([doc.storage_path]);
+  if (storageError) throw storageError;
+  const { error } = await supabase.from('customer_documents').delete().eq('id', doc.id);
+  if (error) throw error;
+}
+
 // ---------- Services / Products ----------
 export async function fetchServiceCategories() {
   const { data, error } = await supabase.from('service_categories').select('*').order('sort_order');
