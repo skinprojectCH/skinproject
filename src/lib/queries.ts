@@ -33,6 +33,7 @@ export interface Service {
   name: string;
   duration_minutes: number;
   price: number;
+  description: string | null;
   active: boolean;
 }
 
@@ -110,10 +111,49 @@ export async function fetchServiceCategories() {
   return data as ServiceCategory[];
 }
 
+export async function createServiceCategory(name: string) {
+  const { data, error } = await supabase.from('service_categories').insert({ name }).select().single();
+  if (error) throw error;
+  return data as ServiceCategory;
+}
+
+export async function updateServiceCategory(id: string, name: string) {
+  const { error } = await supabase.from('service_categories').update({ name }).eq('id', id);
+  if (error) throw error;
+}
+
+export async function deleteServiceCategory(id: string) {
+  const { error } = await supabase.from('service_categories').delete().eq('id', id);
+  if (error) throw error;
+}
+
 export async function fetchServices() {
   const { data, error } = await supabase.from('services').select('*').order('name');
   if (error) throw error;
   return data as Service[];
+}
+
+export async function createService(input: {
+  name: string;
+  price: number;
+  duration_minutes: number;
+  description: string | null;
+  category_id: string | null;
+  active: boolean;
+}) {
+  const { data, error } = await supabase.from('services').insert(input).select().single();
+  if (error) throw error;
+  return data as Service;
+}
+
+export async function updateService(id: string, patch: Partial<Service>) {
+  const { error } = await supabase.from('services').update(patch).eq('id', id);
+  if (error) throw error;
+}
+
+export async function deleteService(id: string) {
+  const { error } = await supabase.from('services').delete().eq('id', id);
+  if (error) throw error;
 }
 
 export async function fetchProductCategories() {
