@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<div style="width:200px;background:#111;padding:24px 0;flex-shrink:0;font-family:'Work Sans',sans-serif;">
+  <nav style="display:flex;flex-direction:column;font-size:13px;">
+    <div style="padding:11px 20px;background:{{ kalenderBg }};color:{{ kalenderColor }};font-weight:{{ kalenderWeight }};">Kalender</div>
+    <div style="padding:11px 20px;background:{{ kasseBg }};color:{{ kasseColor }};font-weight:{{ kasseWeight }};">Kasse</div>
+    <div style="padding:11px 20px;background:{{ kundenBg }};color:{{ kundenColor }};font-weight:{{ kundenWeight }};">Kunden</div>
+    <div style="padding:11px 20px;background:{{ adminBg }};color:{{ adminColor }};font-weight:{{ adminWeight }};">Admin<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block;vertical-align:-2px;margin-left:2px;"><rect x="4" y="11" width="16" height="10" rx="2"></rect><path d="M8 11V7a4 4 0 0 1 8 0v4"></path></svg></div>
+    <sc-if value="{{ showSub }}" hint-placeholder-val="{{ false }}">
+      <div style="padding:2px 20px 8px;font-size:10px;color:#888;">Nur Hauptadmin</div>
+      <sc-for list="{{ subItems }}" as="it" hint-placeholder-count="9">
+        <div style="padding:8px 20px 8px 34px;font-size:12px;background:{{ it.bg }};color:{{ it.color }};">{{ it.label }}</div>
+      </sc-for>
+    </sc-if>
+  </nav>
+</div>
+
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:200,&quot;height&quot;:420},&quot;active&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;default&quot;:&quot;kalender&quot;,&quot;options&quot;:[&quot;kalender&quot;,&quot;kasse&quot;,&quot;kunden&quot;,&quot;admin&quot;],&quot;tsType&quot;:&quot;string&quot;},&quot;adminSub&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;default&quot;:null,&quot;options&quot;:[&quot;artists&quot;,&quot;dienstleistungen&quot;,&quot;produkte&quot;,&quot;schichtplan&quot;,&quot;absenzen&quot;,&quot;statistiken&quot;,&quot;abrechnung&quot;,&quot;locations&quot;,&quot;gutscheine&quot;],&quot;tsType&quot;:&quot;string&quot;}}">
+class Component extends DCLogic {
+  renderVals() {
+    const active = this.props.active || 'kalender';
+    const adminSub = this.props.adminSub || null;
+    const items = ['kalender', 'kasse', 'kunden', 'admin'];
+    const vals = {};
+    items.forEach(k => {
+      const isActive = k === active && !adminSub;
+      vals[k + 'Bg'] = isActive ? '#B08D3D' : 'transparent';
+      vals[k + 'Color'] = isActive ? '#fff' : '#bbb';
+      vals[k + 'Weight'] = isActive ? '600' : '400';
+    });
+    if (active === 'admin') {
+      vals.adminColor = '#fff';
+      vals.adminWeight = '600';
+      vals.adminBg = 'transparent';
+    }
+    const subLabels = [
+      ['artists', 'Artists'], ['dienstleistungen', 'Dienstleistungen'], ['produkte', 'Produkte'],
+      ['schichtplan', 'Schichtplan'], ['absenzen', 'Absenzen'], ['statistiken', 'Statistiken'],
+      ['abrechnung', 'Abrechnung'], ['locations', 'Locations'], ['gutscheine', 'Gutscheine']
+    ];
+    vals.showSub = active === 'admin';
+    vals.subItems = subLabels.map(([key, label]) => ({
+      key, label,
+      bg: key === adminSub ? '#B08D3D' : 'transparent',
+      color: key === adminSub ? '#fff' : '#999'
+    }));
+    return vals;
+  }
+}
+
+</script>
+</body>
+</html>
