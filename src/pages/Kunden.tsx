@@ -1,13 +1,6 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-
-// Mock-Daten (später aus `customers`-Tabelle via Supabase)
-const MOCK_CUSTOMERS = [
-  { id: 'c1', name: 'Keller', vorname: 'Michael', mobile: '079 555 12 34', email: 'm.keller@mail.ch', ort: 'Zürich' },
-  { id: 'c2', name: 'Widmer', vorname: 'Julia', mobile: '078 222 45 11', email: 'j.widmer@mail.ch', ort: 'Winterthur' },
-  { id: 'c3', name: 'Frei', vorname: 'Laura', mobile: '076 333 98 21', email: 'l.frei@mail.ch', ort: 'Zürich' },
-  { id: 'c4', name: 'Baumann', vorname: 'Pascal', mobile: '079 111 22 33', email: 'p.baumann@mail.ch', ort: 'Dietikon' },
-];
+import { fetchCustomers, type Customer } from '../lib/queries';
 
 function EditIcon() {
   return (
@@ -20,11 +13,19 @@ function EditIcon() {
 
 export default function Kunden() {
   const [search, setSearch] = useState('');
+  const [customers, setCustomers] = useState<Customer[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const navigate = useNavigate();
 
-  const filtered = MOCK_CUSTOMERS.filter((c) =>
-    `${c.name} ${c.vorname}`.toLowerCase().includes(search.toLowerCase())
-  );
+  useEffect(() => {
+    fetchCustomers()
+      .then(setCustomers)
+      .catch((e) => setError(e.message))
+      .finally(() => setLoading(false));
+  }, []);
+
+  const filtered = customers.filter((c) => `${c.name} ${c.vorname}`.toLowerCase().includes(search.toLowerCase()));
 
   return (
     <div>
@@ -41,51 +42,64 @@ export default function Kunden() {
         </div>
       </div>
 
-      <div
-        style={{
-          display: 'grid',
-          gridTemplateColumns: '1fr 1fr 1fr 1fr 1fr 50px',
-          padding: '10px 12px',
-          fontSize: 11,
-          textTransform: 'uppercase',
-          letterSpacing: 0.5,
-          color: '#999',
-          borderBottom: '1px solid var(--color-border)',
-          fontWeight: 600,
-        }}
-      >
-        <div>Name</div>
-        <div>Vorname</div>
-        <div>Mobile</div>
-        <div>E-Mail</div>
-        <div>Ort</div>
-        <div />
-      </div>
-
-      {filtered.map((c) => (
-        <div
-          key={c.id}
-          onClick={() => navigate(`/kunden/${c.id}`)}
-          style={{
-            display: 'grid',
-            gridTemplateColumns: '1fr 1fr 1fr 1fr 1fr 50px',
-            padding: '14px 12px',
-            fontSize: 13,
-            borderBottom: '1px solid #eee',
-            alignItems: 'center',
-            cursor: 'pointer',
-          }}
-        >
-          <div>{c.name}</div>
-          <div>{c.vorname}</div>
-          <div>{c.mobile}</div>
-          <div>{c.email}</div>
-          <div>{c.ort}</div>
-          <div style={{ display: 'flex', justifyContent: 'flex-end', color: 'var(--color-accent)' }}>
-            <EditIcon />
-          </div>
+      {loading && <div style={{ fontSize: 13, color: '#999' }}>Lädt…</div>}
+      {error && (
+        <div style={{ fontSize: 13, color: 'var(--color-destructive)', marginBottom: 16 }}>
+          Fehler beim Laden: {error}
         </div>
-      ))}
+      )}
+
+      {!loading && !error && (
+        <>
+          <div
+            style={{
+              display: 'grid',
+              gridTemplateColumns: '1fr 1fr 1fr 1fr 1fr 50px',
+              padding: '10px 12px',
+              fontSize: 11,
+              textTransform: 'uppercase',
+              letterSpacing: 0.5,
+              color: '#999',
+              borderBottom: '1px solid var(--color-border)',
+              fontWeight: 600,
+            }}
+          >
+            <div>Name</div>
+            <div>Vorname</div>
+            <div>Mobile</div>
+            <div>E-Mail</div>
+            <div>Geburtsdatum</div>
+            <div />
+          </div>
+
+          {filtered.map((c) => (
+            <div
+              key={c.id}
+              onClick={() => navigate(`/kunden/${c.id}`)}
+              style={{
+                display: 'grid',
+                gridTemplateColumns: '1fr 1fr 1fr 1fr 1fr 50px',
+                padding: '14px 12px',
+                fontSize: 13,
+                borderBottom: '1px solid #eee',
+                alignItems: 'center',
+                cursor: 'pointer',
+              }}
+            >
+              <div>{c.name}</div>
+              <div>{c.vorname}</div>
+              <div>{c.phone || '—'}</div>
+              <div>{c.email || '—'}</div>
+              <div>{c.birthdate || '—'}</div>
+              <div style={{ display: 'flex', justifyContent: 'flex-end', color: 'var(--color-accent)' }}>
+                <EditIcon />
+              </div>
+            </div>
+          ))}
+
+          {filtered.length === 0 && <div style={{ padding: '20px 12px', fontSize: 13, color: '#999' }}>Keine Kunden gefunden.</div>}
+        </>
+      )}
     </div>
   );
 }

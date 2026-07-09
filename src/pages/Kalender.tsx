@@ -1,46 +1,37 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import TerminModal from '../components/TerminModal';
 import EditTerminModal from '../components/EditTerminModal';
+import { fetchAppointmentsForDay, fetchArtists, type Artist } from '../lib/queries';
 
 type ViewMode = 'tag' | 'woche' | 'liste';
 
-interface Artist {
-  name: string;
-  color: string;
-  shift: string;
-}
-
-interface Appointment {
+interface LoadedAppointment {
+  id: string;
   time: string;
   label: string;
   customer: string;
-  artistIndex: number;
-  status: 'kassiert' | 'offen' | 'storniert';
+  artistId: string;
+  artistName: string;
+  artistColor: string;
+  status: string;
 }
 
-const ARTISTS: Artist[] = [
-  { name: 'Nina', color: 'var(--color-accent)', shift: '09:00–18:00' },
-  { name: 'Tom', color: 'var(--color-slate)', shift: '09:00–16:00' },
-];
+function todayISO() {
+  return new Date().toISOString().slice(0, 10);
+}
 
-const TIMESLOTS = ['09:00', '10:30', '13:00', '15:30', '17:00'];
+function formatTime(iso: string) {
+  return new Date(iso).toLocaleTimeString('de-CH', { hour: '2-digit', minute: '2-digit' });
+}
 
-// Mock-Daten (später aus `appointments`-Tabelle via Supabase)
-const APPOINTMENTS: Appointment[] = [
-  { time: '09:00', label: 'Cover-Up', customer: 'M. Keller', artistIndex: 0, status: 'kassiert' },
-  { time: '10:30', label: 'Beratung', customer: 'J. Widmer', artistIndex: 1, status: 'offen' },
-  { time: '13:00', label: 'Sleeve S.3', customer: 'L. Frei', artistIndex: 0, status: 'kassiert' },
-  { time: '15:30', label: 'Piercing', customer: 'P. Baumann', artistIndex: 1, status: 'kassiert' },
-  { time: '17:00', label: 'Kleinmotiv', customer: 'S. Meier', artistIndex: 0, status: 'storniert' },
-];
-
-const statusPillStyle = (status: Appointment['status']): React.CSSProperties => {
-  const map = {
+const statusPillStyle = (status: string): React.CSSProperties => {
+  const map: Record<string, { border: string; color: string }> = {
     kassiert: { border: 'var(--color-accent)', color: 'var(--color-accent)' },
-    offen: { border: '#ddd', color: '#777' },
+    gebucht: { border: '#ddd', color: '#777' },
     storniert: { border: 'var(--color-destructive)', color: 'var(--color-destructive)' },
-  } as const;
-  const c = map[status];
+    nicht_erschienen: { border: '#ddd', color: '#777' },
+  };
+  const c = map[status] || map.gebucht;
   return {
     border: `1px solid ${c.border}`,
     color: c.color,
@@ -80,88 +71,49 @@ function ViewToggle({ view, onChange }: { view: ViewMode; onChange: (v: ViewMode
   );
 }
 
-function DayView({ onSelectAppointment }: { onSelectAppointment: (a: Appointment) => void }) {
-  const byArtist = ARTISTS.map((_, i) => APPOINTMENTS.filter((a) => a.artistIndex === i));
-
+function DayView({ appointments, artists, onSelectAppointment }: { appointments: LoadedAppointment[]; artists: Artist[]; onSelectAppointment: (a: LoadedAppointment) => void }) {
   return (
     <div>
-      <div
-        style={{
-          display: 'grid',
-          gridTemplateColumns: `60px repeat(${ARTISTS.length}, 1fr)`,
-          gap: 1,
-          background: '#eee',
-          border: '1px solid #eee',
-        }}
-      >
+      <div style={{ display: 'grid', gridTemplateColumns: `60px repeat(${artists.length || 1}, 1fr)`, gap: 1, background: '#eee', border: '1px solid #eee' }}>
         <div style={{ background: '#fff', padding: 10, fontSize: 11, color: '#999' }}>Zeit</div>
-        {ARTISTS.map((artist) => (
-          <div key={artist.name} style={{ background: '#fbfaf8', padding: 10, textAlign: 'center' }}>
-            <div
-              style={{
-                fontFamily: 'var(--font-heading)',
-                fontSize: 13,
-                fontWeight: 700,
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                gap: 6,
-              }}
-            >
-              <span style={{ width: 8, height: 8, borderRadius: '50%', background: artist.color, display: 'inline-block' }} />
+        {artists.map((artist) => (
+          <div key={artist.id} style={{ background: '#fbfaf8', padding: 10, textAlign: 'center' }}>
+            <div style={{ fontFamily: 'var(--font-heading)', fontSize: 13, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
+              <span style={{ width: 8, height: 8, borderRadius: '50%', background: artist.calendar_color, display: 'inline-block' }} />
               {artist.name}
             </div>
-            <div style={{ fontSize: 10, color: '#999' }}>Schicht {artist.shift}</div>
           </div>
         ))}
-
-        {TIMESLOTS.map((slot) => (
-          <>
-            <div key={slot} style={{ background: '#fff', padding: '24px 10px', fontSize: 11, color: '#999' }}>
-              {slot}
-            </div>
-            {ARTISTS.map((_, artistIndex) => {
-              const appt = byArtist[artistIndex].find((a) => a.time === slot);
-              return (
-                <div key={artistIndex + slot} style={{ background: '#fff', padding: 8 }}>
-                  {appt && (
-                    <div
-                      onClick={() => onSelectAppointment(appt)}
-                      style={{
-                        background: 'var(--color-accent-fill)',
-                        borderLeft: `3px solid ${ARTISTS[artistIndex].color}`,
-                        borderRadius: '0 4px 4px 0',
-                        padding: 8,
-                        fontSize: 12,
-                        fontWeight: 500,
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'space-between',
-                        cursor: 'pointer',
-                      }}
-                    >
-                      {appt.label} · {appt.customer}
-                      {appt.status === 'kassiert' && (
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={ARTISTS[artistIndex].color} strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-                          <polyline points="20 6 9 17 4 12" />
-                        </svg>
-                      )}
-                    </div>
-                  )}
-                </div>
-              );
-            })}
-          </>
-        ))}
       </div>
-      <div style={{ fontSize: 11, color: '#999', marginTop: 10 }}>
-        Grau schattierte Zeiten liegen ausserhalb der Arbeitszeit des Artists und können nicht gebucht werden.
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 1, background: '#eee', border: '1px solid #eee', borderTop: 'none' }}>
+        {appointments.length === 0 && <div style={{ background: '#fff', padding: 24, textAlign: 'center', fontSize: 13, color: '#999' }}>Keine Termine für diesen Tag.</div>}
+        {appointments.map((appt) => (
+          <div
+            key={appt.id}
+            onClick={() => onSelectAppointment(appt)}
+            style={{
+              background: 'var(--color-accent-fill)',
+              borderLeft: `3px solid ${appt.artistColor}`,
+              padding: 10,
+              fontSize: 12,
+              fontWeight: 500,
+              display: 'flex',
+              justifyContent: 'space-between',
+              cursor: 'pointer',
+            }}
+          >
+            <div>
+              {appt.time} · {appt.label} · {appt.customer} <span style={{ color: '#999' }}>({appt.artistName})</span>
+            </div>
+            <div style={statusPillStyle(appt.status)}>{appt.status}</div>
+          </div>
+        ))}
       </div>
     </div>
   );
 }
 
-function ListView() {
+function ListView({ appointments }: { appointments: LoadedAppointment[] }) {
   return (
     <div>
       <div
@@ -183,78 +135,16 @@ function ListView() {
         <div>Service</div>
         <div>Status</div>
       </div>
-      {APPOINTMENTS.map((a) => (
-        <div
-          key={a.time}
-          style={{
-            display: 'grid',
-            gridTemplateColumns: '90px 1fr 1fr 1fr 100px',
-            padding: '14px 12px',
-            fontSize: 13,
-            borderBottom: '1px solid #eee',
-            alignItems: 'center',
-          }}
-        >
+      {appointments.map((a) => (
+        <div key={a.id} style={{ display: 'grid', gridTemplateColumns: '90px 1fr 1fr 1fr 100px', padding: '14px 12px', fontSize: 13, borderBottom: '1px solid #eee', alignItems: 'center' }}>
           <div>{a.time}</div>
           <div>{a.customer}</div>
-          <div>{ARTISTS[a.artistIndex].name}</div>
+          <div>{a.artistName}</div>
           <div>{a.label}</div>
           <div style={statusPillStyle(a.status)}>{a.status}</div>
         </div>
       ))}
-    </div>
-  );
-}
-
-function WeekView() {
-  const days = ['Mo 6.', 'Di 7.', 'Mi 8.', 'Do 9.', 'Fr 10.', 'Sa 11.'];
-  return (
-    <div>
-      <div style={{ marginBottom: 16 }}>
-        <div className="label-uppercase" style={{ marginBottom: 4 }}>
-          Artist auswählen
-        </div>
-        <div style={{ border: '1px solid var(--color-border)', borderRadius: 4, padding: '8px 14px', fontSize: 13, width: 200 }}>
-          Nina ▾
-        </div>
-        <div style={{ fontSize: 11, color: '#999', marginTop: 4 }}>
-          Artist muss gewählt werden — Wochenansicht zeigt jeweils einen Artist
-        </div>
-      </div>
-      <div
-        style={{
-          display: 'grid',
-          gridTemplateColumns: `60px repeat(${days.length}, 1fr)`,
-          gap: 1,
-          background: '#eee',
-          border: '1px solid #eee',
-        }}
-      >
-        <div style={{ background: '#fbfaf8', padding: 8, fontSize: 11, color: '#999' }}>Zeit</div>
-        {days.map((d) => (
-          <div
-            key={d}
-            style={{
-              background: d === 'Fr 10.' ? '#F6ECEC' : '#fbfaf8',
-              padding: 8,
-              fontSize: 12,
-              textAlign: 'center',
-              fontFamily: 'var(--font-heading)',
-              fontWeight: 700,
-              color: d === 'Fr 10.' ? 'var(--color-destructive)' : 'var(--color-primary)',
-            }}
-          >
-            {d}
-          </div>
-        ))}
-        <div style={{ background: '#fff', padding: '20px 8px', fontSize: 11, color: '#999' }}>13:00</div>
-        {days.map((d) => (
-          <div key={d} style={{ background: d === 'Fr 10.' ? '#F6ECEC' : '#fff', padding: 6 }} />
-        ))}
-      </div>
-      <div style={{ fontSize: 11, color: '#999', marginTop: 10 }}>
-        Tage ohne Schicht werden nicht angezeigt · rot schattierte Tage sind als Absenz gebucht
-      </div>
+      {appointments.length === 0 && <div style={{ padding: '20px 12px', fontSize: 13, color: '#999' }}>Keine Termine für diesen Tag.</div>}
     </div>
   );
 }
@@ -262,7 +152,39 @@ function WeekView() {
 export default function Kalender() {
   const [view, setView] = useState<ViewMode>('tag');
   const [showNewTermin, setShowNewTermin] = useState(false);
-  const [selectedAppointment, setSelectedAppointment] = useState<Appointment | null>(null);
+  const [selectedAppointment, setSelectedAppointment] = useState<LoadedAppointment | null>(null);
+  const [appointments, setAppointments] = useState<LoadedAppointment[]>([]);
+  const [artists, setArtists] = useState<Artist[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [date] = useState(todayISO());
+
+  async function reload() {
+    try {
+      const [rawAppointments, artistList] = await Promise.all([fetchAppointmentsForDay(date), fetchArtists()]);
+      setArtists(artistList);
+      const mapped: LoadedAppointment[] = (rawAppointments as any[]).map((a) => ({
+        id: a.id,
+        time: formatTime(a.start_time),
+        label: a.type === 'absenz' ? 'Absenz' : 'Termin',
+        customer: a.customers ? `${a.customers.vorname} ${a.customers.name}` : 'Laufkunde',
+        artistId: a.artist_id,
+        artistName: a.artists?.name || '—',
+        artistColor: a.artists?.calendar_color || 'var(--color-accent)',
+        status: a.status,
+      }));
+      setAppointments(mapped);
+    } catch (e: any) {
+      setError(e.message);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    reload();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [date]);
 
   return (
     <div>
@@ -271,26 +193,44 @@ export default function Kalender() {
         <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
           <ViewToggle view={view} onChange={setView} />
           <div style={{ border: '1px solid var(--color-border)', padding: '7px 14px', fontSize: 12, color: '#333', borderRadius: 4 }}>
-            Mi, 8. Juli
+            {new Date(date).toLocaleDateString('de-CH', { weekday: 'short', day: 'numeric', month: 'long' })}
           </div>
-          <div className="btn btn-accent">Heute</div>
           <button className="btn btn-primary" onClick={() => setShowNewTermin(true)}>
             + Neuer Termin
           </button>
         </div>
       </div>
 
-      {view === 'tag' && <DayView onSelectAppointment={setSelectedAppointment} />}
-      {view === 'woche' && <WeekView />}
-      {view === 'liste' && <ListView />}
+      {loading && <div style={{ fontSize: 13, color: '#999' }}>Lädt…</div>}
+      {error && <div style={{ fontSize: 13, color: 'var(--color-destructive)' }}>Fehler beim Laden: {error}</div>}
 
-      {showNewTermin && <TerminModal onClose={() => setShowNewTermin(false)} onSave={() => setShowNewTermin(false)} />}
+      {!loading && !error && (
+        <>
+          {view === 'tag' && <DayView appointments={appointments} artists={artists} onSelectAppointment={setSelectedAppointment} />}
+          {view === 'woche' && <div style={{ fontSize: 13, color: '#999' }}>Wochenansicht folgt (Mehrtages-Query).</div>}
+          {view === 'liste' && <ListView appointments={appointments} />}
+        </>
+      )}
+
+      {showNewTermin && (
+        <TerminModal
+          onClose={() => setShowNewTermin(false)}
+          onSave={() => {
+            setShowNewTermin(false);
+            reload();
+          }}
+        />
+      )}
       {selectedAppointment && (
         <EditTerminModal
-          onClose={() => setSelectedAppointment(null)}
+          appointmentId={selectedAppointment.id}
+          onClose={() => {
+            setSelectedAppointment(null);
+            reload();
+          }}
           customer={selectedAppointment.customer}
-          artist={ARTISTS[selectedAppointment.artistIndex].name}
-          date="Mi, 8. Juli"
+          artist={selectedAppointment.artistName}
+          date={new Date(date).toLocaleDateString('de-CH')}
           time={selectedAppointment.time}
           serviceName={selectedAppointment.label}
           durationMin={90}

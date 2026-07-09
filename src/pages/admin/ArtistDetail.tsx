@@ -1,4 +1,7 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import { useParams } from 'react-router-dom';
+import { supabase } from '../../lib/supabaseClient';
+import type { Artist } from '../../lib/queries';
 
 const MOCK_SERVICES = ['Sleeve', 'Cover-Up', 'Piercing', 'Kleinmotiv'];
 const ARTIST_COLORS = ['#B08D3D', '#7A8A99', '#8B5A5A', '#6B5B45'];
@@ -24,6 +27,10 @@ function Toggle({ value }: { value: boolean }) {
 }
 
 export default function ArtistDetail() {
+  const { id } = useParams();
+  const [artist, setArtist] = useState<Artist | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [selectedServices, setSelectedServices] = useState<Record<string, boolean>>({
     Sleeve: true,
     'Cover-Up': true,
@@ -32,20 +39,38 @@ export default function ArtistDetail() {
   });
   const [selectedColor, setSelectedColor] = useState(ARTIST_COLORS[0]);
 
+  useEffect(() => {
+    if (!id) return;
+    (async () => {
+      const { data, error } = await supabase.from('artists').select('*').eq('id', id).single();
+      if (error) {
+        setError(error.message);
+      } else {
+        setArtist(data as Artist);
+        setSelectedColor((data as Artist).calendar_color);
+      }
+      setLoading(false);
+    })();
+  }, [id]);
+
   function toggleService(name: string) {
     setSelectedServices((prev) => ({ ...prev, [name]: !prev[name] }));
   }
+
+  if (loading) return <div style={{ fontSize: 13, color: '#999' }}>Lädt…</div>;
+  if (error) return <div style={{ fontSize: 13, color: 'var(--color-destructive)' }}>Fehler: {error}</div>;
+  if (!artist) return <div style={{ fontSize: 13, color: '#999' }}>Artist nicht gefunden.</div>;
 
   return (
     <div style={{ display: 'flex', gap: 28 }}>
       <div style={{ width: 360, flexShrink: 0 }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
-          <h2 style={{ fontSize: 19 }}>Nina Berger</h2>
-          <Toggle value />
+          <h2 style={{ fontSize: 19 }}>{artist.name}</h2>
+          <Toggle value={artist.status === 'active'} />
         </div>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
-          <Field label="Name" value="Berger" />
-          <Field label="Vorname" value="Nina" />
+          <Field label="Name" value={artist.name} />
+          <Field label="Vorname" value="" />
         </div>
         <div style={{ margin: '14px 0 6px' }}>
           <Field label="Strasse" value="Langstrasse 4" />
@@ -54,8 +79,8 @@ export default function ArtistDetail() {
           <Field label="PLZ / Ort" value="8004 Zürich" />
         </div>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14, margin: '14px 0 6px' }}>
-          <Field label="Telefon" value="079 888 22 11" />
-          <Field label="E-Mail" value="nina@skinproject.ch" />
+          <Field label="Telefon" value={artist.phone || '—'} />
+          <Field label="E-Mail" value={artist.email || '—'} />
         </div>
         <div style={{ margin: '14px 0 6px' }}>
           <Field label="PWA Passwort" value="••••••••" />
@@ -78,7 +103,7 @@ export default function ArtistDetail() {
           <div className="label-uppercase" style={{ marginBottom: 4 }}>
             Umsatzbeteiligung in %
           </div>
-          <input defaultValue="60" style={{ border: '1px solid #ddd', borderRadius: 4, padding: '9px 10px', fontSize: 13, width: 120 }} />
+          <input defaultValue={artist.revenue_share_pct} style={{ border: '1px solid #ddd', borderRadius: 4, padding: '9px 10px', fontSize: 13, width: 120 }} />
           <div style={{ fontSize: 11, color: '#999', marginTop: 4 }}>z.B. 60% Artist / 40% SkinProject (nur auf Dienstleistungen)</div>
         </div>
 

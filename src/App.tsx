@@ -1,5 +1,6 @@
 import { Routes, Route, Navigate } from 'react-router-dom';
 import AppLayout from './components/AppLayout';
+import RequireAuth from './components/RequireAuth';
 import Login from './pages/Login';
 import Kalender from './pages/Kalender';
 import Kasse from './pages/Kasse';
@@ -22,7 +23,8 @@ export default function App() {
     <Routes>
       <Route path="/login" element={<Login />} />
 
-      <Route element={<AppLayout />}>
+      <Route element={<RequireAuth />}>
+        <Route element={<AppLayout />}>
         <Route path="/" element={<Navigate to="/kalender" replace />} />
         <Route path="/kalender" element={<Kalender />} />
         <Route path="/kasse" element={<Kasse />} />
@@ -40,6 +42,7 @@ export default function App() {
         <Route path="/admin/abrechnung" element={<Abrechnung />} />
         <Route path="/admin/locations" element={<Locations />} />
         <Route path="/admin/gutscheine" element={<Gutscheine />} />
+        </Route>
       </Route>
     </Routes>
   );
