@@ -61,10 +61,14 @@ function ServiceModal({
   const priceValid = price !== '' && !isNaN(parseFloat(price));
   const durationValid = duration !== '' && !isNaN(parseInt(duration)) && parseInt(duration) > 0;
   const canSave = nameValid && priceValid && durationValid;
+  const [attempted, setAttempted] = useState(false);
+
+  const errorInputStyle: React.CSSProperties = { ...inputStyle, border: '1px solid var(--color-destructive)' };
 
   async function handleSave() {
+    setAttempted(true);
     if (!canSave) {
-      setError('Bitte Name, Preis und Dauer korrekt ausfüllen.');
+      setError(null);
       return;
     }
     setSaving(true);
@@ -113,20 +117,23 @@ function ServiceModal({
         <div className="label-uppercase" style={{ marginBottom: 4 }}>
           Name
         </div>
-        <input value={name} onChange={(e) => setName(e.target.value)} style={inputStyle} placeholder="z.B. Cover-Up klein" autoFocus />
+        <input value={name} onChange={(e) => setName(e.target.value)} style={attempted && !nameValid ? errorInputStyle : inputStyle} placeholder="z.B. Cover-Up klein" autoFocus />
+        {attempted && !nameValid && <div style={{ fontSize: 11, color: 'var(--color-destructive)', marginTop: 4 }}>Bitte einen Namen eingeben.</div>}
       </div>
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 14 }}>
         <div>
           <div className="label-uppercase" style={{ marginBottom: 4 }}>
             Preis CHF
           </div>
-          <input value={price} onChange={(e) => setPrice(e.target.value)} style={inputStyle} placeholder="0.00" inputMode="decimal" />
+          <input value={price} onChange={(e) => setPrice(e.target.value)} style={attempted && !priceValid ? errorInputStyle : inputStyle} placeholder="0.00" inputMode="decimal" />
+          {attempted && !priceValid && <div style={{ fontSize: 11, color: 'var(--color-destructive)', marginTop: 4 }}>Preis fehlt oder ungültig.</div>}
         </div>
         <div>
           <div className="label-uppercase" style={{ marginBottom: 4 }}>
             Dauer (min)
           </div>
-          <input value={duration} onChange={(e) => setDuration(e.target.value)} style={inputStyle} placeholder="60" inputMode="numeric" />
+          <input value={duration} onChange={(e) => setDuration(e.target.value)} style={attempted && !durationValid ? errorInputStyle : inputStyle} placeholder="60" inputMode="numeric" />
+          {attempted && !durationValid && <div style={{ fontSize: 11, color: 'var(--color-destructive)', marginTop: 4 }}>Dauer fehlt oder ungültig.</div>}
         </div>
       </div>
       <div style={{ marginBottom: 14 }}>
@@ -166,7 +173,7 @@ function ServiceModal({
         <button className="btn btn-secondary" style={{ flex: 1, justifyContent: 'center' }} onClick={onClose}>
           Abbrechen
         </button>
-        <button className="btn btn-primary" style={{ flex: 1, justifyContent: 'center', opacity: saving || !canSave ? 0.5 : 1 }} disabled={saving || !canSave} onClick={handleSave}>
+        <button className="btn btn-primary" style={{ flex: 1, justifyContent: 'center', opacity: saving ? 0.6 : 1 }} disabled={saving} onClick={handleSave}>
           {saving ? 'Speichert…' : isNew ? 'Erstellen' : 'Speichern'}
         </button>
       </div>
