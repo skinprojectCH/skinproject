@@ -351,7 +351,7 @@ export default function Locations() {
             </div>
           </div>
 
-          <div style={{ border: '1px solid #eee', borderRadius: 6, padding: 14, marginBottom: 24 }}>
+          <div style={{ borderTop: '1px solid #eee', paddingTop: 16, marginBottom: 24 }}>
             <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 12 }}>MWST</div>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 140px', gap: 14 }}>
               <div>
@@ -379,11 +379,11 @@ export default function Locations() {
           {managers
             .filter((m) => !m.deleted)
             .map((m) => (
-              <div key={m.key} style={{ border: '1px solid #eee', borderRadius: 6, padding: 14, marginBottom: 10, position: 'relative' }}>
+              <div key={m.key} style={{ borderTop: '1px solid #eee', paddingTop: 16, marginBottom: 16, position: 'relative' }}>
                 <button
                   onClick={() => removeManager(m.key)}
                   title="Manager entfernen"
-                  style={{ position: 'absolute', top: 12, right: 12, color: '#999', cursor: 'pointer', background: 'none', border: 'none', padding: 0 }}
+                  style={{ position: 'absolute', top: 16, right: 0, color: '#999', cursor: 'pointer', background: 'none', border: 'none', padding: 0 }}
                 >
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                     <polyline points="3 6 5 6 21 6" />
@@ -425,27 +425,24 @@ export default function Locations() {
                   <div className="label-uppercase" style={{ marginBottom: 6 }}>
                     Login-Zugang (lädt automatisch den Kalender dieser Location)
                   </div>
-                  {loginStates[m.key]?.success ? (
-                    <div style={{ fontSize: 12, color: '#1a7a3f' }}>✓ Login-Account erstellt — {m.email} kann sich jetzt einloggen.</div>
-                  ) : (
-                    <div style={{ display: 'flex', gap: 8, alignItems: 'flex-start' }}>
-                      <input
-                        type="password"
-                        value={loginStates[m.key]?.password || ''}
-                        onChange={(e) => setLoginState(m.key, { password: e.target.value })}
-                        style={{ ...inputStyle, flex: 1 }}
-                        placeholder="Passwort vergeben (min. 8 Zeichen)"
-                      />
-                      <button
-                        className="btn btn-secondary"
-                        style={{ whiteSpace: 'nowrap', opacity: loginStates[m.key]?.creating ? 0.6 : 1 }}
-                        disabled={loginStates[m.key]?.creating}
-                        onClick={() => handleCreateLogin(m)}
-                      >
-                        {loginStates[m.key]?.creating ? 'Erstellt…' : 'Login erstellen'}
-                      </button>
-                    </div>
-                  )}
+                  <div style={{ display: 'flex', gap: 8, alignItems: 'flex-start' }}>
+                    <input
+                      type="password"
+                      value={loginStates[m.key]?.password || ''}
+                      onChange={(e) => setLoginState(m.key, { password: e.target.value, success: false })}
+                      style={{ ...inputStyle, flex: 1 }}
+                      placeholder="Neues Passwort vergeben (min. 8 Zeichen)"
+                    />
+                    <button
+                      className="btn btn-secondary"
+                      style={{ whiteSpace: 'nowrap', opacity: loginStates[m.key]?.creating ? 0.6 : 1 }}
+                      disabled={loginStates[m.key]?.creating}
+                      onClick={() => handleCreateLogin(m)}
+                    >
+                      {loginStates[m.key]?.creating ? 'Speichert…' : 'Login erstellen / Passwort setzen'}
+                    </button>
+                  </div>
+                  {loginStates[m.key]?.success && <div style={{ fontSize: 11, color: '#1a7a3f', marginTop: 6 }}>✓ Login-Zugang für {m.email} ist eingerichtet.</div>}
                   {loginStates[m.key]?.error && <div style={{ fontSize: 11, color: 'var(--color-destructive)', marginTop: 6 }}>{loginStates[m.key]?.error}</div>}
                 </div>
               </div>

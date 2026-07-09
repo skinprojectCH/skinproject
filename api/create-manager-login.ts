@@ -36,21 +36,52 @@ export default async function handler(req: any, res: any) {
       email_confirm: true,
     });
 
-    if (createError || !userData.user) {
-      res.status(400).json({ error: createError?.message || 'Account konnte nicht erstellt werden.' });
-      return;
+    let userId: string;
+
+    if (createError) {
+      // Existiert die E-Mail schon? Dann Passwort dieses Accounts aktualisieren,
+      // statt einen Fehler zu werfen — deckt "Passwort vergessen/neu setzen" mit ab.
+      const alreadyExists = createError.message?.toLowerCase().includes('already') || (createError as any).status === 422;
+      if (!alreadyExists) {
+        res.status(400).json({ error: createError.message });
+        return;
+      }
+
+      const { data: listData, error: listError } = await admin.auth.admin.listUsers();
+      if (listError) {
+        res.status(400).json({ error: listError.message });
+        return;
+      }
+      const existing = listData.users.find((u) => u.email?.toLowerCase() === email.toLowerCase());
+      if (!existing) {
+        res.status(400).json({ error: 'E-Mail ist laut Supabase bereits vergeben, aber der Account wurde nicht gefunden.' });
+        return;
+      }
+
+      const { error: updateError } = await admin.auth.admin.updateUserById(existing.id, { password });
+      if (updateError) {
+        res.status(400).json({ error: updateError.message });
+        return;
+      }
+      userId = existing.id;
+    } else {
+      if (!userData.user) {
+        res.status(400).json({ error: 'Account konnte nicht erstellt werden.' });
+        return;
+      }
+      userId = userData.user.id;
     }
 
     const { error: linkError } = await admin
       .from('app_users')
-      .upsert({ id: userData.user.id, role: 'admin', location_id }, { onConflict: 'id' });
+      .upsert({ id: userId, role: 'admin', location_id }, { onConflict: 'id' });
 
     if (linkError) {
-      res.status(400).json({ error: `Account erstellt, aber Standort-Zuordnung fehlgeschlagen: ${linkError.message}` });
+      res.status(400).json({ error: `Login gespeichert, aber Standort-Zuordnung fehlgeschlagen: ${linkError.message}` });
       return;
     }
 
-    res.status(200).json({ ok: true, userId: userData.user.id });
+    res.status(200).json({ ok: true, userId });
   } catch (e: any) {
     res.status(500).json({ error: e.message || 'Unbekannter Fehler.' });
   }
