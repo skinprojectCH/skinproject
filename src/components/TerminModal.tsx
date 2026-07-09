@@ -30,7 +30,7 @@ export default function TerminModal({ onClose, onSave, locationId, initialDate }
   useEffect(() => {
     Promise.all([fetchArtists(), fetchCustomers(), fetchServices()])
       .then(([a, c, s]) => {
-        const scopedArtists = locationId ? a.filter((art) => art.location_id === locationId) : a;
+        const scopedArtists = a.filter((art) => art.status === 'active' && (!locationId || art.location_id === locationId));
         setArtists(scopedArtists);
         setCustomers(c);
         setServices(s.filter((sv) => sv.active));

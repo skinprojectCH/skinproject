@@ -311,7 +311,7 @@ export default function Kalender() {
     if (!selectedLocationId) return;
     try {
       const [rawAppointments, artistList] = await Promise.all([fetchAppointmentsForDay(date, selectedLocationId), fetchArtists()]);
-      const scopedArtists = artistList.filter((a) => a.location_id === selectedLocationId);
+      const scopedArtists = artistList.filter((a) => a.location_id === selectedLocationId && a.status === 'active');
       setArtists(scopedArtists);
       const dayShifts = await fetchShiftsForDate(scopedArtists.map((a) => a.id), date);
       setShifts(dayShifts);
