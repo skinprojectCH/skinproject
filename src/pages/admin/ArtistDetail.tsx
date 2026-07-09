@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
-import { useParams } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 import {
   fetchArtists,
+  createArtist,
   updateArtist,
   fetchServices,
   fetchArtistServiceIds,
@@ -36,6 +37,8 @@ function StatusToggle({ value, onChange }: { value: boolean; onChange: (v: boole
 
 export default function ArtistDetail() {
   const { id } = useParams();
+  const navigate = useNavigate();
+  const isNew = id === 'new';
   const [artist, setArtist] = useState<Artist | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -65,6 +68,19 @@ export default function ArtistDetail() {
 
   useEffect(() => {
     if (!id) return;
+
+    if (isNew) {
+      Promise.all([fetchServices(), fetchLocations()])
+        .then(([allServices, allLocations]) => {
+          setLocations(allLocations);
+          setServices(allServices);
+          setRevenueShare('50');
+        })
+        .catch((e) => setError(e.message))
+        .finally(() => setLoading(false));
+      return;
+    }
+
     Promise.all([fetchArtists(), fetchServices(), fetchArtistServiceIds(id), fetchLocations()])
       .then(([artists, allServices, assignedIds, allLocations]) => {
         const found = artists.find((a) => a.id === id) || null;
@@ -92,7 +108,7 @@ export default function ArtistDetail() {
       })
       .catch((e) => setError(e.message))
       .finally(() => setLoading(false));
-  }, [id]);
+  }, [id, isNew]);
 
   const nameValid = name.trim().length > 0;
   const allSelected = services.length > 0 && selectedServiceIds.length === services.length;
@@ -107,16 +123,17 @@ export default function ArtistDetail() {
 
   async function handleSave() {
     setAttempted(true);
-    if (!nameValid || !artist) return;
+    if (!nameValid) return;
+    if (!isNew && !artist) return;
     setSaving(true);
     setSaveError(null);
     setSaved(false);
     try {
-      await updateArtist(artist.id, {
+      const payload = {
         name: name.trim(),
         email: email.trim() || null,
         phone: phone.trim() || null,
-        status: active ? 'active' : 'inactive',
+        status: (active ? 'active' : 'inactive') as 'active' | 'inactive',
         location_id: locationId || null,
         strasse: strasse.trim() || null,
         plz_ort: plzOrt.trim() || null,
@@ -126,8 +143,17 @@ export default function ArtistDetail() {
         mwst_prozent: mwstProzent ? parseFloat(mwstProzent) : null,
         revenue_share_pct: parseFloat(revenueShare) || 0,
         calendar_color: color,
-      });
-      await setArtistServiceIds(artist.id, selectedServiceIds);
+      };
+      if (isNew) {
+        const created = await createArtist(payload);
+        if (selectedServiceIds.length > 0) {
+          await setArtistServiceIds(created.id, selectedServiceIds);
+        }
+        navigate(`/admin/artists/${created.id}`, { replace: true });
+        return;
+      }
+      await updateArtist(artist!.id, payload);
+      await setArtistServiceIds(artist!.id, selectedServiceIds);
       setSaved(true);
       setTimeout(() => setSaved(false), 2500);
     } catch (e: any) {
@@ -139,14 +165,14 @@ export default function ArtistDetail() {
 
   if (loading) return <div style={{ fontSize: 13, color: '#999' }}>Lädt…</div>;
   if (error) return <div style={{ fontSize: 13, color: 'var(--color-destructive)' }}>Fehler: {error}</div>;
-  if (!artist) return <div style={{ fontSize: 13, color: '#999' }}>Artist nicht gefunden.</div>;
+  if (!isNew && !artist) return <div style={{ fontSize: 13, color: '#999' }}>Artist nicht gefunden.</div>;
 
   return (
     <div>
       <div style={{ display: 'flex', gap: 28 }}>
         <div style={{ width: 360, flexShrink: 0 }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
-            <h2 style={{ fontSize: 19 }}>{artist.name}</h2>
+            <h2 style={{ fontSize: 19 }}>{isNew ? 'Neuer Artist' : artist!.name}</h2>
             <StatusToggle value={active} onChange={setActive} />
           </div>
 
@@ -301,18 +327,20 @@ export default function ArtistDetail() {
             )}
           </div>
 
-          <div style={{ marginBottom: 20 }}>
-            <div className="label-uppercase" style={{ marginBottom: 4 }}>
-              Artist-PWA Link
-            </div>
-            <div style={{ display: 'flex', gap: 12, alignItems: 'flex-start' }}>
-              <div style={{ flex: 1, border: '1px solid #ddd', borderRadius: 4, padding: '9px 10px', fontSize: 12, color: '#555', display: 'flex', justifyContent: 'space-between' }}>
-                <div>app.skinproject.ch/artist/{artist.id.slice(0, 8)}</div>
+          {!isNew && (
+            <div style={{ marginBottom: 20 }}>
+              <div className="label-uppercase" style={{ marginBottom: 4 }}>
+                Artist-PWA Link
               </div>
-              <div style={{ width: 64, height: 64, flexShrink: 0, border: '1px solid #ddd', borderRadius: 4, background: 'repeating-conic-gradient(#111 0% 25%, #fff 0% 50%) 0 0/8px 8px' }} />
+              <div style={{ display: 'flex', gap: 12, alignItems: 'flex-start' }}>
+                <div style={{ flex: 1, border: '1px solid #ddd', borderRadius: 4, padding: '9px 10px', fontSize: 12, color: '#555', display: 'flex', justifyContent: 'space-between' }}>
+                  <div>app.skinproject.ch/artist/{artist!.id.slice(0, 8)}</div>
+                </div>
+                <div style={{ width: 64, height: 64, flexShrink: 0, border: '1px solid #ddd', borderRadius: 4, background: 'repeating-conic-gradient(#111 0% 25%, #fff 0% 50%) 0 0/8px 8px' }} />
+              </div>
+              <div style={{ fontSize: 11, color: '#999', marginTop: 4 }}>Artist-PWA ist noch nicht gebaut — Link ist ein Platzhalter.</div>
             </div>
-            <div style={{ fontSize: 11, color: '#999', marginTop: 4 }}>Artist-PWA ist noch nicht gebaut — Link ist ein Platzhalter.</div>
-          </div>
+          )}
 
           <div style={{ marginBottom: 24 }}>
             <div className="label-uppercase" style={{ marginBottom: 4 }}>
@@ -334,7 +362,7 @@ export default function ArtistDetail() {
           {saved && <div style={{ fontSize: 12, color: '#1a7a3f', marginBottom: 12 }}>✓ Gespeichert.</div>}
 
           <button className="btn btn-primary" style={{ opacity: saving ? 0.6 : 1 }} disabled={saving} onClick={handleSave}>
-            {saving ? 'Speichert…' : 'Speichern'}
+            {saving ? (isNew ? 'Erstellt…' : 'Speichert…') : isNew ? 'Erstellen' : 'Speichern'}
           </button>
         </div>
       </div>

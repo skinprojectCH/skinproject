@@ -158,14 +158,7 @@ export async function fetchArtists() {
   return data as Artist[];
 }
 
-export async function createArtist(input: {
-  name: string;
-  email: string | null;
-  phone: string | null;
-  revenue_share_pct: number;
-  calendar_color: string;
-  status: 'active' | 'inactive';
-}) {
+export async function createArtist(input: Partial<Omit<Artist, 'id'>> & { name: string }) {
   const { data, error } = await supabase.from('artists').insert(input).select().single();
   if (error) throw error;
   return data as Artist;

@@ -1,15 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { fetchArtists, createArtist, type Artist } from '../../lib/queries';
-import Modal from '../../components/Modal';
-
-const ARTIST_COLORS = [
-  '#B08D3D', '#7A8A99', '#8B5A5A', '#6B5B45', '#5B7A6B', '#7A5B77',
-  '#4A6B7A', '#7A6B4A', '#6B4A5B', '#4A7A5E', '#7A4A4A', '#5B6B7A',
-  '#8A7A5B', '#5B4A6B', '#7A5B4A', '#4A5B6B', '#6B7A4A', '#7A4A6B',
-  '#4A6B6B', '#8A5B6B',
-];
-const inputStyle: React.CSSProperties = { border: '1px solid #ddd', borderRadius: 4, padding: '9px 10px', fontSize: 13, width: '100%', fontFamily: 'var(--font-body)' };
+import { fetchArtists, type Artist } from '../../lib/queries';
 
 function EditIcon() {
   return (
@@ -29,121 +20,21 @@ function SearchIcon() {
   );
 }
 
-function NewArtistModal({ existingColors, onClose, onCreated }: { existingColors: string[]; onClose: () => void; onCreated: () => void }) {
-  const [name, setName] = useState('');
-  const [email, setEmail] = useState('');
-  const [phone, setPhone] = useState('');
-  const [revenueShare, setRevenueShare] = useState('50');
-  const availableColor = ARTIST_COLORS.find((c) => !existingColors.includes(c)) || ARTIST_COLORS[0];
-  const [color, setColor] = useState(availableColor);
-  const [saving, setSaving] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [attempted, setAttempted] = useState(false);
-
-  const nameValid = name.trim().length > 0;
-
-  async function handleCreate() {
-    setAttempted(true);
-    if (!nameValid) return;
-    setSaving(true);
-    setError(null);
-    try {
-      await createArtist({
-        name: name.trim(),
-        email: email.trim() || null,
-        phone: phone.trim() || null,
-        revenue_share_pct: parseFloat(revenueShare) || 0,
-        calendar_color: color,
-        status: 'active',
-      });
-      onCreated();
-    } catch (e: any) {
-      setError(e.message);
-      setSaving(false);
-    }
-  }
-
-  return (
-    <Modal title="Neuer Artist" onClose={onClose}>
-      <div style={{ marginBottom: 14 }}>
-        <div className="label-uppercase" style={{ marginBottom: 4 }}>
-          Name
-        </div>
-        <input
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-          style={attempted && !nameValid ? { ...inputStyle, border: '1px solid var(--color-destructive)' } : inputStyle}
-          placeholder="Vor- und Nachname"
-          autoFocus
-        />
-        {attempted && !nameValid && <div style={{ fontSize: 11, color: 'var(--color-destructive)', marginTop: 4 }}>Bitte einen Namen eingeben.</div>}
-      </div>
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 14 }}>
-        <div>
-          <div className="label-uppercase" style={{ marginBottom: 4 }}>
-            E-Mail
-          </div>
-          <input value={email} onChange={(e) => setEmail(e.target.value)} style={inputStyle} placeholder="optional" />
-        </div>
-        <div>
-          <div className="label-uppercase" style={{ marginBottom: 4 }}>
-            Telefon
-          </div>
-          <input value={phone} onChange={(e) => setPhone(e.target.value)} style={inputStyle} placeholder="optional" />
-        </div>
-      </div>
-      <div style={{ marginBottom: 14 }}>
-        <div className="label-uppercase" style={{ marginBottom: 4 }}>
-          Umsatzbeteiligung in %
-        </div>
-        <input value={revenueShare} onChange={(e) => setRevenueShare(e.target.value)} style={inputStyle} inputMode="decimal" />
-      </div>
-      <div style={{ marginBottom: 22 }}>
-        <div className="label-uppercase" style={{ marginBottom: 4 }}>
-          Kalenderfarbe
-        </div>
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-          {ARTIST_COLORS.map((c) => (
-            <div
-              key={c}
-              onClick={() => setColor(c)}
-              style={{ width: 24, height: 24, borderRadius: '50%', background: c, border: color === c ? '2px solid #111' : '2px solid transparent', cursor: 'pointer' }}
-            />
-          ))}
-        </div>
-      </div>
-      {error && <div style={{ fontSize: 12, color: 'var(--color-destructive)', marginBottom: 12 }}>{error}</div>}
-      <div style={{ display: 'flex', gap: 10 }}>
-        <button className="btn btn-secondary" style={{ flex: 1, justifyContent: 'center' }} onClick={onClose}>
-          Abbrechen
-        </button>
-        <button className="btn btn-primary" style={{ flex: 1, justifyContent: 'center', opacity: saving ? 0.6 : 1 }} disabled={saving} onClick={handleCreate}>
-          {saving ? 'Speichert…' : 'Erstellen'}
-        </button>
-      </div>
-    </Modal>
-  );
-}
-
 export default function Artists() {
   const [filter, setFilter] = useState<'alle' | 'active' | 'inactive'>('alle');
   const [search, setSearch] = useState('');
   const [artists, setArtists] = useState<Artist[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [showNew, setShowNew] = useState(false);
   const [hoveredRow, setHoveredRow] = useState<string | null>(null);
   const navigate = useNavigate();
 
-  function reload() {
-    setLoading(true);
+  useEffect(() => {
     fetchArtists()
       .then(setArtists)
       .catch((e) => setError(e.message))
       .finally(() => setLoading(false));
-  }
-
-  useEffect(reload, []);
+  }, []);
 
   const filtered = useMemo(() => {
     return artists.filter((a) => {
@@ -157,7 +48,7 @@ export default function Artists() {
     <div>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 22 }}>
         <h1 style={{ fontSize: 24 }}>Admin · Artists</h1>
-        <button className="btn btn-primary" onClick={() => setShowNew(true)}>
+        <button className="btn btn-primary" onClick={() => navigate('/admin/artists/new')}>
           + Neu
         </button>
       </div>
@@ -245,21 +136,10 @@ export default function Artists() {
           {filtered.length === 0 && artists.length > 0 && <div style={{ padding: '24px 12px', fontSize: 13, color: '#999' }}>Keine Artists entsprechen der Suche/dem Filter.</div>}
           {artists.length === 0 && (
             <div style={{ padding: '24px 12px', fontSize: 13, color: '#999' }}>
-              Noch keine Artists erfasst. <span onClick={() => setShowNew(true)} style={{ color: 'var(--color-accent)', fontWeight: 600, cursor: 'pointer' }}>Jetzt anlegen</span>.
+              Noch keine Artists erfasst. <span onClick={() => navigate('/admin/artists/new')} style={{ color: 'var(--color-accent)', fontWeight: 600, cursor: 'pointer' }}>Jetzt anlegen</span>.
             </div>
           )}
         </>
-      )}
-
-      {showNew && (
-        <NewArtistModal
-          existingColors={artists.map((a) => a.calendar_color)}
-          onClose={() => setShowNew(false)}
-          onCreated={() => {
-            setShowNew(false);
-            reload();
-          }}
-        />
       )}
     </div>
   );
