@@ -73,8 +73,13 @@ export default function TerminModal({ onClose, onSave, locationId, initialDate, 
     setSaving(true);
     setError(null);
     try {
-      const startISO = `${date}T${time}:00`;
-      const endDate = new Date(startISO);
+      // Wichtig: `${date}T${time}:00` ohne Zeitzonen-Suffix würde von Postgres als UTC
+      // interpretiert werden, obwohl es als lokale Zeit gemeint ist. Über `new Date(...)`
+      // laufen lassen (interpretiert es korrekt lokal) und danach mit .toISOString()
+      // explizit in UTC umrechnen, bevor es an die DB geht.
+      const startDate = new Date(`${date}T${time}:00`);
+      const startISO = startDate.toISOString();
+      const endDate = new Date(startDate);
       endDate.setMinutes(endDate.getMinutes() + (totalDuration || 30));
       await createAppointment({
         customer_id: selectedCustomer || null,
