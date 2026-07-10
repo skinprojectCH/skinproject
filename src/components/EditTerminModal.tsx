@@ -220,7 +220,7 @@ export default function EditTerminModal({ appointmentId, onClose }: Props) {
             </div>
           );
         })}
-        <div onClick={() => setSelectedServices((prev) => [...prev, ''])} style={{ fontSize: 12, color: 'var(--color-accent)', fontWeight: 600, cursor: 'pointer' }}>
+        <div onClick={() => setSelectedServices((prev) => ['', ...prev])} style={{ fontSize: 12, color: 'var(--color-accent)', fontWeight: 600, cursor: 'pointer' }}>
           + Weiteren Service hinzufügen
         </div>
       </div>
