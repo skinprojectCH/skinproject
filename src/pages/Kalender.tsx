@@ -132,9 +132,9 @@ function DayView({ appointments, artists, shifts, onSelectAppointment }: { appoi
   for (let m = DISPLAY_START_MIN; m <= DISPLAY_END_MIN; m += 60) hourMarks.push(m);
 
   return (
-    <div style={{ border: '1px solid #eee', borderRadius: 6, overflow: 'hidden' }}>
-      {/* Kopfzeile: Artist-Namen + Schichtzeiten */}
-      <div style={{ display: 'flex', borderBottom: '1px solid #eee' }}>
+    <div style={{ border: '1px solid #eee', borderRadius: 6, overflow: 'hidden', display: 'flex', flexDirection: 'column', height: '100%' }}>
+      {/* Kopfzeile: Artist-Namen + Schichtzeiten — bleibt fix, scrollt nicht mit */}
+      <div style={{ display: 'flex', borderBottom: '1px solid #eee', flexShrink: 0 }}>
         <div style={{ width: 56, flexShrink: 0, background: '#fff' }} />
         {artists.map((artist) => {
           const windows = shiftWindowsForArtist(shifts, artist.id);
@@ -152,85 +152,87 @@ function DayView({ appointments, artists, shifts, onSelectAppointment }: { appoi
         {artists.length === 0 && <div style={{ flex: 1, padding: '10px 8px', fontSize: 12, color: '#999' }}>Keine Artists an dieser Location.</div>}
       </div>
 
-      {/* Zeitraster */}
-      <div style={{ display: 'flex', position: 'relative' }}>
-        {/* Zeitachse */}
-        <div style={{ width: 56, flexShrink: 0, position: 'relative', height: GRID_HEIGHT, background: '#fff' }}>
-          {hourMarks.map((m) => (
-            <div key={m} style={{ position: 'absolute', top: (m - DISPLAY_START_MIN) * PX_PER_MIN - 6, right: 8, fontSize: 10, color: '#999' }}>
-              {minutesLabel(m)}
-            </div>
-          ))}
-        </div>
+      {/* Zeitraster — einziger scrollbarer Bereich */}
+      <div style={{ flex: 1, minHeight: 0, overflowY: 'auto' }}>
+        <div style={{ display: 'flex', position: 'relative' }}>
+          {/* Zeitachse */}
+          <div style={{ width: 56, flexShrink: 0, position: 'relative', height: GRID_HEIGHT, background: '#fff' }}>
+            {hourMarks.map((m) => (
+              <div key={m} style={{ position: 'absolute', top: (m - DISPLAY_START_MIN) * PX_PER_MIN - 6, right: 8, fontSize: 10, color: '#999' }}>
+                {minutesLabel(m)}
+              </div>
+            ))}
+          </div>
 
-        {/* Spalten */}
-        {artists.map((artist) => {
-          const offWindows = offWindowsForArtist(shifts, artist.id);
-          const artistAppointments = appointments.filter((a) => a.artistId === artist.id);
-          return (
-            <div
-              key={artist.id}
-              style={{
-                flex: 1,
-                minWidth: 0,
-                position: 'relative',
-                height: GRID_HEIGHT,
-                borderLeft: '1px solid #eee',
-                backgroundImage: `repeating-linear-gradient(180deg, transparent, transparent ${60 * PX_PER_MIN - 1}px, #f2f2f2 ${60 * PX_PER_MIN - 1}px, #f2f2f2 ${60 * PX_PER_MIN}px)`,
-              }}
-            >
-              {offWindows.map((w, i) => (
-                <div
-                  key={i}
-                  style={{
-                    position: 'absolute',
-                    top: (w.start - DISPLAY_START_MIN) * PX_PER_MIN,
-                    height: Math.max(0, (w.end - w.start) * PX_PER_MIN),
-                    left: 0,
-                    right: 0,
-                    background: HATCH_BG,
-                    pointerEvents: 'none',
-                  }}
-                />
-              ))}
-
-              {artistAppointments.map((appt) => {
-                const top = Math.max(0, (appt.startMinutes - DISPLAY_START_MIN) * PX_PER_MIN);
-                const height = Math.max(18, (appt.endMinutes - appt.startMinutes) * PX_PER_MIN);
-                return (
+          {/* Spalten */}
+          {artists.map((artist) => {
+            const offWindows = offWindowsForArtist(shifts, artist.id);
+            const artistAppointments = appointments.filter((a) => a.artistId === artist.id);
+            return (
+              <div
+                key={artist.id}
+                style={{
+                  flex: 1,
+                  minWidth: 0,
+                  position: 'relative',
+                  height: GRID_HEIGHT,
+                  borderLeft: '1px solid #eee',
+                  backgroundImage: `repeating-linear-gradient(180deg, transparent, transparent ${60 * PX_PER_MIN - 1}px, #f2f2f2 ${60 * PX_PER_MIN - 1}px, #f2f2f2 ${60 * PX_PER_MIN}px)`,
+                }}
+              >
+                {offWindows.map((w, i) => (
                   <div
-                    key={appt.id}
-                    onClick={() => onSelectAppointment(appt)}
+                    key={i}
                     style={{
                       position: 'absolute',
-                      top,
-                      height,
-                      left: 4,
-                      right: 4,
-                      background: 'var(--color-accent-fill)',
-                      borderLeft: `3px solid ${appt.artistColor}`,
-                      borderRadius: '0 4px 4px 0',
-                      padding: '4px 6px',
-                      fontSize: 11,
-                      fontWeight: 500,
-                      cursor: 'pointer',
-                      overflow: 'hidden',
-                      boxShadow: '0 1px 2px rgba(0,0,0,0.06)',
+                      top: (w.start - DISPLAY_START_MIN) * PX_PER_MIN,
+                      height: Math.max(0, (w.end - w.start) * PX_PER_MIN),
+                      left: 0,
+                      right: 0,
+                      background: HATCH_BG,
+                      pointerEvents: 'none',
                     }}
-                    title={`${appt.time} · ${appt.label} · ${appt.customer}`}
-                  >
-                    <div style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{appt.time} · {appt.label}</div>
-                    <div style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', color: '#555' }}>{appt.customer}</div>
-                  </div>
-                );
-              })}
-            </div>
-          );
-        })}
-        {artists.length === 0 && <div style={{ flex: 1, height: GRID_HEIGHT }} />}
+                  />
+                ))}
+
+                {artistAppointments.map((appt) => {
+                  const top = Math.max(0, (appt.startMinutes - DISPLAY_START_MIN) * PX_PER_MIN);
+                  const height = Math.max(18, (appt.endMinutes - appt.startMinutes) * PX_PER_MIN);
+                  return (
+                    <div
+                      key={appt.id}
+                      onClick={() => onSelectAppointment(appt)}
+                      style={{
+                        position: 'absolute',
+                        top,
+                        height,
+                        left: 4,
+                        right: 4,
+                        background: 'var(--color-accent-fill)',
+                        borderLeft: `3px solid ${appt.artistColor}`,
+                        borderRadius: '0 4px 4px 0',
+                        padding: '4px 6px',
+                        fontSize: 11,
+                        fontWeight: 500,
+                        cursor: 'pointer',
+                        overflow: 'hidden',
+                        boxShadow: '0 1px 2px rgba(0,0,0,0.06)',
+                      }}
+                      title={`${appt.time} · ${appt.label} · ${appt.customer}`}
+                    >
+                      <div style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{appt.time} · {appt.label}</div>
+                      <div style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', color: '#555' }}>{appt.customer}</div>
+                    </div>
+                  );
+                })}
+              </div>
+            );
+          })}
+          {artists.length === 0 && <div style={{ flex: 1, height: GRID_HEIGHT }} />}
+        </div>
       </div>
 
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 12px', fontSize: 11, color: '#999', borderTop: '1px solid #eee' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 12px', fontSize: 11, color: '#999', borderTop: '1px solid #eee', flexShrink: 0 }}>
         <span style={{ width: 12, height: 12, background: HATCH_BG, display: 'inline-block', borderRadius: 2 }} />
         Ausserhalb der Arbeitszeit — kann nicht gebucht werden.
       </div>
@@ -370,8 +372,8 @@ export default function Kalender() {
   }
 
   return (
-    <div>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 22, flexWrap: 'wrap', gap: 10 }}>
+    <div style={{ display: 'flex', flexDirection: 'column', height: 'calc(100vh - 64px)' }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 22, flexWrap: 'wrap', gap: 10, flexShrink: 0 }}>
         <h1 style={{ fontSize: 26 }}>Kalender</h1>
         <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
@@ -425,11 +427,15 @@ export default function Kalender() {
       {error && <div style={{ fontSize: 13, color: 'var(--color-destructive)' }}>Fehler beim Laden: {error}</div>}
 
       {!loading && !error && (
-        <>
+        <div style={{ flex: 1, minHeight: 0 }}>
           {view === 'tag' && <DayView appointments={appointments} artists={artists} shifts={shifts} onSelectAppointment={setSelectedAppointment} />}
           {view === 'woche' && <div style={{ fontSize: 13, color: '#999' }}>Wochenansicht folgt (Mehrtages-Query).</div>}
-          {view === 'liste' && <ListView appointments={appointments} />}
-        </>
+          {view === 'liste' && (
+            <div style={{ height: '100%', overflowY: 'auto' }}>
+              <ListView appointments={appointments} />
+            </div>
+          )}
+        </div>
       )}
 
       {showNewTermin && (
