@@ -7,7 +7,10 @@ import {
   fetchServiceCategories,
   fetchProductCategories,
   fetchCustomers,
+  fetchLocations,
+  fetchCurrentUserLocationId,
   checkoutOrder,
+  fetchVoucherByCode,
   fetchAppointment,
   fetchAppointmentLineItems,
   fetchArtists,
@@ -18,10 +21,11 @@ import {
   type ServiceCategory,
   type ProductCategory,
   type Customer,
+  type Location,
 } from '../lib/queries';
 
-const PAYMENT_METHODS = ['Karte', 'Bar', 'Rechnung'];
-const SIMPLE_PAYMENT_METHODS = PAYMENT_METHODS;
+const PAYMENT_METHODS = ['Karte', 'Bar', 'Rechnung', 'Gutschein'];
+const SIMPLE_PAYMENT_METHODS = ['Karte', 'Bar', 'Rechnung']; // Gutschein braucht Code-Eingabe -> nur im Split-Dialog
 
 interface LineItem {
   id: string;
@@ -36,6 +40,11 @@ interface SplitPayment {
   id: string;
   method: string;
   amount: number;
+  voucherCode?: string;
+  voucherId?: string | null;
+  voucherRemaining?: number | null;
+  voucherChecking?: boolean;
+  voucherError?: string | null;
 }
 
 function chf(n: number) {
@@ -257,7 +266,7 @@ function CheckoutModal({
 }: {
   subtotal: number;
   onClose: () => void;
-  onComplete: (payments: { method: string; amount: number }[], total: number, discountType: 'percent' | 'chf' | null, discountValue: number) => Promise<void>;
+  onComplete: (payments: { method: string; amount: number; voucher_id?: string | null }[], total: number, discountType: 'percent' | 'chf' | null, discountValue: number) => Promise<void>;
 }) {
   const [discountMode, setDiscountMode] = useState<'percent' | 'chf'>('percent');
   const [discountInput, setDiscountInput] = useState('');
@@ -269,7 +278,10 @@ function CheckoutModal({
   const discountAmount = discountMode === 'percent' ? (subtotal * appliedDiscountPct) / 100 : appliedDiscountPct;
   const total = Math.max(0, subtotal - discountAmount);
   const paid = payments.reduce((sum, p) => sum + p.amount, 0);
-  const fullyPaid = Math.abs(paid - total) < 0.01;
+  const gutscheinRowsValid = payments
+    .filter((p) => p.method === 'Gutschein')
+    .every((p) => p.voucherId && p.voucherRemaining != null && p.amount <= p.voucherRemaining + 0.001);
+  const fullyPaid = Math.abs(paid - total) < 0.01 && gutscheinRowsValid;
 
   function applyDiscount() {
     const val = parseFloat(discountInput);
@@ -303,12 +315,37 @@ function CheckoutModal({
     setPayments((prev) => prev.filter((p) => p.id !== id));
   }
 
+  async function checkVoucherCode(id: string) {
+    const payment = payments.find((p) => p.id === id);
+    if (!payment || !payment.voucherCode) return;
+    updatePayment(id, { voucherChecking: true, voucherError: null, voucherId: null, voucherRemaining: null });
+    try {
+      const voucher = await fetchVoucherByCode(payment.voucherCode);
+      if (!voucher) {
+        updatePayment(id, { voucherChecking: false, voucherError: 'Gutschein-Code nicht gefunden.' });
+        return;
+      }
+      if (voucher.status === 'eingelöst' || voucher.remaining_value <= 0) {
+        updatePayment(id, { voucherChecking: false, voucherError: 'Dieser Gutschein ist bereits vollständig eingelöst.' });
+        return;
+      }
+      if (voucher.status === 'abgelaufen') {
+        updatePayment(id, { voucherChecking: false, voucherError: 'Dieser Gutschein ist abgelaufen.' });
+        return;
+      }
+      const cappedAmount = Math.min(payment.amount, voucher.remaining_value);
+      updatePayment(id, { voucherChecking: false, voucherError: null, voucherId: voucher.id, voucherRemaining: voucher.remaining_value, amount: cappedAmount });
+    } catch (e: any) {
+      updatePayment(id, { voucherChecking: false, voucherError: e.message });
+    }
+  }
+
   async function handleComplete() {
     setSaving(true);
     setError(null);
     try {
       await onComplete(
-        payments.map((p) => ({ method: p.method, amount: p.amount })),
+        payments.map((p) => ({ method: p.method, amount: p.amount, voucher_id: p.voucherId || null })),
         total,
         appliedDiscountPct > 0 ? discountMode : null,
         appliedDiscountPct
@@ -362,16 +399,44 @@ function CheckoutModal({
         Zahlung aufteilen
       </div>
       {payments.map((p) => (
-        <div key={p.id} style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 8 }}>
-          <select value={p.method} onChange={(e) => updatePayment(p.id, { method: e.target.value })} style={{ flex: 1, border: '1px solid #ddd', borderRadius: 4, padding: '8px 10px', fontSize: 13 }}>
-            {PAYMENT_METHODS.map((m) => (
-              <option key={m}>{m}</option>
-            ))}
-          </select>
-          <input type="number" value={p.amount} onChange={(e) => updatePayment(p.id, { amount: parseFloat(e.target.value) || 0 })} style={{ width: 110, border: '1px solid #ddd', borderRadius: 4, padding: '8px 10px', fontSize: 13 }} />
-          <button onClick={() => removePayment(p.id)} style={{ background: 'none', border: 'none', fontSize: 14, color: '#999' }}>
-            ✕
-          </button>
+        <div key={p.id} style={{ marginBottom: 10 }}>
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+            <select
+              value={p.method}
+              onChange={(e) => updatePayment(p.id, { method: e.target.value, voucherId: null, voucherRemaining: null, voucherError: null, voucherCode: '' })}
+              style={{ flex: 1, border: '1px solid #ddd', borderRadius: 4, padding: '8px 10px', fontSize: 13 }}
+            >
+              {PAYMENT_METHODS.map((m) => (
+                <option key={m}>{m}</option>
+              ))}
+            </select>
+            <input type="number" value={p.amount} onChange={(e) => updatePayment(p.id, { amount: parseFloat(e.target.value) || 0 })} style={{ width: 110, border: '1px solid #ddd', borderRadius: 4, padding: '8px 10px', fontSize: 13 }} />
+            <button onClick={() => removePayment(p.id)} style={{ background: 'none', border: 'none', fontSize: 14, color: '#999' }}>
+              ✕
+            </button>
+          </div>
+          {p.method === 'Gutschein' && (
+            <div style={{ marginTop: 6, paddingLeft: 2 }}>
+              <div style={{ display: 'flex', gap: 8 }}>
+                <input
+                  value={p.voucherCode || ''}
+                  onChange={(e) => updatePayment(p.id, { voucherCode: e.target.value, voucherId: null, voucherRemaining: null, voucherError: null })}
+                  placeholder="Gutschein-Code eingeben…"
+                  style={{ flex: 1, border: '1px solid #ddd', borderRadius: 4, padding: '7px 10px', fontSize: 12, fontFamily: 'monospace' }}
+                />
+                <button className="btn btn-secondary" style={{ padding: '6px 12px', fontSize: 12 }} onClick={() => checkVoucherCode(p.id)} disabled={!p.voucherCode || p.voucherChecking}>
+                  {p.voucherChecking ? 'Prüft…' : 'Prüfen'}
+                </button>
+              </div>
+              {p.voucherError && <div style={{ fontSize: 11, color: 'var(--color-destructive)', marginTop: 4 }}>{p.voucherError}</div>}
+              {p.voucherId && p.voucherRemaining != null && (
+                <div style={{ fontSize: 11, color: '#1a7a3f', marginTop: 4 }}>
+                  ✓ Gültig — Restguthaben: CHF {p.voucherRemaining.toFixed(2)}
+                  {p.amount > p.voucherRemaining && ` (Betrag übersteigt Guthaben!)`}
+                </div>
+              )}
+            </div>
+          )}
         </div>
       ))}
       <div onClick={addPayment} className="btn btn-accent" style={{ marginBottom: 14, cursor: 'pointer' }}>
@@ -502,6 +567,9 @@ export default function Kasse() {
   const [alreadyKassiert, setAlreadyKassiert] = useState(false);
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [selectedCustomerId, setSelectedCustomerId] = useState<string>('');
+  const [locations, setLocations] = useState<Location[]>([]);
+  const [selectedLocationId, setSelectedLocationId] = useState<string>('');
+  const [locationLocked, setLocationLocked] = useState(false);
   const [paymentMethod, setPaymentMethod] = useState<string | null>(null);
   const [checkingOutDirect, setCheckingOutDirect] = useState(false);
   const [directCheckoutError, setDirectCheckoutError] = useState<string | null>(null);
@@ -511,13 +579,16 @@ export default function Kasse() {
   const [deletingAppointment, setDeletingAppointment] = useState(false);
 
   useEffect(() => {
-    Promise.all([fetchServices(), fetchProducts(), fetchServiceCategories(), fetchProductCategories(), fetchCustomers()])
-      .then(([s, p, sc, pc, c]) => {
+    Promise.all([fetchServices(), fetchProducts(), fetchServiceCategories(), fetchProductCategories(), fetchCustomers(), fetchLocations(), fetchCurrentUserLocationId()])
+      .then(([s, p, sc, pc, c, locs, accountLocationId]) => {
         setServices(s.filter((sv) => sv.active));
         setProducts(p.filter((pr) => pr.active));
         setServiceCategories(sc);
         setProductCategories(pc);
         setCustomers(c);
+        setLocations(locs);
+        const accountValid = accountLocationId && locs.some((l) => l.id === accountLocationId);
+        setSelectedLocationId(accountValid ? accountLocationId! : locs[0]?.id || '');
       })
       .finally(() => setLoading(false));
   }, []);
@@ -535,6 +606,10 @@ export default function Kasse() {
         }
         if (appt.customer_id) {
           setSelectedCustomerId(appt.customer_id);
+        }
+        if (appt.location_id) {
+          setSelectedLocationId(appt.location_id);
+          setLocationLocked(true);
         }
         setContextLabel(`Termin: ${artist?.name || '—'} · ${new Date(appt.start_time).toLocaleString('de-CH', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}`);
         setItems(
@@ -563,10 +638,11 @@ export default function Kasse() {
     setItems((prev) => prev.map((i) => (i.id === id ? { ...i, qty: Math.max(1, i.qty + delta) } : i)));
   }
 
-  async function handleCheckoutComplete(payments: { method: string; amount: number }[], total: number, discountType: 'percent' | 'chf' | null, discountValue: number) {
+  async function handleCheckoutComplete(payments: { method: string; amount: number; voucher_id?: string | null }[], total: number, discountType: 'percent' | 'chf' | null, discountValue: number) {
     await checkoutOrder({
       appointmentId: appointmentId || null,
       customerId: selectedCustomerId || null,
+      locationId: selectedLocationId || null,
       subtotal,
       discountType,
       discountValue: discountType ? discountValue : null,
@@ -663,11 +739,35 @@ export default function Kasse() {
           ) : (
             <>
               {contextLabel && <div style={{ fontSize: 12, color: 'var(--color-accent)', fontWeight: 600, marginBottom: 10 }}>{contextLabel}</div>}
-              <div style={{ marginBottom: 20 }}>
-                <div className="label-uppercase" style={{ marginBottom: 4 }}>
-                  Kunde
+              <div style={{ display: 'flex', gap: 16, marginBottom: 20, flexWrap: 'wrap' }}>
+                <div>
+                  <div className="label-uppercase" style={{ marginBottom: 4 }}>
+                    Kunde
+                  </div>
+                  <CustomerSearchSelect customers={customers} value={selectedCustomerId} onChange={setSelectedCustomerId} />
                 </div>
-                <CustomerSearchSelect customers={customers} value={selectedCustomerId} onChange={setSelectedCustomerId} />
+                <div>
+                  <div className="label-uppercase" style={{ marginBottom: 4 }}>
+                    Standort
+                  </div>
+                  {locationLocked ? (
+                    <div style={{ border: '1px solid #ddd', borderRadius: 4, padding: '9px 10px', fontSize: 13, width: 200, color: '#555' }}>
+                      {locations.find((l) => l.id === selectedLocationId)?.name || '—'}
+                    </div>
+                  ) : (
+                    <select
+                      value={selectedLocationId}
+                      onChange={(e) => setSelectedLocationId(e.target.value)}
+                      style={{ border: '1px solid #ddd', borderRadius: 4, padding: '9px 10px', fontSize: 13, width: 200, fontFamily: 'var(--font-body)' }}
+                    >
+                      {locations.map((l) => (
+                        <option key={l.id} value={l.id}>
+                          {l.name}
+                        </option>
+                      ))}
+                    </select>
+                  )}
+                </div>
               </div>
             </>
           )}

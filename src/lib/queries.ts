@@ -451,16 +451,18 @@ export async function fetchAppointmentsForCustomer(customerId: string) {
 
 // Verkäufe ohne Termin (z.B. reiner Artikelverkauf an der Kasse) — damit sie trotzdem
 // im Kalender/Kassenbuch sichtbar sind, statt spurlos zu verschwinden.
-export async function fetchWalkInOrdersForDay(dateISO: string) {
+export async function fetchWalkInOrdersForDay(dateISO: string, locationId?: string) {
   const start = `${dateISO}T00:00:00`;
   const end = `${dateISO}T23:59:59`;
-  const { data, error } = await supabase
+  let query = supabase
     .from('orders')
     .select('*, customers(vorname, name, phone), order_line_items(description, quantity, unit_price)')
     .is('appointment_id', null)
     .gte('created_at', start)
     .lte('created_at', end)
     .order('created_at');
+  if (locationId) query = query.eq('location_id', locationId);
+  const { data, error } = await query;
   if (error) throw error;
   return data;
 }
@@ -509,19 +511,27 @@ export async function deleteAppointment(id: string) {
 }
 
 // ---------- Orders / Kasse ----------
+export async function fetchVoucherByCode(code: string) {
+  const { data, error } = await supabase.from('vouchers').select('*').ilike('code', code.trim()).maybeSingle();
+  if (error) throw error;
+  return data as Voucher | null;
+}
+
 export async function checkoutOrder(input: {
   appointmentId: string | null;
   customerId: string | null;
+  locationId: string | null;
   subtotal: number;
   discountType: 'percent' | 'chf' | null;
   discountValue: number | null;
   total: number;
   lineItems: { service_id?: string | null; product_id?: string | null; description: string; quantity: number; unit_price: number; line_total: number }[];
-  payments: { method: string; amount: number }[];
+  payments: { method: string; amount: number; voucher_id?: string | null }[];
 }) {
   const { data, error } = await supabase.rpc('checkout_order', {
     p_appointment_id: input.appointmentId,
     p_customer_id: input.customerId,
+    p_location_id: input.locationId,
     p_subtotal: input.subtotal,
     p_discount_type: input.discountType,
     p_discount_value: input.discountValue,

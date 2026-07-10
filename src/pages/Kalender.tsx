@@ -1068,7 +1068,7 @@ export default function Kalender() {
       setShifts(dayShifts);
       const dayAbsences = await fetchAbsencesForDate(scopedArtists.map((a) => a.id), date);
       setAbsences(dayAbsences);
-      const dayWalkInOrders = await fetchWalkInOrdersForDay(date);
+      const dayWalkInOrders = await fetchWalkInOrdersForDay(date, selectedLocationId);
       setWalkInOrders(dayWalkInOrders);
       const mapped: LoadedAppointment[] = (rawAppointments as any[]).map((a) => mapAppointmentRow(a, date));
       setAppointments(mapped);
