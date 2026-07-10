@@ -247,7 +247,7 @@ function CheckoutModal({
 }: {
   subtotal: number;
   onClose: () => void;
-  onComplete: (payments: { method: string; amount: number }[], total: number, discountPct: number) => Promise<void>;
+  onComplete: (payments: { method: string; amount: number }[], total: number, discountType: 'percent' | 'chf' | null, discountValue: number) => Promise<void>;
 }) {
   const [discountMode, setDiscountMode] = useState<'percent' | 'chf'>('percent');
   const [discountInput, setDiscountInput] = useState('');
@@ -259,11 +259,11 @@ function CheckoutModal({
   const discountAmount = discountMode === 'percent' ? (subtotal * appliedDiscountPct) / 100 : appliedDiscountPct;
   const total = Math.max(0, subtotal - discountAmount);
   const paid = payments.reduce((sum, p) => sum + p.amount, 0);
-  const fullyPaid = Math.abs(paid - total) < 0.01 && total > 0;
+  const fullyPaid = Math.abs(paid - total) < 0.01;
 
   function applyDiscount() {
     const val = parseFloat(discountInput);
-    if (!isNaN(val)) setAppliedDiscountPct(val);
+    if (!isNaN(val) && val >= 0) setAppliedDiscountPct(val);
   }
 
   function addPayment() {
@@ -286,7 +286,8 @@ function CheckoutModal({
       await onComplete(
         payments.map((p) => ({ method: p.method, amount: p.amount })),
         total,
-        discountMode === 'percent' ? appliedDiscountPct : 0
+        appliedDiscountPct > 0 ? discountMode : null,
+        appliedDiscountPct
       );
     } catch (e: any) {
       setError(e.message);
@@ -528,13 +529,13 @@ export default function Kasse() {
     setItems((prev) => prev.map((i) => (i.id === id ? { ...i, qty: Math.max(1, i.qty + delta) } : i)));
   }
 
-  async function handleCheckoutComplete(payments: { method: string; amount: number }[], total: number, discountPct: number) {
+  async function handleCheckoutComplete(payments: { method: string; amount: number }[], total: number, discountType: 'percent' | 'chf' | null, discountValue: number) {
     const order = await createOrder({
       appointment_id: appointmentId || null,
       customer_id: selectedCustomerId || null,
       subtotal,
-      order_discount_type: discountPct > 0 ? 'percent' : null,
-      order_discount_value: discountPct > 0 ? discountPct : null,
+      order_discount_type: discountType,
+      order_discount_value: discountType ? discountValue : null,
       total,
     });
     await addOrderLineItems(
@@ -562,7 +563,7 @@ export default function Kasse() {
     setCheckingOutDirect(true);
     setDirectCheckoutError(null);
     try {
-      await handleCheckoutComplete([{ method: paymentMethod, amount: subtotal }], subtotal, 0);
+      await handleCheckoutComplete([{ method: paymentMethod, amount: subtotal }], subtotal, null, 0);
     } catch (e: any) {
       setDirectCheckoutError(e.message);
     } finally {
@@ -715,8 +716,8 @@ export default function Kasse() {
         <CheckoutModal
           subtotal={subtotal}
           onClose={() => setShowCheckout(false)}
-          onComplete={async (payments, total, discountPct) => {
-            await handleCheckoutComplete(payments, total, discountPct);
+          onComplete={async (payments, total, discountType, discountValue) => {
+            await handleCheckoutComplete(payments, total, discountType, discountValue);
           }}
         />
       )}
