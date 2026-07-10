@@ -392,6 +392,7 @@ function DayView({
                   height: GRID_HEIGHT,
                   borderLeft: '1px solid #eee',
                   cursor: 'copy',
+                  backgroundColor: '#fff',
                   backgroundImage: `repeating-linear-gradient(180deg, transparent, transparent ${60 * PX_PER_MIN - 1}px, #f2f2f2 ${60 * PX_PER_MIN - 1}px, #f2f2f2 ${60 * PX_PER_MIN}px)`,
                 }}
               >
@@ -671,6 +672,7 @@ function WeekView({
                       height: GRID_HEIGHT,
                       borderLeft: '1px solid #eee',
                       cursor: 'copy',
+                      backgroundColor: '#fff',
                       backgroundImage: `repeating-linear-gradient(180deg, transparent, transparent ${60 * PX_PER_MIN - 1}px, #f2f2f2 ${60 * PX_PER_MIN - 1}px, #f2f2f2 ${60 * PX_PER_MIN}px)`,
                     }}
                   >
