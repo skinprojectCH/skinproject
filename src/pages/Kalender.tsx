@@ -148,6 +148,14 @@ function AbsenceQuickView({ absence, artistName, onClose, onDeleted }: { absence
   );
 }
 
+function CheckIcon() {
+  return (
+    <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
+      <polyline points="20 6 9 17 4 12" />
+    </svg>
+  );
+}
+
 function StarIcon({ filled }: { filled: boolean }) {
   return (
     <svg width="16" height="16" viewBox="0 0 24 24" fill={filled ? 'var(--color-accent)' : 'none'} stroke="var(--color-accent)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -450,7 +458,7 @@ function DayView({
                         height,
                         left: 4,
                         right: 4,
-                        background: 'var(--color-accent-fill)',
+                        background: appt.status === 'kassiert' ? '#f2f2ee' : 'var(--color-accent-fill)',
                         borderLeft: `3px solid ${appt.artistColor}`,
                         borderRadius: '0 4px 4px 0',
                         padding: '4px 6px',
@@ -459,13 +467,17 @@ function DayView({
                         cursor: 'pointer',
                         overflow: 'hidden',
                         boxShadow: '0 1px 2px rgba(0,0,0,0.06)',
+                        opacity: appt.status === 'kassiert' ? 0.75 : 1,
                       }}
-                      title={`${appt.time}–${appt.endTime} · ${appt.customer}${appt.services.length ? ' · ' + appt.services.join(', ') : ''}`}
+                      title={`${appt.time}–${appt.endTime} · ${appt.customer}${appt.services.length ? ' · ' + appt.services.join(', ') : ''}${appt.status === 'kassiert' ? ' · kassiert' : ''}`}
                     >
-                      <div style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', fontWeight: 700 }}>
-                        {appt.time} – {appt.endTime}
+                      <div style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 4 }}>
+                        <span>
+                          {appt.time} – {appt.endTime}
+                        </span>
+                        {appt.status === 'kassiert' && <CheckIcon />}
                       </div>
-                      <div style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                      <div style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', textDecoration: appt.status === 'kassiert' ? 'line-through' : 'none' }}>
                         {appt.customer}
                         {appt.customerPhone ? ` · ${appt.customerPhone}` : ''}
                       </div>
@@ -737,7 +749,7 @@ function WeekView({
                             height,
                             left: 2,
                             right: 2,
-                            background: 'var(--color-accent-fill)',
+                            background: appt.status === 'kassiert' ? '#f2f2ee' : 'var(--color-accent-fill)',
                             borderLeft: `3px solid ${artistColor}`,
                             borderRadius: '0 4px 4px 0',
                             padding: '2px 4px',
@@ -746,13 +758,17 @@ function WeekView({
                             cursor: 'pointer',
                             overflow: 'hidden',
                             boxShadow: '0 1px 2px rgba(0,0,0,0.06)',
+                            opacity: appt.status === 'kassiert' ? 0.75 : 1,
                           }}
-                          title={`${appt.time}–${appt.endTime} · ${appt.customer}${appt.services.length ? ' · ' + appt.services.join(', ') : ''}`}
+                          title={`${appt.time}–${appt.endTime} · ${appt.customer}${appt.services.length ? ' · ' + appt.services.join(', ') : ''}${appt.status === 'kassiert' ? ' · kassiert' : ''}`}
                         >
-                          <div style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', fontWeight: 700 }}>
-                            {appt.time}–{appt.endTime}
+                          <div style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 4 }}>
+                            <span>
+                              {appt.time}–{appt.endTime}
+                            </span>
+                            {appt.status === 'kassiert' && <CheckIcon />}
                           </div>
-                          <div style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{appt.customer}</div>
+                          <div style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', textDecoration: appt.status === 'kassiert' ? 'line-through' : 'none' }}>{appt.customer}</div>
                           {appt.services.length > 0 && (
                             <div style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', color: '#555' }}>{appt.services.join(', ')}</div>
                           )}
@@ -835,8 +851,11 @@ function ListView({
             outline: 'none',
           }}
         >
-          <div>
-            {a.time} – {a.endTime}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, opacity: a.status === 'kassiert' ? 0.7 : 1 }}>
+            {a.status === 'kassiert' && <span style={{ color: 'var(--color-accent)' }}><CheckIcon /></span>}
+            <span>
+              {a.time} – {a.endTime}
+            </span>
           </div>
           <div>
             {a.customer}

@@ -21,7 +21,8 @@ import {
   type Customer,
 } from '../lib/queries';
 
-const PAYMENT_METHODS = ['Karte', 'Bar', 'Twint', 'Rechnung'];
+const PAYMENT_METHODS = ['Karte', 'Bar', 'Rechnung'];
+const SIMPLE_PAYMENT_METHODS = PAYMENT_METHODS;
 
 interface LineItem {
   id: string;
@@ -474,6 +475,9 @@ export default function Kasse() {
   const [contextError, setContextError] = useState<string | null>(null);
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [selectedCustomerId, setSelectedCustomerId] = useState<string>('');
+  const [paymentMethod, setPaymentMethod] = useState<string | null>(null);
+  const [checkingOutDirect, setCheckingOutDirect] = useState(false);
+  const [directCheckoutError, setDirectCheckoutError] = useState<string | null>(null);
 
   useEffect(() => {
     Promise.all([fetchServices(), fetchProducts(), fetchServiceCategories(), fetchProductCategories(), fetchCustomers()])
@@ -551,6 +555,19 @@ export default function Kasse() {
     setShowCheckout(false);
     setCompleted(true);
     setItems([]);
+  }
+
+  async function handleDirectCheckout() {
+    if (!paymentMethod || items.length === 0) return;
+    setCheckingOutDirect(true);
+    setDirectCheckoutError(null);
+    try {
+      await handleCheckoutComplete([{ method: paymentMethod, amount: subtotal }], subtotal, 0);
+    } catch (e: any) {
+      setDirectCheckoutError(e.message);
+    } finally {
+      setCheckingOutDirect(false);
+    }
   }
 
   if (loading) return <div style={{ fontSize: 13, color: '#999' }}>Lädt…</div>;
@@ -646,14 +663,45 @@ export default function Kasse() {
             <div>Total</div>
             <div>{chf(subtotal)}</div>
           </div>
+
+          <div className="label-uppercase" style={{ marginBottom: 8 }}>
+            Zahlungsart
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8, marginBottom: 16 }}>
+            {SIMPLE_PAYMENT_METHODS.map((m) => (
+              <button
+                key={m}
+                onClick={() => setPaymentMethod(m)}
+                style={{
+                  padding: '10px 6px',
+                  fontSize: 12,
+                  fontWeight: 600,
+                  borderRadius: 4,
+                  border: paymentMethod === m ? '1.5px solid #111' : '1px solid #ddd',
+                  background: paymentMethod === m ? '#111' : 'transparent',
+                  color: paymentMethod === m ? '#fff' : '#111',
+                  cursor: 'pointer',
+                }}
+              >
+                {m}
+              </button>
+            ))}
+          </div>
+
           <button
             className="btn btn-primary"
-            style={{ width: '100%', justifyContent: 'center', marginBottom: 14, opacity: items.length ? 1 : 0.4 }}
-            disabled={items.length === 0}
-            onClick={() => setShowCheckout(true)}
+            style={{ width: '100%', justifyContent: 'center', marginBottom: 10, opacity: items.length && paymentMethod ? 1 : 0.4 }}
+            disabled={items.length === 0 || !paymentMethod || checkingOutDirect}
+            onClick={handleDirectCheckout}
           >
-            Kassieren
+            {checkingOutDirect ? 'Speichert…' : 'Kassieren'}
           </button>
+
+          {directCheckoutError && <div style={{ fontSize: 12, color: 'var(--color-destructive)', marginBottom: 10 }}>{directCheckoutError}</div>}
+
+          <div onClick={() => setShowCheckout(true)} style={{ fontSize: 11, color: 'var(--color-accent)', fontWeight: 600, cursor: 'pointer', textAlign: 'center' }}>
+            Split Payment / Gutschein / Discount
+          </div>
         </div>
       </div>
 
