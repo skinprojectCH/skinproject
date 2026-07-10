@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import TerminModal from '../components/TerminModal';
 import EditTerminModal from '../components/EditTerminModal';
-import { fetchAppointmentsForDay, fetchArtists, fetchLocations, fetchCurrentUserLocationId, fetchShiftsForDate, type Artist, type Location, type Shift } from '../lib/queries';
+import { fetchAppointmentsForDay, fetchArtists, fetchLocations, fetchCurrentUserLocationId, fetchShiftsForDate, fetchAbsencesForDate, type Artist, type Location, type Shift, type Absence } from '../lib/queries';
 
 const FAVORITE_LOCATION_KEY = 'skinproject:favoriteLocationId';
 
@@ -163,12 +163,33 @@ function useNowMinutes() {
   return now;
 }
 
+const ABSENCE_TYPE_LABELS: Record<string, string> = { ferien: 'Ferien', krank: 'Krank', abwesend: 'Abwesend' };
+
+function absenceForArtist(absences: Absence[], artistId: string) {
+  return absences.find((a) => a.artist_id === artistId) || null;
+}
+
+// Kombiniert Schicht-basierte Schraffur mit einer gebuchten Absenz.
+// Ganztägige Absenz -> kompletter angezeigter Zeitraum blockiert.
+// Halbtägige Absenz -> zusätzlich zur normalen Schicht-Schraffur der jeweilige Halbtag.
+function offWindowsWithAbsence(shifts: Shift[], absences: Absence[], artistId: string) {
+  const absence = absenceForArtist(absences, artistId);
+  if (absence && absence.half_day === 'none') {
+    return [{ start: DISPLAY_START_MIN, end: DISPLAY_END_MIN }];
+  }
+  const base = offWindowsForArtist(shifts, artistId);
+  if (!absence) return base;
+  const half = absence.half_day === 'am' ? { start: DISPLAY_START_MIN, end: 12 * 60 } : { start: 12 * 60, end: DISPLAY_END_MIN };
+  return [...base, half];
+}
+
 const HATCH_BG = 'repeating-linear-gradient(45deg, #fafafa, #fafafa 6px, #f0f0f0 6px, #f0f0f0 12px)';
 
 function DayView({
   appointments,
   artists,
   shifts,
+  absences,
   isToday,
   onSelectAppointment,
   onCreateAtSlot,
@@ -176,6 +197,7 @@ function DayView({
   appointments: LoadedAppointment[];
   artists: Artist[];
   shifts: Shift[];
+  absences: Absence[];
   isToday: boolean;
   onSelectAppointment: (a: LoadedAppointment) => void;
   onCreateAtSlot: (artistId: string, time: string) => void;
@@ -194,13 +216,22 @@ function DayView({
         {artists.map((artist) => {
           const windows = shiftWindowsForArtist(shifts, artist.id);
           const label = windows.length ? windows.map((w) => `${minutesLabel(w.start)}–${minutesLabel(w.end)}`).join(', ') : null;
+          const absence = absenceForArtist(absences, artist.id);
+          let statusText: string;
+          if (absence && absence.half_day === 'none') {
+            statusText = ABSENCE_TYPE_LABELS[absence.type];
+          } else if (absence) {
+            statusText = `${label ? `Schicht ${label}` : 'Kein Dienst heute'} · ${ABSENCE_TYPE_LABELS[absence.type]} (${absence.half_day === 'am' ? 'Vorm.' : 'Nachm.'})`;
+          } else {
+            statusText = label ? `Schicht ${label}` : 'Kein Dienst heute';
+          }
           return (
             <div key={artist.id} style={{ flex: 1, minWidth: 0, background: '#fbfaf8', padding: '10px 8px', textAlign: 'center', borderLeft: '1px solid #eee' }}>
               <div style={{ fontFamily: 'var(--font-heading)', fontSize: 13, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
                 <span style={{ width: 8, height: 8, borderRadius: '50%', background: artist.calendar_color, display: 'inline-block', flexShrink: 0 }} />
                 <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{artist.name}</span>
               </div>
-              <div style={{ fontSize: 10, color: label ? '#999' : 'var(--color-destructive)' }}>{label ? `Schicht ${label}` : 'Kein Dienst heute'}</div>
+              <div style={{ fontSize: 10, color: label || (absence && absence.half_day !== 'none') ? '#999' : 'var(--color-destructive)' }}>{statusText}</div>
             </div>
           );
         })}
@@ -249,7 +280,7 @@ function DayView({
 
           {/* Spalten */}
           {artists.map((artist) => {
-            const offWindows = offWindowsForArtist(shifts, artist.id);
+            const offWindows = offWindowsWithAbsence(shifts, absences, artist.id);
             const artistAppointments = appointments.filter((a) => a.artistId === artist.id);
             return (
               <div
@@ -368,6 +399,7 @@ function WeekView({
   const [artistId, setArtistId] = useState(artists[0]?.id || '');
   const [weekAppointments, setWeekAppointments] = useState<Record<string, LoadedAppointment[]>>({});
   const [weekShifts, setWeekShifts] = useState<Record<string, Shift[]>>({});
+  const [weekAbsences, setWeekAbsences] = useState<Record<string, Absence[]>>({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const nowMinutes = useNowMinutes();
@@ -392,18 +424,22 @@ function WeekView({
     (async () => {
       try {
         const dayList = daysKey.split(',');
-        const [apptResults, shiftResults] = await Promise.all([
+        const [apptResults, shiftResults, absenceResults] = await Promise.all([
           Promise.all(dayList.map((d) => fetchAppointmentsForDay(d, locationId))),
           Promise.all(dayList.map((d) => fetchShiftsForDate([artistId], d))),
+          Promise.all(dayList.map((d) => fetchAbsencesForDate([artistId], d))),
         ]);
         const apptMap: Record<string, LoadedAppointment[]> = {};
         const shiftMap: Record<string, Shift[]> = {};
+        const absenceMap: Record<string, Absence[]> = {};
         dayList.forEach((d, i) => {
           apptMap[d] = (apptResults[i] as any[]).filter((a) => a.artist_id === artistId).map((a) => mapAppointmentRow(a, d));
           shiftMap[d] = shiftResults[i];
+          absenceMap[d] = absenceResults[i];
         });
         setWeekAppointments(apptMap);
         setWeekShifts(shiftMap);
+        setWeekAbsences(absenceMap);
       } catch (e: any) {
         setError(e.message);
       } finally {
@@ -449,11 +485,18 @@ function WeekView({
             {days.map((d) => {
               const isToday = d === todayStr;
               const dt = new Date(d);
+              const absence = absenceForArtist(weekAbsences[d] || [], artistId);
               return (
                 <div key={d} style={{ flex: 1, minWidth: 0, background: isToday ? 'var(--color-accent-fill)' : '#fbfaf8', padding: '10px 4px', textAlign: 'center', borderLeft: '1px solid #eee' }}>
                   <div style={{ fontFamily: 'var(--font-heading)', fontSize: 13, fontWeight: 700, color: isToday ? 'var(--color-accent)' : '#111' }}>
                     {WEEKDAY_LABELS[(dt.getDay() + 6) % 7]} {dt.getDate()}.
                   </div>
+                  {absence && (
+                    <div style={{ fontSize: 9, color: 'var(--color-destructive)' }}>
+                      {ABSENCE_TYPE_LABELS[absence.type]}
+                      {absence.half_day !== 'none' ? ` (${absence.half_day === 'am' ? 'Vorm.' : 'Nachm.'})` : ''}
+                    </div>
+                  )}
                 </div>
               );
             })}
@@ -472,7 +515,7 @@ function WeekView({
 
               {days.map((d) => {
                 const dayShifts = weekShifts[d] || [];
-                const offWindows = offWindowsForArtist(dayShifts, artistId);
+                const offWindows = offWindowsWithAbsence(dayShifts, weekAbsences[d] || [], artistId);
                 const dayAppointments = weekAppointments[d] || [];
                 const isToday = d === todayStr;
                 const showNowLine = isToday && nowMinutes >= DISPLAY_START_MIN && nowMinutes <= DISPLAY_END_MIN;
@@ -616,6 +659,7 @@ export default function Kalender() {
   const [appointments, setAppointments] = useState<LoadedAppointment[]>([]);
   const [artists, setArtists] = useState<Artist[]>([]);
   const [shifts, setShifts] = useState<Shift[]>([]);
+  const [absences, setAbsences] = useState<Absence[]>([]);
   const [locations, setLocations] = useState<Location[]>([]);
   const [selectedLocationId, setSelectedLocationId] = useState<string>('');
   const [favoriteLocationId, setFavoriteLocationId] = useState<string | null>(() => localStorage.getItem(FAVORITE_LOCATION_KEY));
@@ -651,6 +695,8 @@ export default function Kalender() {
       setArtists(scopedArtists);
       const dayShifts = await fetchShiftsForDate(scopedArtists.map((a) => a.id), date);
       setShifts(dayShifts);
+      const dayAbsences = await fetchAbsencesForDate(scopedArtists.map((a) => a.id), date);
+      setAbsences(dayAbsences);
       const mapped: LoadedAppointment[] = (rawAppointments as any[]).map((a) => mapAppointmentRow(a, date));
       setAppointments(mapped);
     } catch (e: any) {
@@ -756,6 +802,7 @@ export default function Kalender() {
               appointments={appointments}
               artists={artists}
               shifts={shifts}
+              absences={absences}
               isToday={date === todayISO()}
               onSelectAppointment={setSelectedAppointment}
               onCreateAtSlot={(artistId, time) => {

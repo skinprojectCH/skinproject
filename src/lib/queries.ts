@@ -590,6 +590,18 @@ export async function replaceArtistShifts(
 
 // Für den Kalender: alle Schichten für eine Liste von Artists an einem bestimmten Datum
 // (berücksichtigt Wochentag + Gültigkeitszeitraum).
+export async function fetchAbsencesForDate(artistIds: string[], dateISO: string) {
+  if (artistIds.length === 0) return [];
+  const { data, error } = await supabase
+    .from('absences')
+    .select('*')
+    .in('artist_id', artistIds)
+    .lte('start_date', dateISO)
+    .gte('end_date', dateISO);
+  if (error) throw error;
+  return data as Absence[];
+}
+
 export async function fetchShiftsForDate(artistIds: string[], dateISO: string) {
   if (artistIds.length === 0) return [];
   const weekday = (new Date(dateISO).getDay() + 6) % 7; // JS: So=0..Sa=6 -> wir wollen Mo=0..So=6
