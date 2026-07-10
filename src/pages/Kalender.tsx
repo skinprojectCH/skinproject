@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
 import TerminModal from '../components/TerminModal';
 import EditTerminModal from '../components/EditTerminModal';
-import { fetchAppointmentsForDay, fetchArtists, fetchLocations, fetchCurrentUserLocationId, fetchShiftsForDate, fetchAbsencesForDate, type Artist, type Location, type Shift, type Absence } from '../lib/queries';
+import Modal from '../components/Modal';
+import { fetchAppointmentsForDay, fetchArtists, fetchLocations, fetchCurrentUserLocationId, fetchShiftsForDate, fetchAbsencesForDate, deleteAbsence, type Artist, type Location, type Shift, type Absence } from '../lib/queries';
 
 const FAVORITE_LOCATION_KEY = 'skinproject:favoriteLocationId';
 
@@ -69,6 +70,83 @@ const statusPillStyle = (status: string): React.CSSProperties => {
     width: 'fit-content',
   };
 };
+
+const ABSENCE_HALF_DAY_LABELS: Record<string, string> = { none: 'Ganzer Tag', am: 'Vormittag', pm: 'Nachmittag' };
+
+function AbsenceQuickView({ absence, artistName, onClose, onDeleted }: { absence: Absence; artistName: string; onClose: () => void; onDeleted: () => void }) {
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function handleDelete() {
+    setDeleting(true);
+    setError(null);
+    try {
+      await deleteAbsence(absence.id);
+      onDeleted();
+    } catch (e: any) {
+      setError(e.message);
+      setDeleting(false);
+    }
+  }
+
+  return (
+    <Modal title="Absenz" onClose={onClose} width={360}>
+      <div style={{ marginBottom: 6 }}>
+        <div className="label-uppercase" style={{ marginBottom: 4 }}>
+          Artist
+        </div>
+        <div style={{ fontSize: 13 }}>{artistName}</div>
+      </div>
+      <div style={{ marginBottom: 6, marginTop: 14 }}>
+        <div className="label-uppercase" style={{ marginBottom: 4 }}>
+          Art
+        </div>
+        <div style={{ fontSize: 13 }}>{ABSENCE_TYPE_LABELS[absence.type]}</div>
+      </div>
+      <div style={{ marginBottom: 6, marginTop: 14 }}>
+        <div className="label-uppercase" style={{ marginBottom: 4 }}>
+          Zeitraum
+        </div>
+        <div style={{ fontSize: 13 }}>
+          {new Date(absence.start_date).toLocaleDateString('de-CH')} – {new Date(absence.end_date).toLocaleDateString('de-CH')} · {ABSENCE_HALF_DAY_LABELS[absence.half_day]}
+        </div>
+      </div>
+      {absence.notes && (
+        <div style={{ marginBottom: 6, marginTop: 14 }}>
+          <div className="label-uppercase" style={{ marginBottom: 4 }}>
+            Notiz
+          </div>
+          <div style={{ fontSize: 13, color: '#555' }}>{absence.notes}</div>
+        </div>
+      )}
+
+      {error && <div style={{ fontSize: 12, color: 'var(--color-destructive)', margin: '14px 0 0' }}>{error}</div>}
+
+      <div style={{ marginTop: 22 }}>
+        {!confirmDelete ? (
+          <button className="btn btn-destructive" style={{ width: '100%', justifyContent: 'center' }} onClick={() => setConfirmDelete(true)}>
+            Absenz löschen
+          </button>
+        ) : (
+          <div style={{ display: 'flex', gap: 10 }}>
+            <button className="btn btn-secondary" style={{ flex: 1, justifyContent: 'center' }} onClick={() => setConfirmDelete(false)}>
+              Doch nicht
+            </button>
+            <button
+              className="btn btn-destructive"
+              style={{ flex: 1, justifyContent: 'center', background: 'var(--color-destructive)', color: '#fff', opacity: deleting ? 0.6 : 1 }}
+              disabled={deleting}
+              onClick={handleDelete}
+            >
+              {deleting ? 'Löscht…' : 'Wirklich löschen'}
+            </button>
+          </div>
+        )}
+      </div>
+    </Modal>
+  );
+}
 
 function StarIcon({ filled }: { filled: boolean }) {
   return (
@@ -190,6 +268,7 @@ function DayView({
   isToday,
   onSelectAppointment,
   onCreateAtSlot,
+  onSelectAbsence,
 }: {
   appointments: LoadedAppointment[];
   artists: Artist[];
@@ -198,6 +277,7 @@ function DayView({
   isToday: boolean;
   onSelectAppointment: (a: LoadedAppointment) => void;
   onCreateAtSlot: (artistId: string, time: string) => void;
+  onSelectAbsence: (absence: Absence, artistName: string) => void;
 }) {
   const nowMinutes = useNowMinutes();
   const showNowIndicator = isToday && nowMinutes >= DISPLAY_START_MIN && nowMinutes <= DISPLAY_END_MIN;
@@ -331,6 +411,11 @@ function DayView({
                 {absenceWindows.map((w, i) => (
                   <div
                     key={`abs-${i}`}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      if (absence) onSelectAbsence(absence, artist.name);
+                    }}
+                    onDoubleClick={(e) => e.stopPropagation()}
                     style={{
                       position: 'absolute',
                       top: (w.start - DISPLAY_START_MIN) * PX_PER_MIN,
@@ -341,7 +426,7 @@ function DayView({
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'center',
-                      pointerEvents: 'none',
+                      cursor: 'pointer',
                     }}
                   >
                     <div style={{ fontSize: 10, color: ABSENCE_TEXT, fontWeight: 700 }}>{absence ? ABSENCE_TYPE_LABELS[absence.type] : ''}</div>
@@ -418,6 +503,7 @@ function WeekView({
   refreshKey,
   onSelectAppointment,
   onCreateAtSlot,
+  onSelectAbsence,
 }: {
   artists: Artist[];
   locationId: string;
@@ -425,6 +511,7 @@ function WeekView({
   refreshKey: number;
   onSelectAppointment: (a: LoadedAppointment) => void;
   onCreateAtSlot: (artistId: string, dateISO: string, time: string) => void;
+  onSelectAbsence: (absence: Absence, artistName: string) => void;
 }) {
   const [artistId, setArtistId] = useState(artists[0]?.id || '');
   const [weekAppointments, setWeekAppointments] = useState<Record<string, LoadedAppointment[]>>({});
@@ -603,6 +690,11 @@ function WeekView({
                     {absenceWindows.map((w, i) => (
                       <div
                         key={`abs-${i}`}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          if (dayAbsence) onSelectAbsence(dayAbsence, artists.find((a) => a.id === artistId)?.name || '—');
+                        }}
+                        onDoubleClick={(e) => e.stopPropagation()}
                         style={{
                           position: 'absolute',
                           top: (w.start - DISPLAY_START_MIN) * PX_PER_MIN,
@@ -613,7 +705,7 @@ function WeekView({
                           display: 'flex',
                           alignItems: 'center',
                           justifyContent: 'center',
-                          pointerEvents: 'none',
+                          cursor: 'pointer',
                         }}
                       >
                         <div style={{ fontSize: 9, color: ABSENCE_TEXT, fontWeight: 700 }}>{dayAbsence ? ABSENCE_TYPE_LABELS[dayAbsence.type] : ''}</div>
@@ -720,6 +812,7 @@ export default function Kalender() {
   const [showNewTermin, setShowNewTermin] = useState(false);
   const [newTerminPrefill, setNewTerminPrefill] = useState<{ artistId?: string; time?: string; date?: string }>({});
   const [selectedAppointment, setSelectedAppointment] = useState<LoadedAppointment | null>(null);
+  const [selectedAbsence, setSelectedAbsence] = useState<{ absence: Absence; artistName: string } | null>(null);
   const [appointments, setAppointments] = useState<LoadedAppointment[]>([]);
   const [artists, setArtists] = useState<Artist[]>([]);
   const [shifts, setShifts] = useState<Shift[]>([]);
@@ -873,6 +966,7 @@ export default function Kalender() {
                 setNewTerminPrefill({ artistId, time });
                 setShowNewTermin(true);
               }}
+              onSelectAbsence={(absence, artistName) => setSelectedAbsence({ absence, artistName })}
             />
           )}
           {view === 'woche' && (
@@ -886,6 +980,7 @@ export default function Kalender() {
                 setNewTerminPrefill({ artistId, time, date: dateISO });
                 setShowNewTermin(true);
               }}
+              onSelectAbsence={(absence, artistName) => setSelectedAbsence({ absence, artistName })}
             />
           )}
           {view === 'liste' && (
@@ -915,6 +1010,18 @@ export default function Kalender() {
           appointmentId={selectedAppointment.id}
           onClose={() => {
             setSelectedAppointment(null);
+            reload();
+            setRefreshKey((k) => k + 1);
+          }}
+        />
+      )}
+      {selectedAbsence && (
+        <AbsenceQuickView
+          absence={selectedAbsence.absence}
+          artistName={selectedAbsence.artistName}
+          onClose={() => setSelectedAbsence(null)}
+          onDeleted={() => {
+            setSelectedAbsence(null);
             reload();
             setRefreshKey((k) => k + 1);
           }}
