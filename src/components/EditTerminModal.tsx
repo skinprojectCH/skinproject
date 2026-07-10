@@ -242,7 +242,7 @@ export default function EditTerminModal({ appointmentId, onClose }: Props) {
         <button className="btn btn-secondary" style={{ flex: 1, justifyContent: 'center', opacity: saving ? 0.6 : 1 }} disabled={saving} onClick={handleSave}>
           {saving ? 'Speichert…' : 'Speichern'}
         </button>
-        <button className="btn btn-primary" style={{ flex: 1, justifyContent: 'center' }} onClick={() => navigate('/kasse')}>
+        <button className="btn btn-primary" style={{ flex: 1, justifyContent: 'center' }} onClick={() => navigate('/kasse', { state: { appointmentId } })}>
           Kassieren
         </button>
       </div>

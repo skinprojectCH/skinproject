@@ -1,6 +1,20 @@
 import { useEffect, useMemo, useState } from 'react';
+import { useLocation } from 'react-router-dom';
 import Modal from '../components/Modal';
-import { fetchServices, fetchProducts, createOrder, addOrderLineItems, addPayments, type Service, type Product } from '../lib/queries';
+import {
+  fetchServices,
+  fetchProducts,
+  createOrder,
+  addOrderLineItems,
+  addPayments,
+  fetchAppointment,
+  fetchAppointmentLineItems,
+  fetchCustomer,
+  fetchArtists,
+  updateAppointment,
+  type Service,
+  type Product,
+} from '../lib/queries';
 
 const PAYMENT_METHODS = ['Karte', 'Bar', 'Twint', 'Rechnung'];
 
@@ -295,6 +309,9 @@ function CheckoutModal({
 }
 
 export default function Kasse() {
+  const location = useLocation();
+  const appointmentId = (location.state as { appointmentId?: string } | null)?.appointmentId;
+
   const [items, setItems] = useState<LineItem[]>([]);
   const [services, setServices] = useState<Service[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
@@ -304,6 +321,10 @@ export default function Kasse() {
   const [showCheckout, setShowCheckout] = useState(false);
   const [completed, setCompleted] = useState(false);
 
+  const [contextLabel, setContextLabel] = useState<string | null>(null);
+  const [contextCustomerId, setContextCustomerId] = useState<string | null>(null);
+  const [contextError, setContextError] = useState<string | null>(null);
+
   useEffect(() => {
     Promise.all([fetchServices(), fetchProducts()])
       .then(([s, p]) => {
@@ -312,6 +333,36 @@ export default function Kasse() {
       })
       .finally(() => setLoading(false));
   }, []);
+
+  // Falls über "Kassieren" im Termin-Dialog aufgerufen: Termin laden und Warenkorb vorbefüllen.
+  useEffect(() => {
+    if (!appointmentId) return;
+    (async () => {
+      try {
+        const [appt, lineItems, allArtists] = await Promise.all([fetchAppointment(appointmentId), fetchAppointmentLineItems(appointmentId), fetchArtists()]);
+        const artist = allArtists.find((a) => a.id === appt.artist_id);
+        let customerLabel = 'Laufkunde';
+        if (appt.customer_id) {
+          const customer = await fetchCustomer(appt.customer_id);
+          customerLabel = `${customer.vorname} ${customer.name}`;
+          setContextCustomerId(appt.customer_id);
+        }
+        setContextLabel(`Termin: ${customerLabel} · ${artist?.name || '—'} · ${new Date(appt.start_time).toLocaleString('de-CH', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}`);
+        setItems(
+          (lineItems as any[]).map((li) => ({
+            id: crypto.randomUUID(),
+            label: `Service: ${li.services?.name || 'Unbekannt'}`,
+            kind: 'service' as const,
+            refId: li.service_id,
+            qty: li.quantity,
+            unitPrice: li.unit_price,
+          }))
+        );
+      } catch (e: any) {
+        setContextError(e.message);
+      }
+    })();
+  }, [appointmentId]);
 
   const subtotal = useMemo(() => items.reduce((sum, i) => sum + i.qty * i.unitPrice, 0), [items]);
 
@@ -325,6 +376,8 @@ export default function Kasse() {
 
   async function handleCheckoutComplete(payments: { method: string; amount: number }[], total: number, discountPct: number) {
     const order = await createOrder({
+      appointment_id: appointmentId || null,
+      customer_id: contextCustomerId,
       subtotal,
       order_discount_type: discountPct > 0 ? 'percent' : null,
       order_discount_value: discountPct > 0 ? discountPct : null,
@@ -342,6 +395,9 @@ export default function Kasse() {
       }))
     );
     await addPayments(order.id, payments);
+    if (appointmentId) {
+      await updateAppointment(appointmentId, { status: 'kassiert' });
+    }
     setShowCheckout(false);
     setCompleted(true);
     setItems([]);
@@ -368,7 +424,11 @@ export default function Kasse() {
       <div style={{ display: 'flex', gap: 28 }}>
         <div style={{ flex: 1, minWidth: 0 }}>
           <h1 style={{ fontSize: 24, marginBottom: 6 }}>Kasse</h1>
-          <div style={{ fontSize: 12, color: '#999', marginBottom: 20 }}>Direktverkauf ohne Termin (Laufkunde). Für Termin-Kassieren: Kalender → Termin → "Kassieren".</div>
+          <div style={{ fontSize: 12, color: contextLabel ? 'var(--color-accent)' : '#999', marginBottom: 20, fontWeight: contextLabel ? 600 : 400 }}>
+            {contextError
+              ? `Fehler beim Laden des Termins: ${contextError}`
+              : contextLabel || 'Direktverkauf ohne Termin (Laufkunde). Für Termin-Kassieren: Kalender → Termin → "Kassieren".'}
+          </div>
 
           <div
             style={{
