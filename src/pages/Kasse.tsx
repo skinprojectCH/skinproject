@@ -654,8 +654,8 @@ export default function Kasse() {
   }
 
   return (
-    <div>
-      <div style={{ display: 'flex', gap: 28 }}>
+    <div style={{ minHeight: 'calc(100vh - 120px)' }}>
+      <div style={{ display: 'flex', gap: 28, alignItems: 'stretch', minHeight: 'inherit' }}>
         <div style={{ flex: 1, minWidth: 0 }}>
           <h1 style={{ fontSize: 24, marginBottom: 6 }}>Kasse</h1>
           {contextError ? (
@@ -725,7 +725,7 @@ export default function Kasse() {
           </div>
         </div>
 
-        <div style={{ width: 320, flexShrink: 0, borderLeft: '1px solid #eee', paddingLeft: 28 }}>
+        <div style={{ width: 320, flexShrink: 0, background: '#fff', borderRadius: 6, boxShadow: '0 1px 3px rgba(0,0,0,0.06)', padding: 24 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', fontFamily: 'var(--font-heading)', fontSize: 22, fontWeight: 700, marginBottom: 20 }}>
             <div>Total</div>
             <div>{chf(subtotal)}</div>
