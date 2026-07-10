@@ -378,6 +378,83 @@ function CheckoutModal({
   );
 }
 
+function CustomerSearchSelect({ customers, value, onChange }: { customers: Customer[]; value: string; onChange: (id: string) => void }) {
+  const selected = customers.find((c) => c.id === value) || null;
+  const [query, setQuery] = useState(selected ? `${selected.vorname} ${selected.name}` : '');
+  const [open, setOpen] = useState(false);
+
+  useEffect(() => {
+    setQuery(selected ? `${selected.vorname} ${selected.name}` : '');
+  }, [value]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const filtered = customers.filter((c) => {
+    const haystack = `${c.vorname} ${c.name} ${c.phone || ''}`.toLowerCase();
+    return haystack.includes(query.trim().toLowerCase());
+  });
+
+  return (
+    <div style={{ position: 'relative', width: 280 }}>
+      <input
+        value={query}
+        onChange={(e) => {
+          setQuery(e.target.value);
+          setOpen(true);
+        }}
+        onFocus={() => setOpen(true)}
+        onBlur={() => setTimeout(() => setOpen(false), 150)}
+        placeholder="Laufkunde — Name oder Telefon suchen…"
+        style={{ border: '1px solid #ddd', borderRadius: 4, padding: '9px 10px', fontSize: 13, width: '100%', fontFamily: 'var(--font-body)' }}
+      />
+      {open && (
+        <div
+          style={{
+            position: 'absolute',
+            top: '100%',
+            left: 0,
+            right: 0,
+            background: '#fff',
+            border: '1px solid #ddd',
+            borderRadius: 4,
+            marginTop: 4,
+            maxHeight: 220,
+            overflowY: 'auto',
+            zIndex: 20,
+            boxShadow: '0 4px 12px rgba(0,0,0,0.08)',
+          }}
+        >
+          <div
+            onMouseDown={() => {
+              onChange('');
+              setQuery('');
+              setOpen(false);
+            }}
+            style={{ padding: '9px 12px', fontSize: 13, color: '#777', cursor: 'pointer', borderBottom: '1px solid #f0f0f0' }}
+          >
+            Laufkunde (kein Kunde)
+          </div>
+          {filtered.map((c) => (
+            <div
+              key={c.id}
+              onMouseDown={() => {
+                onChange(c.id);
+                setQuery(`${c.vorname} ${c.name}`);
+                setOpen(false);
+              }}
+              style={{ padding: '9px 12px', fontSize: 13, cursor: 'pointer', display: 'flex', justifyContent: 'space-between' }}
+            >
+              <div>
+                {c.vorname} {c.name}
+              </div>
+              {c.phone && <div style={{ color: '#999' }}>{c.phone}</div>}
+            </div>
+          ))}
+          {filtered.length === 0 && <div style={{ padding: '9px 12px', fontSize: 13, color: '#999' }}>Keine Treffer.</div>}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function Kasse() {
   const location = useLocation();
   const appointmentId = (location.state as { appointmentId?: string } | null)?.appointmentId;
@@ -506,19 +583,7 @@ export default function Kasse() {
                 <div className="label-uppercase" style={{ marginBottom: 4 }}>
                   Kunde
                 </div>
-                <select
-                  value={selectedCustomerId}
-                  onChange={(e) => setSelectedCustomerId(e.target.value)}
-                  style={{ border: '1px solid #ddd', borderRadius: 4, padding: '9px 10px', fontSize: 13, width: 280, fontFamily: 'var(--font-body)' }}
-                >
-                  <option value="">Laufkunde (kein Kunde)</option>
-                  {customers.map((c) => (
-                    <option key={c.id} value={c.id}>
-                      {c.vorname} {c.name}
-                      {c.phone ? ` · ${c.phone}` : ''}
-                    </option>
-                  ))}
-                </select>
+                <CustomerSearchSelect customers={customers} value={selectedCustomerId} onChange={setSelectedCustomerId} />
               </div>
             </>
           )}
