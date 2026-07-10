@@ -477,7 +477,7 @@ function DayView({
                         </span>
                         {appt.status === 'kassiert' && <CheckIcon />}
                       </div>
-                      <div style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', textDecoration: appt.status === 'kassiert' ? 'line-through' : 'none' }}>
+                      <div style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                         {appt.customer}
                         {appt.customerPhone ? ` · ${appt.customerPhone}` : ''}
                       </div>
@@ -768,7 +768,7 @@ function WeekView({
                             </span>
                             {appt.status === 'kassiert' && <CheckIcon />}
                           </div>
-                          <div style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', textDecoration: appt.status === 'kassiert' ? 'line-through' : 'none' }}>{appt.customer}</div>
+                          <div style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{appt.customer}</div>
                           {appt.services.length > 0 && (
                             <div style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', color: '#555' }}>{appt.services.join(', ')}</div>
                           )}
