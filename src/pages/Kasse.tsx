@@ -548,7 +548,7 @@ export default function Kasse() {
         line_total: i.qty * i.unitPrice,
       }))
     );
-    await addPayments(order.id, payments);
+    await addPayments(order.id, payments.map((p) => ({ ...p, method: p.method.toLowerCase() })));
     if (appointmentId) {
       await updateAppointment(appointmentId, { status: 'kassiert' });
     }
