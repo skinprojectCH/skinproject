@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import Modal from './Modal';
-import { fetchArtists, fetchCustomers, fetchServices, fetchServiceCategories, createAppointment, addAppointmentLineItems, createAbsence, createCustomer, type Artist, type Customer, type Service, type ServiceCategory } from '../lib/queries';
+import { fetchArtists, fetchCustomers, fetchServices, fetchServiceCategories, createAppointment, addAppointmentLineItems, createAbsence, type Artist, type Customer, type Service, type ServiceCategory } from '../lib/queries';
+import NewCustomerModal from './NewCustomerModal';
 
 const ABSENCE_TYPES: { key: 'ferien' | 'krank' | 'abwesend'; label: string }[] = [
   { key: 'ferien', label: 'Ferien' },
@@ -48,40 +49,7 @@ export default function TerminModal({ onClose, onSave, locationId, initialDate, 
   // Termin-State
   const [selectedCustomer, setSelectedCustomer] = useState<string>('');
   const [selectedArtist, setSelectedArtist] = useState<string>('');
-
-  // Inline "Neuer Kunde"-Formular
   const [showNewCustomer, setShowNewCustomer] = useState(false);
-  const [newCustomerVorname, setNewCustomerVorname] = useState('');
-  const [newCustomerName, setNewCustomerName] = useState('');
-  const [newCustomerPhone, setNewCustomerPhone] = useState('');
-  const [savingCustomer, setSavingCustomer] = useState(false);
-  const [customerError, setCustomerError] = useState<string | null>(null);
-  const [customerAttempted, setCustomerAttempted] = useState(false);
-
-  async function handleCreateCustomer() {
-    setCustomerAttempted(true);
-    if (!newCustomerVorname.trim() || !newCustomerName.trim()) return;
-    setSavingCustomer(true);
-    setCustomerError(null);
-    try {
-      const created = await createCustomer({
-        vorname: newCustomerVorname.trim(),
-        name: newCustomerName.trim(),
-        phone: newCustomerPhone.trim() || null,
-      });
-      setCustomers((prev) => [...prev, created]);
-      setSelectedCustomer(created.id);
-      setShowNewCustomer(false);
-      setNewCustomerVorname('');
-      setNewCustomerName('');
-      setNewCustomerPhone('');
-      setCustomerAttempted(false);
-    } catch (e: any) {
-      setCustomerError(e.message);
-    } finally {
-      setSavingCustomer(false);
-    }
-  }
   const [date, setDate] = useState<string>(initialDate || new Date().toISOString().slice(0, 10));
   const [time, setTime] = useState<string>(initialTime || '14:00');
   const [selectedServices, setSelectedServices] = useState<string[]>(['']);
@@ -163,7 +131,8 @@ export default function TerminModal({ onClose, onSave, locationId, initialDate, 
   }
 
   return (
-    <Modal title={tab === 'termin' ? 'Neuer Termin' : 'Neue Absenz'} onClose={onClose}>
+    <>
+      <Modal title={tab === 'termin' ? 'Neuer Termin' : 'Neue Absenz'} onClose={onClose}>
       <div style={{ display: 'flex', border: '1px solid #ddd', borderRadius: 4, overflow: 'hidden', fontSize: 12, marginBottom: 16 }}>
         <button
           onClick={() => setTab('termin')}
@@ -191,51 +160,9 @@ export default function TerminModal({ onClose, onSave, locationId, initialDate, 
                 </option>
               ))}
             </select>
-            {!showNewCustomer ? (
-              <div onClick={() => setShowNewCustomer(true)} style={{ fontSize: 11, color: 'var(--color-accent)', fontWeight: 600, cursor: 'pointer', marginTop: 6 }}>
-                + Neuen Kunden erfassen
-              </div>
-            ) : (
-              <div style={{ border: '1px solid #eee', borderRadius: 6, padding: 12, marginTop: 8 }}>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 8 }}>
-                  <input
-                    value={newCustomerVorname}
-                    onChange={(e) => setNewCustomerVorname(e.target.value)}
-                    placeholder="Vorname"
-                    style={{ ...boxStyle, border: customerAttempted && !newCustomerVorname.trim() ? '1px solid var(--color-destructive)' : boxStyle.border }}
-                  />
-                  <input
-                    value={newCustomerName}
-                    onChange={(e) => setNewCustomerName(e.target.value)}
-                    placeholder="Name"
-                    style={{ ...boxStyle, border: customerAttempted && !newCustomerName.trim() ? '1px solid var(--color-destructive)' : boxStyle.border }}
-                  />
-                </div>
-                <input value={newCustomerPhone} onChange={(e) => setNewCustomerPhone(e.target.value)} placeholder="Mobile (optional)" style={{ ...boxStyle, width: '100%', marginBottom: 8 }} />
-                {customerError && <div style={{ fontSize: 11, color: 'var(--color-destructive)', marginBottom: 8 }}>{customerError}</div>}
-                <div style={{ display: 'flex', gap: 8 }}>
-                  <button
-                    className="btn btn-secondary"
-                    style={{ flex: 1, justifyContent: 'center', fontSize: 12, padding: '7px 10px' }}
-                    onClick={() => {
-                      setShowNewCustomer(false);
-                      setCustomerError(null);
-                      setCustomerAttempted(false);
-                    }}
-                  >
-                    Abbrechen
-                  </button>
-                  <button
-                    className="btn btn-primary"
-                    style={{ flex: 1, justifyContent: 'center', fontSize: 12, padding: '7px 10px', opacity: savingCustomer ? 0.6 : 1 }}
-                    disabled={savingCustomer}
-                    onClick={handleCreateCustomer}
-                  >
-                    {savingCustomer ? 'Speichert…' : 'Kunde erstellen'}
-                  </button>
-                </div>
-              </div>
-            )}
+            <div onClick={() => setShowNewCustomer(true)} style={{ fontSize: 11, color: 'var(--color-accent)', fontWeight: 600, cursor: 'pointer', marginTop: 6 }}>
+              + Neuen Kunden erfassen
+            </div>
           </div>
           <div style={{ marginBottom: 14 }}>
             {fieldLabel('Artist auswählen')}
@@ -404,5 +331,17 @@ export default function TerminModal({ onClose, onSave, locationId, initialDate, 
         </button>
       </div>
     </Modal>
+      {showNewCustomer && (
+        <NewCustomerModal
+          onClose={() => setShowNewCustomer(false)}
+          onCreated={async (id) => {
+            const updated = await fetchCustomers();
+            setCustomers(updated);
+            setSelectedCustomer(id);
+            setShowNewCustomer(false);
+          }}
+        />
+      )}
+    </>
   );
 }
