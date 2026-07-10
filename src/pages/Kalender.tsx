@@ -9,6 +9,7 @@ type ViewMode = 'tag' | 'woche' | 'liste';
 
 interface LoadedAppointment {
   id: string;
+  dateISO: string;
   time: string;
   startMinutes: number;
   endMinutes: number;
@@ -18,6 +19,22 @@ interface LoadedAppointment {
   artistName: string;
   artistColor: string;
   status: string;
+}
+
+function mapAppointmentRow(a: any, dateISO: string): LoadedAppointment {
+  return {
+    id: a.id,
+    dateISO,
+    time: formatTime(a.start_time),
+    startMinutes: timeToMinutes(a.start_time),
+    endMinutes: timeToMinutes(a.end_time),
+    label: a.type === 'absenz' ? 'Absenz' : 'Termin',
+    customer: a.customers ? `${a.customers.vorname} ${a.customers.name}` : 'Laufkunde',
+    artistId: a.artist_id,
+    artistName: a.artists?.name || '—',
+    artistColor: a.artists?.calendar_color || 'var(--color-accent)',
+    status: a.status,
+  };
 }
 
 function todayISO() {
@@ -310,6 +327,232 @@ function DayView({
   );
 }
 
+function startOfWeekISO(dateISO: string) {
+  const d = new Date(dateISO);
+  const weekday = (d.getDay() + 6) % 7; // Mo=0 ... So=6
+  d.setDate(d.getDate() - weekday);
+  return d;
+}
+
+const WEEKDAY_LABELS = ['Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So'];
+
+function WeekView({
+  artists,
+  locationId,
+  baseDate,
+  refreshKey,
+  onSelectAppointment,
+  onCreateAtSlot,
+}: {
+  artists: Artist[];
+  locationId: string;
+  baseDate: string;
+  refreshKey: number;
+  onSelectAppointment: (a: LoadedAppointment) => void;
+  onCreateAtSlot: (artistId: string, dateISO: string, time: string) => void;
+}) {
+  const [artistId, setArtistId] = useState(artists[0]?.id || '');
+  const [weekAppointments, setWeekAppointments] = useState<Record<string, LoadedAppointment[]>>({});
+  const [weekShifts, setWeekShifts] = useState<Record<string, Shift[]>>({});
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const nowMinutes = useNowMinutes();
+  const todayStr = todayISO();
+
+  useEffect(() => {
+    if (artists.length && !artists.some((a) => a.id === artistId)) setArtistId(artists[0].id);
+  }, [artists, artistId]);
+
+  const monday = startOfWeekISO(baseDate);
+  const days = Array.from({ length: 7 }, (_, i) => {
+    const d = new Date(monday);
+    d.setDate(d.getDate() + i);
+    return d.toISOString().slice(0, 10);
+  });
+  const daysKey = days.join(',');
+
+  useEffect(() => {
+    if (!artistId) return;
+    setLoading(true);
+    setError(null);
+    (async () => {
+      try {
+        const dayList = daysKey.split(',');
+        const [apptResults, shiftResults] = await Promise.all([
+          Promise.all(dayList.map((d) => fetchAppointmentsForDay(d, locationId))),
+          Promise.all(dayList.map((d) => fetchShiftsForDate([artistId], d))),
+        ]);
+        const apptMap: Record<string, LoadedAppointment[]> = {};
+        const shiftMap: Record<string, Shift[]> = {};
+        dayList.forEach((d, i) => {
+          apptMap[d] = (apptResults[i] as any[]).filter((a) => a.artist_id === artistId).map((a) => mapAppointmentRow(a, d));
+          shiftMap[d] = shiftResults[i];
+        });
+        setWeekAppointments(apptMap);
+        setWeekShifts(shiftMap);
+      } catch (e: any) {
+        setError(e.message);
+      } finally {
+        setLoading(false);
+      }
+    })();
+  }, [artistId, daysKey, locationId, refreshKey]);
+
+  const hourMarks: number[] = [];
+  for (let m = DISPLAY_START_MIN; m <= DISPLAY_END_MIN; m += 60) hourMarks.push(m);
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
+      <div style={{ marginBottom: 12, flexShrink: 0 }}>
+        <div className="label-uppercase" style={{ marginBottom: 4 }}>
+          Artist auswählen
+        </div>
+        <select
+          value={artistId}
+          onChange={(e) => setArtistId(e.target.value)}
+          style={{ border: '1px solid var(--color-border)', borderRadius: 4, padding: '8px 14px', fontSize: 13, width: 220, fontFamily: 'var(--font-body)' }}
+        >
+          {artists.map((a) => (
+            <option key={a.id} value={a.id}>
+              {a.name}
+            </option>
+          ))}
+        </select>
+        <div style={{ fontSize: 11, color: '#999', marginTop: 4 }}>Wochenansicht zeigt jeweils einen Artist.</div>
+      </div>
+
+      {artists.length === 0 ? (
+        <div style={{ fontSize: 13, color: '#999' }}>Keine Artists an dieser Location.</div>
+      ) : loading ? (
+        <div style={{ fontSize: 13, color: '#999' }}>Lädt…</div>
+      ) : error ? (
+        <div style={{ fontSize: 13, color: 'var(--color-destructive)' }}>Fehler: {error}</div>
+      ) : (
+        <div style={{ border: '1px solid #eee', borderRadius: 6, overflow: 'hidden', display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 }}>
+          {/* Kopfzeile: Wochentage — fix, scrollt nicht mit */}
+          <div style={{ display: 'flex', borderBottom: '1px solid #eee', flexShrink: 0 }}>
+            <div style={{ width: 56, flexShrink: 0, background: '#fff' }} />
+            {days.map((d) => {
+              const isToday = d === todayStr;
+              const dt = new Date(d);
+              return (
+                <div key={d} style={{ flex: 1, minWidth: 0, background: isToday ? 'var(--color-accent-fill)' : '#fbfaf8', padding: '10px 4px', textAlign: 'center', borderLeft: '1px solid #eee' }}>
+                  <div style={{ fontFamily: 'var(--font-heading)', fontSize: 13, fontWeight: 700, color: isToday ? 'var(--color-accent)' : '#111' }}>
+                    {WEEKDAY_LABELS[(dt.getDay() + 6) % 7]} {dt.getDate()}.
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
+          {/* Zeitraster — einziger scrollbarer Bereich */}
+          <div style={{ flex: 1, minHeight: 0, overflowY: 'auto' }}>
+            <div style={{ display: 'flex', position: 'relative' }}>
+              <div style={{ width: 56, flexShrink: 0, position: 'relative', height: GRID_HEIGHT, background: '#fff' }}>
+                {hourMarks.map((m) => (
+                  <div key={m} style={{ position: 'absolute', top: (m - DISPLAY_START_MIN) * PX_PER_MIN - 6, right: 8, fontSize: 10, color: '#999' }}>
+                    {minutesLabel(m)}
+                  </div>
+                ))}
+              </div>
+
+              {days.map((d) => {
+                const dayShifts = weekShifts[d] || [];
+                const offWindows = offWindowsForArtist(dayShifts, artistId);
+                const dayAppointments = weekAppointments[d] || [];
+                const isToday = d === todayStr;
+                const showNowLine = isToday && nowMinutes >= DISPLAY_START_MIN && nowMinutes <= DISPLAY_END_MIN;
+                const artistColor = artists.find((a) => a.id === artistId)?.calendar_color || 'var(--color-accent)';
+                return (
+                  <div
+                    key={d}
+                    onDoubleClick={(e) => {
+                      const rect = e.currentTarget.getBoundingClientRect();
+                      const offsetY = e.clientY - rect.top;
+                      const rawMinutes = DISPLAY_START_MIN + offsetY / PX_PER_MIN;
+                      const snapped = Math.round(rawMinutes / 15) * 15;
+                      const clamped = Math.min(Math.max(snapped, DISPLAY_START_MIN), DISPLAY_END_MIN - 15);
+                      onCreateAtSlot(artistId, d, minutesLabel(clamped));
+                    }}
+                    style={{
+                      flex: 1,
+                      minWidth: 0,
+                      position: 'relative',
+                      height: GRID_HEIGHT,
+                      borderLeft: '1px solid #eee',
+                      cursor: 'copy',
+                      backgroundImage: `repeating-linear-gradient(180deg, transparent, transparent ${60 * PX_PER_MIN - 1}px, #f2f2f2 ${60 * PX_PER_MIN - 1}px, #f2f2f2 ${60 * PX_PER_MIN}px)`,
+                    }}
+                  >
+                    {offWindows.map((w, i) => (
+                      <div
+                        key={i}
+                        style={{
+                          position: 'absolute',
+                          top: (w.start - DISPLAY_START_MIN) * PX_PER_MIN,
+                          height: Math.max(0, (w.end - w.start) * PX_PER_MIN),
+                          left: 0,
+                          right: 0,
+                          background: HATCH_BG,
+                          pointerEvents: 'none',
+                        }}
+                      />
+                    ))}
+
+                    {showNowLine && (
+                      <div style={{ position: 'absolute', top: (nowMinutes - DISPLAY_START_MIN) * PX_PER_MIN, left: 0, right: 0, height: 1, background: '#111', zIndex: 5, pointerEvents: 'none' }} />
+                    )}
+
+                    {dayAppointments.map((appt) => {
+                      const top = Math.max(0, (appt.startMinutes - DISPLAY_START_MIN) * PX_PER_MIN);
+                      const height = Math.max(16, (appt.endMinutes - appt.startMinutes) * PX_PER_MIN);
+                      return (
+                        <div
+                          key={appt.id}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onSelectAppointment(appt);
+                          }}
+                          onDoubleClick={(e) => e.stopPropagation()}
+                          style={{
+                            position: 'absolute',
+                            top,
+                            height,
+                            left: 2,
+                            right: 2,
+                            background: 'var(--color-accent-fill)',
+                            borderLeft: `3px solid ${artistColor}`,
+                            borderRadius: '0 4px 4px 0',
+                            padding: '2px 4px',
+                            fontSize: 10,
+                            fontWeight: 500,
+                            cursor: 'pointer',
+                            overflow: 'hidden',
+                            boxShadow: '0 1px 2px rgba(0,0,0,0.06)',
+                          }}
+                          title={`${appt.time} · ${appt.label} · ${appt.customer}`}
+                        >
+                          <div style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{appt.time}</div>
+                          <div style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', color: '#555' }}>{appt.customer}</div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 12px', fontSize: 11, color: '#999', borderTop: '1px solid #eee', flexShrink: 0 }}>
+            <span style={{ width: 12, height: 12, background: HATCH_BG, display: 'inline-block', borderRadius: 2 }} />
+            Ausserhalb der Arbeitszeit — kann nicht gebucht werden.
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function ListView({ appointments }: { appointments: LoadedAppointment[] }) {
   return (
     <div>
@@ -349,7 +592,7 @@ function ListView({ appointments }: { appointments: LoadedAppointment[] }) {
 export default function Kalender() {
   const [view, setView] = useState<ViewMode>('tag');
   const [showNewTermin, setShowNewTermin] = useState(false);
-  const [newTerminPrefill, setNewTerminPrefill] = useState<{ artistId?: string; time?: string }>({});
+  const [newTerminPrefill, setNewTerminPrefill] = useState<{ artistId?: string; time?: string; date?: string }>({});
   const [selectedAppointment, setSelectedAppointment] = useState<LoadedAppointment | null>(null);
   const [appointments, setAppointments] = useState<LoadedAppointment[]>([]);
   const [artists, setArtists] = useState<Artist[]>([]);
@@ -361,6 +604,7 @@ export default function Kalender() {
   const [error, setError] = useState<string | null>(null);
   const [date, setDate] = useState(todayISO());
   const [locationsLoaded, setLocationsLoaded] = useState(false);
+  const [refreshKey, setRefreshKey] = useState(0);
 
   // Locations einmalig laden, danach Standort vorauswählen:
   // 1. Standort, der dem eingeloggten Account zugewiesen ist (app_users.location_id) — hat Vorrang
@@ -388,18 +632,7 @@ export default function Kalender() {
       setArtists(scopedArtists);
       const dayShifts = await fetchShiftsForDate(scopedArtists.map((a) => a.id), date);
       setShifts(dayShifts);
-      const mapped: LoadedAppointment[] = (rawAppointments as any[]).map((a) => ({
-        id: a.id,
-        time: formatTime(a.start_time),
-        startMinutes: timeToMinutes(a.start_time),
-        endMinutes: timeToMinutes(a.end_time),
-        label: a.type === 'absenz' ? 'Absenz' : 'Termin',
-        customer: a.customers ? `${a.customers.vorname} ${a.customers.name}` : 'Laufkunde',
-        artistId: a.artist_id,
-        artistName: a.artists?.name || '—',
-        artistColor: a.artists?.calendar_color || 'var(--color-accent)',
-        status: a.status,
-      }));
+      const mapped: LoadedAppointment[] = (rawAppointments as any[]).map((a) => mapAppointmentRow(a, date));
       setAppointments(mapped);
     } catch (e: any) {
       setError(e.message);
@@ -512,7 +745,19 @@ export default function Kalender() {
               }}
             />
           )}
-          {view === 'woche' && <div style={{ fontSize: 13, color: '#999' }}>Wochenansicht folgt (Mehrtages-Query).</div>}
+          {view === 'woche' && (
+            <WeekView
+              artists={artists}
+              locationId={selectedLocationId}
+              baseDate={date}
+              refreshKey={refreshKey}
+              onSelectAppointment={setSelectedAppointment}
+              onCreateAtSlot={(artistId, dateISO, time) => {
+                setNewTerminPrefill({ artistId, time, date: dateISO });
+                setShowNewTermin(true);
+              }}
+            />
+          )}
           {view === 'liste' && (
             <div style={{ height: '100%', overflowY: 'auto' }}>
               <ListView appointments={appointments} />
@@ -524,13 +769,14 @@ export default function Kalender() {
       {showNewTermin && (
         <TerminModal
           locationId={selectedLocationId}
-          initialDate={date}
+          initialDate={newTerminPrefill.date || date}
           initialTime={newTerminPrefill.time}
           initialArtistId={newTerminPrefill.artistId}
           onClose={() => setShowNewTermin(false)}
           onSave={() => {
             setShowNewTermin(false);
             reload();
+            setRefreshKey((k) => k + 1);
           }}
         />
       )}
@@ -540,10 +786,11 @@ export default function Kalender() {
           onClose={() => {
             setSelectedAppointment(null);
             reload();
+            setRefreshKey((k) => k + 1);
           }}
           customer={selectedAppointment.customer}
           artist={selectedAppointment.artistName}
-          date={new Date(date).toLocaleDateString('de-CH')}
+          date={new Date(selectedAppointment.dateISO).toLocaleDateString('de-CH')}
           time={selectedAppointment.time}
           serviceName={selectedAppointment.label}
           durationMin={90}
