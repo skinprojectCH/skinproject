@@ -4,6 +4,8 @@ import Modal from '../components/Modal';
 import {
   fetchServices,
   fetchProducts,
+  fetchServiceCategories,
+  fetchProductCategories,
   createOrder,
   addOrderLineItems,
   addPayments,
@@ -14,6 +16,8 @@ import {
   updateAppointment,
   type Service,
   type Product,
+  type ServiceCategory,
+  type ProductCategory,
 } from '../lib/queries';
 
 const PAYMENT_METHODS = ['Karte', 'Bar', 'Twint', 'Rechnung'];
@@ -49,14 +53,50 @@ function TrashIcon() {
   );
 }
 
-function AddServiceModal({ services, onClose, onAdd }: { services: Service[]; onClose: () => void; onAdd: (item: LineItem) => void }) {
+function SearchIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
+      <circle cx="11" cy="11" r="7" />
+      <line x1="21" y1="21" x2="16.65" y2="16.65" />
+    </svg>
+  );
+}
+
+function AddServiceModal({
+  services,
+  categories,
+  onClose,
+  onAdd,
+}: {
+  services: Service[];
+  categories: ServiceCategory[];
+  onClose: () => void;
+  onAdd: (item: LineItem) => void;
+}) {
+  const [search, setSearch] = useState('');
+  const [categoryFilter, setCategoryFilter] = useState('');
+  const filtered = services.filter((s) => (!categoryFilter || s.category_id === categoryFilter) && s.name.toLowerCase().includes(search.toLowerCase()));
   const [selected, setSelected] = useState(services[0]?.id || '');
   const service = services.find((s) => s.id === selected);
 
   return (
     <Modal title="Service hinzufügen" onClose={onClose}>
+      <div style={{ display: 'flex', gap: 8, marginBottom: 10 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, border: '1px solid #ddd', borderRadius: 4, padding: '8px 10px', flex: 1, color: '#555' }}>
+          <SearchIcon />
+          <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Service suchen…" style={{ border: 'none', outline: 'none', fontSize: 13, width: '100%', fontFamily: 'var(--font-body)' }} />
+        </div>
+      </div>
+      <select value={categoryFilter} onChange={(e) => setCategoryFilter(e.target.value)} style={{ border: '1px solid #ddd', borderRadius: 4, padding: '9px 10px', fontSize: 13, width: '100%', marginBottom: 14, color: categoryFilter ? '#111' : '#777', fontFamily: 'var(--font-body)' }}>
+        <option value="">Alle Kategorien</option>
+        {categories.map((c) => (
+          <option key={c.id} value={c.id}>
+            {c.name}
+          </option>
+        ))}
+      </select>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 18, maxHeight: 260, overflowY: 'auto' }}>
-        {services.map((s) => (
+        {filtered.map((s) => (
           <div
             key={s.id}
             onClick={() => setSelected(s.id)}
@@ -78,6 +118,7 @@ function AddServiceModal({ services, onClose, onAdd }: { services: Service[]; on
             <div style={{ fontWeight: 600 }}>CHF {s.price}</div>
           </div>
         ))}
+        {filtered.length === 0 && <div style={{ fontSize: 13, color: '#999', padding: '10px 0' }}>Keine Services gefunden.</div>}
       </div>
       <div style={{ display: 'flex', gap: 10 }}>
         <button className="btn btn-secondary" style={{ flex: 1, justifyContent: 'center' }} onClick={onClose}>
@@ -99,8 +140,21 @@ function AddServiceModal({ services, onClose, onAdd }: { services: Service[]; on
   );
 }
 
-function AddProductModal({ products, onClose, onAdd }: { products: Product[]; onClose: () => void; onAdd: (items: LineItem[]) => void }) {
+function AddProductModal({
+  products,
+  categories,
+  onClose,
+  onAdd,
+}: {
+  products: Product[];
+  categories: ProductCategory[];
+  onClose: () => void;
+  onAdd: (items: LineItem[]) => void;
+}) {
+  const [search, setSearch] = useState('');
+  const [categoryFilter, setCategoryFilter] = useState('');
   const [quantities, setQuantities] = useState<Record<string, number>>({});
+  const filtered = products.filter((p) => (!categoryFilter || p.category_id === categoryFilter) && p.name.toLowerCase().includes(search.toLowerCase()));
   const total = products.reduce((sum, p) => sum + (quantities[p.id] || 0) * p.price, 0);
   const count = Object.values(quantities).reduce((a, b) => a + b, 0);
 
@@ -110,8 +164,22 @@ function AddProductModal({ products, onClose, onAdd }: { products: Product[]; on
 
   return (
     <Modal title="Artikel hinzufügen" onClose={onClose}>
+      <div style={{ display: 'flex', gap: 8, marginBottom: 10 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, border: '1px solid #ddd', borderRadius: 4, padding: '8px 10px', flex: 1, color: '#555' }}>
+          <SearchIcon />
+          <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Artikel suchen…" style={{ border: 'none', outline: 'none', fontSize: 13, width: '100%', fontFamily: 'var(--font-body)' }} />
+        </div>
+      </div>
+      <select value={categoryFilter} onChange={(e) => setCategoryFilter(e.target.value)} style={{ border: '1px solid #ddd', borderRadius: 4, padding: '9px 10px', fontSize: 13, width: '100%', marginBottom: 14, color: categoryFilter ? '#111' : '#777', fontFamily: 'var(--font-body)' }}>
+        <option value="">Alle Kategorien</option>
+        {categories.map((c) => (
+          <option key={c.id} value={c.id}>
+            {c.name}
+          </option>
+        ))}
+      </select>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 18, maxHeight: 260, overflowY: 'auto' }}>
-        {products.map((p) => {
+        {filtered.map((p) => {
           const qty = quantities[p.id] || 0;
           return (
             <div
@@ -142,6 +210,7 @@ function AddProductModal({ products, onClose, onAdd }: { products: Product[]; on
             </div>
           );
         })}
+        {filtered.length === 0 && <div style={{ fontSize: 13, color: '#999', padding: '10px 0' }}>Keine Artikel gefunden.</div>}
       </div>
       <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, color: '#777', marginBottom: 16 }}>
         <div>{count} Artikel ausgewählt</div>
@@ -315,6 +384,8 @@ export default function Kasse() {
   const [items, setItems] = useState<LineItem[]>([]);
   const [services, setServices] = useState<Service[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
+  const [serviceCategories, setServiceCategories] = useState<ServiceCategory[]>([]);
+  const [productCategories, setProductCategories] = useState<ProductCategory[]>([]);
   const [loading, setLoading] = useState(true);
   const [showServiceModal, setShowServiceModal] = useState(false);
   const [showProductModal, setShowProductModal] = useState(false);
@@ -326,10 +397,12 @@ export default function Kasse() {
   const [contextError, setContextError] = useState<string | null>(null);
 
   useEffect(() => {
-    Promise.all([fetchServices(), fetchProducts()])
-      .then(([s, p]) => {
+    Promise.all([fetchServices(), fetchProducts(), fetchServiceCategories(), fetchProductCategories()])
+      .then(([s, p, sc, pc]) => {
         setServices(s.filter((sv) => sv.active));
         setProducts(p.filter((pr) => pr.active));
+        setServiceCategories(sc);
+        setProductCategories(pc);
       })
       .finally(() => setLoading(false));
   }, []);
@@ -499,8 +572,12 @@ export default function Kasse() {
         </div>
       </div>
 
-      {showServiceModal && <AddServiceModal services={services} onClose={() => setShowServiceModal(false)} onAdd={(item) => setItems((prev) => [...prev, item])} />}
-      {showProductModal && <AddProductModal products={products} onClose={() => setShowProductModal(false)} onAdd={(newItems) => setItems((prev) => [...prev, ...newItems])} />}
+      {showServiceModal && (
+        <AddServiceModal services={services} categories={serviceCategories} onClose={() => setShowServiceModal(false)} onAdd={(item) => setItems((prev) => [...prev, item])} />
+      )}
+      {showProductModal && (
+        <AddProductModal products={products} categories={productCategories} onClose={() => setShowProductModal(false)} onAdd={(newItems) => setItems((prev) => [...prev, ...newItems])} />
+      )}
       {showCheckout && (
         <CheckoutModal
           subtotal={subtotal}
