@@ -632,10 +632,10 @@ export default function Kasse() {
           {items.length === 0 && <div style={{ padding: '20px 12px', fontSize: 13, color: '#999' }}>Warenkorb leer — Service oder Artikel hinzufügen.</div>}
 
           <div style={{ display: 'flex', gap: 10, marginTop: 14, marginBottom: 20, flexWrap: 'wrap' }}>
-            <button className="btn btn-secondary" onClick={() => setShowServiceModal(true)}>
+            <button className="btn btn-outline" onClick={() => setShowServiceModal(true)}>
               + Service hinzufügen
             </button>
-            <button className="btn btn-primary" onClick={() => setShowProductModal(true)}>
+            <button className="btn btn-outline" onClick={() => setShowProductModal(true)}>
               + Artikel hinzufügen
             </button>
           </div>
