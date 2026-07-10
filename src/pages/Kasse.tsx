@@ -272,7 +272,21 @@ function CheckoutModal({
   }
 
   function updatePayment(id: string, patch: Partial<SplitPayment>) {
-    setPayments((prev) => prev.map((p) => (p.id === id ? { ...p, ...patch } : p)));
+    setPayments((prev) => {
+      const updated = prev.map((p) => (p.id === id ? { ...p, ...patch } : p));
+      // Wenn eine Zahlung (nicht die letzte) manuell geändert wird, den Rest automatisch
+      // in die letzte Zahlungsart packen, damit man nicht selbst nachrechnen muss.
+      if (patch.amount !== undefined && updated.length > 1) {
+        const editedIndex = updated.findIndex((p) => p.id === id);
+        const lastIndex = updated.length - 1;
+        if (editedIndex !== lastIndex) {
+          const sumExceptLast = updated.slice(0, lastIndex).reduce((sum, p) => sum + p.amount, 0);
+          const remaining = Math.max(0, Math.round((total - sumExceptLast) * 100) / 100);
+          updated[lastIndex] = { ...updated[lastIndex], amount: remaining };
+        }
+      }
+      return updated;
+    });
   }
 
   function removePayment(id: string) {
@@ -474,6 +488,7 @@ export default function Kasse() {
 
   const [contextLabel, setContextLabel] = useState<string | null>(null);
   const [contextError, setContextError] = useState<string | null>(null);
+  const [alreadyKassiert, setAlreadyKassiert] = useState(false);
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [selectedCustomerId, setSelectedCustomerId] = useState<string>('');
   const [paymentMethod, setPaymentMethod] = useState<string | null>(null);
@@ -499,6 +514,10 @@ export default function Kasse() {
       try {
         const [appt, lineItems, allArtists] = await Promise.all([fetchAppointment(appointmentId), fetchAppointmentLineItems(appointmentId), fetchArtists()]);
         const artist = allArtists.find((a) => a.id === appt.artist_id);
+        if (appt.status === 'kassiert') {
+          setAlreadyKassiert(true);
+          return;
+        }
         if (appt.customer_id) {
           setSelectedCustomerId(appt.customer_id);
         }
@@ -572,6 +591,18 @@ export default function Kasse() {
   }
 
   if (loading) return <div style={{ fontSize: 13, color: '#999' }}>Lädt…</div>;
+
+  if (alreadyKassiert) {
+    return (
+      <div>
+        <h2 style={{ fontSize: 26, marginBottom: 12 }}>Kasse</h2>
+        <div style={{ border: '1px solid #eee', borderRadius: 6, padding: 40, textAlign: 'center' }}>
+          <div style={{ fontSize: 16, fontWeight: 700, marginBottom: 8 }}>Dieser Termin wurde bereits kassiert.</div>
+          <div style={{ fontSize: 13, color: '#999' }}>Er kann nicht ein zweites Mal kassiert werden.</div>
+        </div>
+      </div>
+    );
+  }
 
   if (completed) {
     return (

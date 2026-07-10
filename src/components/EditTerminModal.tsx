@@ -48,6 +48,7 @@ export default function EditTerminModal({ appointmentId, onClose }: Props) {
   const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [status, setStatus] = useState<string>('gebucht');
 
   const [artists, setArtists] = useState<Artist[]>([]);
   const [customers, setCustomers] = useState<Customer[]>([]);
@@ -69,6 +70,7 @@ export default function EditTerminModal({ appointmentId, onClose }: Props) {
   useEffect(() => {
     Promise.all([fetchAppointment(appointmentId), fetchAppointmentLineItems(appointmentId), fetchArtists(), fetchCustomers(), fetchServices(), fetchServiceCategories()])
       .then(([appt, lineItems, allArtists, allCustomers, allServices, allCategories]) => {
+        setStatus(appt.status);
         setSelectedCustomer(appt.customer_id || '');
         setSelectedArtist(appt.artist_id || '');
         setDate(toDateInput(appt.start_time));
@@ -145,6 +147,54 @@ export default function EditTerminModal({ appointmentId, onClose }: Props) {
     return (
       <Modal title="Termin bearbeiten" onClose={onClose}>
         <div style={{ fontSize: 13, color: 'var(--color-destructive)' }}>Fehler: {error}</div>
+      </Modal>
+    );
+  }
+
+  if (status === 'kassiert') {
+    const customer = customers.find((c) => c.id === selectedCustomer);
+    const artist = artists.find((a) => a.id === selectedArtist);
+    return (
+      <Modal title="Termin (abgeschlossen)" onClose={onClose}>
+        <div style={{ border: '1px solid var(--color-accent)', background: 'var(--color-accent-fill)', borderRadius: 6, padding: '10px 14px', marginBottom: 20, fontSize: 12, color: 'var(--color-accent)', fontWeight: 600 }}>
+          ✓ Dieser Termin wurde bereits kassiert und ist abgeschlossen — keine Änderungen mehr möglich.
+        </div>
+
+        <div style={{ marginBottom: 14 }}>
+          {fieldLabel('Kunde')}
+          <div style={boxStyle}>{customer ? `${customer.vorname} ${customer.name}` : 'Laufkunde'}</div>
+        </div>
+        <div style={{ marginBottom: 14 }}>
+          {fieldLabel('Artist')}
+          <div style={boxStyle}>{artist?.name || '—'}</div>
+        </div>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 14 }}>
+          <div>
+            {fieldLabel('Datum')}
+            <div style={boxStyle}>{date}</div>
+          </div>
+          <div>
+            {fieldLabel('Startzeit')}
+            <div style={boxStyle}>{time}</div>
+          </div>
+        </div>
+        <div style={{ marginBottom: 22 }}>
+          {fieldLabel('Services')}
+          {selectedServices
+            .map((id) => services.find((s) => s.id === id))
+            .filter((s): s is Service => !!s)
+            .map((s) => (
+              <div key={s.id} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, padding: '6px 0', borderBottom: '1px solid #f0f0f0' }}>
+                <div>{s.name}</div>
+                <div style={{ color: '#777' }}>CHF {s.price}</div>
+              </div>
+            ))}
+          {selectedServices.filter((id) => id).length === 0 && <div style={{ fontSize: 13, color: '#999' }}>Keine Dienstleistungen erfasst.</div>}
+        </div>
+
+        <button className="btn btn-secondary" style={{ width: '100%', justifyContent: 'center' }} onClick={onClose}>
+          Schliessen
+        </button>
       </Modal>
     );
   }
