@@ -692,7 +692,7 @@ export default function Kasse() {
           </div>
 
           {items.map((item) => (
-            <div key={item.id} style={{ display: 'grid', gridTemplateColumns: '1fr 100px 90px 28px', padding: '14px 12px', fontSize: 13, borderBottom: '1px solid #eee', alignItems: 'center' }}>
+            <div key={item.id} style={{ display: 'grid', gridTemplateColumns: '1fr 100px 90px 28px', padding: '14px 12px', fontSize: 13, borderBottom: '1px solid #ddd', alignItems: 'center' }}>
               <div>{item.label}</div>
               <div>
                 {item.kind === 'product' && (
