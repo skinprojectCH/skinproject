@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import Modal from './Modal';
-import { fetchArtists, fetchCustomers, fetchServices, createAppointment, addAppointmentLineItems, createAbsence, type Artist, type Customer, type Service } from '../lib/queries';
+import { fetchArtists, fetchCustomers, fetchServices, fetchServiceCategories, createAppointment, addAppointmentLineItems, createAbsence, type Artist, type Customer, type Service, type ServiceCategory } from '../lib/queries';
 
 const ABSENCE_TYPES: { key: 'ferien' | 'krank' | 'abwesend'; label: string }[] = [
   { key: 'ferien', label: 'Ferien' },
@@ -26,19 +26,21 @@ export default function TerminModal({ onClose, onSave, locationId, initialDate, 
   const [artists, setArtists] = useState<Artist[]>([]);
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [services, setServices] = useState<Service[]>([]);
+  const [categories, setCategories] = useState<ServiceCategory[]>([]);
+  const [categoryFilter, setCategoryFilter] = useState<string>('');
 
   useEffect(() => {
-    Promise.all([fetchArtists(), fetchCustomers(), fetchServices()])
-      .then(([a, c, s]) => {
+    Promise.all([fetchArtists(), fetchCustomers(), fetchServices(), fetchServiceCategories()])
+      .then(([a, c, s, cats]) => {
         const scopedArtists = a.filter((art) => art.status === 'active' && (!locationId || art.location_id === locationId));
         setArtists(scopedArtists);
         setCustomers(c);
         setServices(s.filter((sv) => sv.active));
+        setCategories(cats);
         if (scopedArtists.length) {
           const preferred = initialArtistId && scopedArtists.some((art) => art.id === initialArtistId) ? initialArtistId : scopedArtists[0].id;
           setSelectedArtist(preferred);
         }
-        if (s.length) setSelectedServices([s[0].id]);
       })
       .catch((e) => setError(e.message));
   }, []);
@@ -48,7 +50,7 @@ export default function TerminModal({ onClose, onSave, locationId, initialDate, 
   const [selectedArtist, setSelectedArtist] = useState<string>('');
   const [date, setDate] = useState<string>(initialDate || new Date().toISOString().slice(0, 10));
   const [time, setTime] = useState<string>(initialTime || '14:00');
-  const [selectedServices, setSelectedServices] = useState<string[]>([]);
+  const [selectedServices, setSelectedServices] = useState<string[]>(['']);
   const totalDuration = selectedServices.reduce((sum, id) => sum + (services.find((s) => s.id === id)?.duration_minutes || 0), 0);
   const totalPrice = selectedServices.reduce((sum, id) => sum + (services.find((s) => s.id === id)?.price || 0), 0);
 
@@ -178,29 +180,45 @@ export default function TerminModal({ onClose, onSave, locationId, initialDate, 
           </div>
           <div style={{ marginBottom: 10 }}>
             {fieldLabel('Services')}
-            {selectedServices.map((id) => (
-              <div key={id} style={{ display: 'flex', gap: 8, marginBottom: 8, alignItems: 'center' }}>
-                <select
-                  value={id}
-                  onChange={(e) => setSelectedServices((prev) => prev.map((sid) => (sid === id ? e.target.value : sid)))}
-                  style={{ ...boxStyle, flex: 1 }}
-                >
-                  {services.map((s) => (
-                    <option key={s.id} value={s.id}>
-                      {s.name}
-                    </option>
-                  ))}
-                </select>
-                <button onClick={() => setSelectedServices((prev) => prev.filter((sid) => sid !== id))} style={{ background: 'none', border: 'none', fontSize: 14, color: '#999' }}>
-                  ✕
-                </button>
-              </div>
-            ))}
-            {services.length > 0 && (
-              <div onClick={() => setSelectedServices((prev) => [...prev, services[0].id])} style={{ fontSize: 12, color: 'var(--color-accent)', fontWeight: 600, cursor: 'pointer' }}>
-                + Weiteren Service hinzufügen
-              </div>
-            )}
+            <select
+              value={categoryFilter}
+              onChange={(e) => setCategoryFilter(e.target.value)}
+              style={{ ...boxStyle, width: '100%', marginBottom: 8, color: categoryFilter ? '#111' : '#777' }}
+            >
+              <option value="">Alle Kategorien</option>
+              {categories.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.name}
+                </option>
+              ))}
+            </select>
+            {selectedServices.map((id, index) => {
+              const filteredServices = categoryFilter ? services.filter((s) => s.category_id === categoryFilter) : services;
+              const selectedStillVisible = id && filteredServices.some((s) => s.id === id);
+              const optionsForRow = selectedStillVisible || !id ? filteredServices : [...filteredServices, services.find((s) => s.id === id)!].filter(Boolean);
+              return (
+                <div key={index} style={{ display: 'flex', gap: 8, marginBottom: 8, alignItems: 'center' }}>
+                  <select
+                    value={id}
+                    onChange={(e) => setSelectedServices((prev) => prev.map((sid, i) => (i === index ? e.target.value : sid)))}
+                    style={{ ...boxStyle, flex: 1, color: id ? '#111' : '#777' }}
+                  >
+                    <option value="">Service wählen…</option>
+                    {optionsForRow.map((s) => (
+                      <option key={s.id} value={s.id}>
+                        {s.name}
+                      </option>
+                    ))}
+                  </select>
+                  <button onClick={() => setSelectedServices((prev) => prev.filter((_, i) => i !== index))} style={{ background: 'none', border: 'none', fontSize: 14, color: '#999' }}>
+                    ✕
+                  </button>
+                </div>
+              );
+            })}
+            <div onClick={() => setSelectedServices((prev) => [...prev, ''])} style={{ fontSize: 12, color: 'var(--color-accent)', fontWeight: 600, cursor: 'pointer' }}>
+              + Weiteren Service hinzufügen
+            </div>
           </div>
           <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, color: '#777', marginBottom: 14, borderTop: '1px solid #eee', paddingTop: 10 }}>
             <div>Gesamtdauer: {totalDuration} min</div>
