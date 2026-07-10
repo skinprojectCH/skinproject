@@ -8,11 +8,19 @@ import {
   uploadCustomerFile,
   getCustomerFileUrl,
   deleteCustomerDocument,
+  fetchAppointmentsForCustomer,
   type Customer,
   type CustomerDocument,
 } from '../lib/queries';
 
 const inputStyle: React.CSSProperties = { border: '1px solid #ddd', borderRadius: 4, padding: '9px 10px', fontSize: 13, width: '100%', fontFamily: 'var(--font-body)' };
+
+const STATUS_LABELS: Record<string, { label: string; color: string }> = {
+  gebucht: { label: 'gebucht', color: '#777' },
+  kassiert: { label: 'kassiert', color: 'var(--color-accent)' },
+  storniert: { label: 'storniert', color: 'var(--color-destructive)' },
+  nicht_erschienen: { label: 'nicht erschienen', color: 'var(--color-destructive)' },
+};
 
 export default function KundeDetail() {
   const { id } = useParams();
@@ -20,6 +28,8 @@ export default function KundeDetail() {
   const [customer, setCustomer] = useState<Customer | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [appointmentHistory, setAppointmentHistory] = useState<any[]>([]);
+  const [historyLoading, setHistoryLoading] = useState(true);
 
   const [vorname, setVorname] = useState('');
   const [name, setName] = useState('');
@@ -75,6 +85,11 @@ export default function KundeDetail() {
       .catch((e) => setError(e.message))
       .finally(() => setLoading(false));
     reloadDocs();
+    setHistoryLoading(true);
+    fetchAppointmentsForCustomer(id)
+      .then(setAppointmentHistory)
+      .catch((e) => setError((prev) => prev || e.message))
+      .finally(() => setHistoryLoading(false));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
 
@@ -326,8 +341,33 @@ export default function KundeDetail() {
             </div>
           )}
 
-          <h3 style={{ fontSize: 16, marginBottom: 2 }}>Vergangene Termine</h3>
-          <div style={{ fontSize: 12, color: '#999', marginBottom: 12 }}>Wird aus Terminen/Bestellungen geladen, sobald für diesen Kunden kassiert wurde.</div>
+          <h3 style={{ fontSize: 16, marginBottom: 10 }}>Vergangene Termine</h3>
+          {historyLoading ? (
+            <div style={{ fontSize: 12, color: '#999' }}>Lädt…</div>
+          ) : appointmentHistory.length === 0 ? (
+            <div style={{ fontSize: 12, color: '#999' }}>Noch keine Termine für diesen Kunden erfasst.</div>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              {appointmentHistory.map((appt: any) => {
+                const statusInfo = STATUS_LABELS[appt.status] || STATUS_LABELS.gebucht;
+                const services = (appt.appointment_line_items || []).map((li: any) => li.services?.name).filter(Boolean);
+                return (
+                  <div key={appt.id} style={{ border: '1px solid #eee', borderRadius: 6, padding: 12, fontSize: 13 }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
+                      <div style={{ fontWeight: 600 }}>
+                        {new Date(appt.start_time).toLocaleDateString('de-CH', { day: '2-digit', month: '2-digit', year: 'numeric' })} · {new Date(appt.start_time).toLocaleTimeString('de-CH', { hour: '2-digit', minute: '2-digit' })}
+                      </div>
+                      <div style={{ color: statusInfo.color, fontWeight: 600, fontSize: 11, textTransform: 'uppercase' }}>{statusInfo.label}</div>
+                    </div>
+                    <div style={{ color: '#777' }}>
+                      {appt.artists?.name || '—'}
+                      {services.length > 0 ? ` · ${services.join(', ')}` : ''}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
         </div>
       </div>
     </div>

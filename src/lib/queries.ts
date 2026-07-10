@@ -439,6 +439,16 @@ export async function replaceAppointmentLineItems(appointmentId: string, items: 
   await addAppointmentLineItems(appointmentId, items);
 }
 
+export async function fetchAppointmentsForCustomer(customerId: string) {
+  const { data, error } = await supabase
+    .from('appointments')
+    .select('*, artists(name), appointment_line_items(quantity, unit_price, services(name))')
+    .eq('customer_id', customerId)
+    .order('start_time', { ascending: false });
+  if (error) throw error;
+  return data;
+}
+
 export async function fetchOrderForAppointment(appointmentId: string) {
   const { data: order, error } = await supabase.from('orders').select('*').eq('appointment_id', appointmentId).maybeSingle();
   if (error) throw error;

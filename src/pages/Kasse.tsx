@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { useLocation } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import Modal from '../components/Modal';
 import {
   fetchServices,
@@ -11,6 +11,8 @@ import {
   fetchAppointment,
   fetchAppointmentLineItems,
   fetchArtists,
+  updateAppointment,
+  deleteAppointment,
   type Service,
   type Product,
   type ServiceCategory,
@@ -38,6 +40,17 @@ interface SplitPayment {
 
 function chf(n: number) {
   return `CHF ${n.toFixed(2)}`;
+}
+
+function GridIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="3" y="3" width="7" height="7" rx="1" />
+      <rect x="14" y="3" width="7" height="7" rx="1" />
+      <rect x="3" y="14" width="7" height="7" rx="1" />
+      <rect x="14" y="14" width="7" height="7" rx="1" />
+    </svg>
+  );
 }
 
 function TrashIcon() {
@@ -470,6 +483,7 @@ function CustomerSearchSelect({ customers, value, onChange }: { customers: Custo
 
 export default function Kasse() {
   const location = useLocation();
+  const navigate = useNavigate();
   const appointmentId = (location.state as { appointmentId?: string } | null)?.appointmentId;
 
   const [items, setItems] = useState<LineItem[]>([]);
@@ -491,6 +505,10 @@ export default function Kasse() {
   const [paymentMethod, setPaymentMethod] = useState<string | null>(null);
   const [checkingOutDirect, setCheckingOutDirect] = useState(false);
   const [directCheckoutError, setDirectCheckoutError] = useState<string | null>(null);
+  const [markingNoShow, setMarkingNoShow] = useState(false);
+  const [noShowError, setNoShowError] = useState<string | null>(null);
+  const [confirmDeleteAppointment, setConfirmDeleteAppointment] = useState(false);
+  const [deletingAppointment, setDeletingAppointment] = useState(false);
 
   useEffect(() => {
     Promise.all([fetchServices(), fetchProducts(), fetchServiceCategories(), fetchProductCategories(), fetchCustomers()])
@@ -578,6 +596,32 @@ export default function Kasse() {
       setDirectCheckoutError(e.message);
     } finally {
       setCheckingOutDirect(false);
+    }
+  }
+
+  async function handleMarkNoShow() {
+    if (!appointmentId) return;
+    setMarkingNoShow(true);
+    setNoShowError(null);
+    try {
+      await updateAppointment(appointmentId, { status: 'nicht_erschienen' });
+      navigate('/kalender');
+    } catch (e: any) {
+      setNoShowError(e.message);
+      setMarkingNoShow(false);
+    }
+  }
+
+  async function handleDeleteAppointmentFromKasse() {
+    if (!appointmentId) return;
+    setDeletingAppointment(true);
+    setNoShowError(null);
+    try {
+      await deleteAppointment(appointmentId);
+      navigate('/kalender');
+    } catch (e: any) {
+      setNoShowError(e.message);
+      setDeletingAppointment(false);
     }
   }
 
@@ -712,6 +756,14 @@ export default function Kasse() {
           </div>
 
           <button
+            onClick={() => setShowCheckout(true)}
+            className="btn btn-outline"
+            style={{ width: '100%', justifyContent: 'center', marginBottom: 10 }}
+          >
+            <GridIcon /> Split Payment / Gutschein / Discount
+          </button>
+
+          <button
             className="btn btn-primary"
             style={{ width: '100%', justifyContent: 'center', marginBottom: 10, opacity: items.length && paymentMethod ? 1 : 0.4 }}
             disabled={items.length === 0 || !paymentMethod || checkingOutDirect}
@@ -722,9 +774,43 @@ export default function Kasse() {
 
           {directCheckoutError && <div style={{ fontSize: 12, color: 'var(--color-destructive)', marginBottom: 10 }}>{directCheckoutError}</div>}
 
-          <div onClick={() => setShowCheckout(true)} style={{ fontSize: 11, color: 'var(--color-accent)', fontWeight: 600, cursor: 'pointer', textAlign: 'center' }}>
-            Split Payment / Gutschein / Discount
-          </div>
+          {appointmentId && !alreadyKassiert && (
+            <div style={{ borderTop: '1px solid #eee', marginTop: 20, paddingTop: 16 }}>
+              <div className="label-uppercase" style={{ marginBottom: 8 }}>
+                Termin nicht kassieren?
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                <button
+                  className="btn btn-outline"
+                  style={{ width: '100%', justifyContent: 'center', opacity: markingNoShow ? 0.6 : 1 }}
+                  disabled={markingNoShow}
+                  onClick={handleMarkNoShow}
+                >
+                  {markingNoShow ? 'Speichert…' : 'Nicht erschienen'}
+                </button>
+                {!confirmDeleteAppointment ? (
+                  <button className="btn btn-destructive" style={{ width: '100%', justifyContent: 'center' }} onClick={() => setConfirmDeleteAppointment(true)}>
+                    Löschen
+                  </button>
+                ) : (
+                  <div style={{ display: 'flex', gap: 8 }}>
+                    <button className="btn btn-secondary" style={{ flex: 1, justifyContent: 'center' }} onClick={() => setConfirmDeleteAppointment(false)}>
+                      Doch nicht
+                    </button>
+                    <button
+                      className="btn btn-destructive"
+                      style={{ flex: 1, justifyContent: 'center', background: 'var(--color-destructive)', color: '#fff', opacity: deletingAppointment ? 0.6 : 1 }}
+                      disabled={deletingAppointment}
+                      onClick={handleDeleteAppointmentFromKasse}
+                    >
+                      {deletingAppointment ? 'Löscht…' : 'Wirklich löschen'}
+                    </button>
+                  </div>
+                )}
+              </div>
+              {noShowError && <div style={{ fontSize: 12, color: 'var(--color-destructive)', marginTop: 8 }}>{noShowError}</div>}
+            </div>
+          )}
         </div>
       </div>
 
