@@ -11,10 +11,13 @@ interface LoadedAppointment {
   id: string;
   dateISO: string;
   time: string;
+  endTime: string;
   startMinutes: number;
   endMinutes: number;
   label: string;
   customer: string;
+  customerPhone: string | null;
+  services: string[];
   artistId: string;
   artistName: string;
   artistColor: string;
@@ -26,10 +29,13 @@ function mapAppointmentRow(a: any, dateISO: string): LoadedAppointment {
     id: a.id,
     dateISO,
     time: formatTime(a.start_time),
+    endTime: formatTime(a.end_time),
     startMinutes: timeToMinutes(a.start_time),
     endMinutes: timeToMinutes(a.end_time),
     label: a.type === 'absenz' ? 'Absenz' : 'Termin',
     customer: a.customers ? `${a.customers.vorname} ${a.customers.name}` : 'Laufkunde',
+    customerPhone: a.customers?.phone || null,
+    services: (a.appointment_line_items || []).map((li: any) => li.services?.name).filter(Boolean),
     artistId: a.artist_id,
     artistName: a.artists?.name || '—',
     artistColor: a.artists?.calendar_color || 'var(--color-accent)',
@@ -305,10 +311,18 @@ function DayView({
                         overflow: 'hidden',
                         boxShadow: '0 1px 2px rgba(0,0,0,0.06)',
                       }}
-                      title={`${appt.time} · ${appt.label} · ${appt.customer}`}
+                      title={`${appt.time}–${appt.endTime} · ${appt.customer}${appt.services.length ? ' · ' + appt.services.join(', ') : ''}`}
                     >
-                      <div style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{appt.time} · {appt.label}</div>
-                      <div style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', color: '#555' }}>{appt.customer}</div>
+                      <div style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', fontWeight: 700 }}>
+                        {appt.time} – {appt.endTime}
+                      </div>
+                      <div style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                        {appt.customer}
+                        {appt.customerPhone ? ` · ${appt.customerPhone}` : ''}
+                      </div>
+                      {appt.services.length > 0 && (
+                        <div style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', color: '#555' }}>{appt.services.join(', ')}</div>
+                      )}
                     </div>
                   );
                 })}
@@ -530,10 +544,15 @@ function WeekView({
                             overflow: 'hidden',
                             boxShadow: '0 1px 2px rgba(0,0,0,0.06)',
                           }}
-                          title={`${appt.time} · ${appt.label} · ${appt.customer}`}
+                          title={`${appt.time}–${appt.endTime} · ${appt.customer}${appt.services.length ? ' · ' + appt.services.join(', ') : ''}`}
                         >
-                          <div style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{appt.time}</div>
-                          <div style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', color: '#555' }}>{appt.customer}</div>
+                          <div style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', fontWeight: 700 }}>
+                            {appt.time}–{appt.endTime}
+                          </div>
+                          <div style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{appt.customer}</div>
+                          {appt.services.length > 0 && (
+                            <div style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', color: '#555' }}>{appt.services.join(', ')}</div>
+                          )}
                         </div>
                       );
                     })}
@@ -789,12 +808,11 @@ export default function Kalender() {
             setRefreshKey((k) => k + 1);
           }}
           customer={selectedAppointment.customer}
+          customerPhone={selectedAppointment.customerPhone}
           artist={selectedAppointment.artistName}
           date={new Date(selectedAppointment.dateISO).toLocaleDateString('de-CH')}
           time={selectedAppointment.time}
-          serviceName={selectedAppointment.label}
-          durationMin={90}
-          price={220}
+          endTime={selectedAppointment.endTime}
         />
       )}
     </div>

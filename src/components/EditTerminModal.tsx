@@ -1,28 +1,36 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Modal from './Modal';
-import { deleteAppointment } from '../lib/queries';
+import { deleteAppointment, fetchAppointmentLineItems } from '../lib/queries';
 
 interface Props {
   appointmentId: string;
   onClose: () => void;
   customer: string;
+  customerPhone?: string | null;
   artist: string;
   date: string;
   time: string;
-  serviceName: string;
-  durationMin: number;
-  price: number;
+  endTime: string;
 }
 
 const boxStyle: React.CSSProperties = { border: '1px solid #ddd', borderRadius: 4, padding: '9px 10px', fontSize: 13 };
 const highlightBoxStyle: React.CSSProperties = { ...boxStyle, border: '1.5px solid var(--color-accent)' };
 
-export default function EditTerminModal({ appointmentId, onClose, customer, artist, date, time, serviceName, durationMin, price }: Props) {
+export default function EditTerminModal({ appointmentId, onClose, customer, customerPhone, artist, date, time, endTime }: Props) {
   const navigate = useNavigate();
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [lineItems, setLineItems] = useState<any[]>([]);
+  const [loadingItems, setLoadingItems] = useState(true);
+
+  useEffect(() => {
+    fetchAppointmentLineItems(appointmentId)
+      .then(setLineItems)
+      .catch((e) => setError(e.message))
+      .finally(() => setLoadingItems(false));
+  }, [appointmentId]);
 
   async function handleDelete() {
     setDeleting(true);
@@ -36,6 +44,9 @@ export default function EditTerminModal({ appointmentId, onClose, customer, arti
     }
   }
 
+  const totalDuration = lineItems.reduce((sum, li) => sum + (li.services?.duration_minutes || 0), 0);
+  const totalPrice = lineItems.reduce((sum, li) => sum + li.unit_price * li.quantity, 0);
+
   return (
     <Modal title="Termin bearbeiten" onClose={onClose}>
       <div style={{ fontSize: 12, color: '#999', marginBottom: 14 }}>
@@ -46,7 +57,10 @@ export default function EditTerminModal({ appointmentId, onClose, customer, arti
         <div className="label-uppercase" style={{ marginBottom: 4 }}>
           Kunde
         </div>
-        <div style={boxStyle}>{customer}</div>
+        <div style={boxStyle}>
+          {customer}
+          {customerPhone ? ` · ${customerPhone}` : ''}
+        </div>
       </div>
 
       <div style={{ marginBottom: 14 }}>
@@ -67,15 +81,35 @@ export default function EditTerminModal({ appointmentId, onClose, customer, arti
           <div className="label-uppercase" style={{ marginBottom: 4 }}>
             Zeit verschieben
           </div>
-          <div style={highlightBoxStyle}>{time}</div>
+          <div style={highlightBoxStyle}>
+            {time} – {endTime}
+          </div>
         </div>
       </div>
 
-      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, color: '#777', marginBottom: 22, borderTop: '1px solid #eee', paddingTop: 10 }}>
-        <div>{serviceName}</div>
-        <div style={{ fontWeight: 600, color: '#111' }}>
-          {durationMin} min · CHF {price}
+      <div style={{ marginBottom: 10 }}>
+        <div className="label-uppercase" style={{ marginBottom: 4 }}>
+          Dienstleistungen
         </div>
+        {loadingItems ? (
+          <div style={{ fontSize: 12, color: '#999' }}>Lädt…</div>
+        ) : lineItems.length === 0 ? (
+          <div style={{ fontSize: 12, color: '#999' }}>Keine Dienstleistungen erfasst.</div>
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+            {lineItems.map((li) => (
+              <div key={li.id} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13 }}>
+                <div>{li.services?.name || 'Unbekannter Service'}</div>
+                <div style={{ color: '#777' }}>CHF {li.unit_price}</div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, color: '#777', marginBottom: 22, borderTop: '1px solid #eee', paddingTop: 10 }}>
+        <div>Dauer: {totalDuration} min</div>
+        <div style={{ fontWeight: 600, color: '#111' }}>Total: CHF {totalPrice}</div>
       </div>
 
       {error && <div style={{ fontSize: 12, color: 'var(--color-destructive)', marginBottom: 12 }}>{error}</div>}

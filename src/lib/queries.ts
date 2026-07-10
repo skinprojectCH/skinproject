@@ -410,7 +410,7 @@ export async function fetchAppointmentsForDay(dateISO: string, locationId?: stri
   const end = `${dateISO}T23:59:59`;
   let query = supabase
     .from('appointments')
-    .select('*, customers(vorname, name), artists(name, calendar_color)')
+    .select('*, customers(vorname, name, phone), artists(name, calendar_color), appointment_line_items(service_id, services(name))')
     .gte('start_time', start)
     .lte('start_time', end)
     .order('start_time');
@@ -418,6 +418,24 @@ export async function fetchAppointmentsForDay(dateISO: string, locationId?: stri
   const { data, error } = await query;
   if (error) throw error;
   return data;
+}
+
+export async function addAppointmentLineItems(appointmentId: string, items: { service_id: string; quantity: number; unit_price: number }[]) {
+  if (items.length === 0) return;
+  const { error } = await supabase.from('appointment_line_items').insert(items.map((i) => ({ ...i, appointment_id: appointmentId })));
+  if (error) throw error;
+}
+
+export async function fetchAppointmentLineItems(appointmentId: string) {
+  const { data, error } = await supabase.from('appointment_line_items').select('*, services(name, duration_minutes)').eq('appointment_id', appointmentId);
+  if (error) throw error;
+  return data;
+}
+
+export async function replaceAppointmentLineItems(appointmentId: string, items: { service_id: string; quantity: number; unit_price: number }[]) {
+  const { error: deleteError } = await supabase.from('appointment_line_items').delete().eq('appointment_id', appointmentId);
+  if (deleteError) throw deleteError;
+  await addAppointmentLineItems(appointmentId, items);
 }
 
 export async function createAppointment(input: {

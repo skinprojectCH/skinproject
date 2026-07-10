@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import Modal from './Modal';
-import { fetchArtists, fetchCustomers, fetchServices, createAppointment, createAbsence, type Artist, type Customer, type Service } from '../lib/queries';
+import { fetchArtists, fetchCustomers, fetchServices, createAppointment, addAppointmentLineItems, createAbsence, type Artist, type Customer, type Service } from '../lib/queries';
 
 const ABSENCE_TYPES: { key: 'ferien' | 'krank' | 'abwesend'; label: string }[] = [
   { key: 'ferien', label: 'Ferien' },
@@ -81,7 +81,7 @@ export default function TerminModal({ onClose, onSave, locationId, initialDate, 
       const startISO = startDate.toISOString();
       const endDate = new Date(startDate);
       endDate.setMinutes(endDate.getMinutes() + (totalDuration || 30));
-      await createAppointment({
+      const created = await createAppointment({
         customer_id: selectedCustomer || null,
         artist_id: selectedArtist,
         location_id: locationId || null,
@@ -89,6 +89,11 @@ export default function TerminModal({ onClose, onSave, locationId, initialDate, 
         end_time: endDate.toISOString(),
         type: 'termin',
       });
+      const lineItems = selectedServices
+        .map((id) => services.find((s) => s.id === id))
+        .filter((s): s is Service => !!s)
+        .map((s) => ({ service_id: s.id, quantity: 1, unit_price: s.price }));
+      await addAppointmentLineItems(created.id, lineItems);
       onSave();
     } catch (e: any) {
       setError(e.message);
