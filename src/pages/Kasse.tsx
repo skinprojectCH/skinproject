@@ -327,17 +327,21 @@ function SellVoucherModal({ onClose, onAdd }: { onClose: () => void; onAdd: (ite
 
 function CheckoutModal({
   subtotal,
+  initialMethod,
   onClose,
   onComplete,
 }: {
   subtotal: number;
+  initialMethod?: string | null;
   onClose: () => void;
   onComplete: (payments: { method: string; amount: number; voucher_id?: string | null }[], total: number, discountType: 'percent' | 'chf' | null, discountValue: number) => Promise<void>;
 }) {
   const [discountMode, setDiscountMode] = useState<'percent' | 'chf'>('percent');
   const [discountInput, setDiscountInput] = useState('');
   const [appliedDiscountPct, setAppliedDiscountPct] = useState(0);
-  const [payments, setPayments] = useState<SplitPayment[]>([]);
+  const [payments, setPayments] = useState<SplitPayment[]>(() =>
+    initialMethod ? [{ id: crypto.randomUUID(), method: initialMethod, amount: subtotal }] : []
+  );
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -348,6 +352,18 @@ function CheckoutModal({
     .filter((p) => p.method === 'Gutschein')
     .every((p) => p.voucherId && p.voucherRemaining != null && p.amount <= p.voucherRemaining + 0.001);
   const fullyPaid = Math.abs(paid - total) < 0.01 && gutscheinRowsValid;
+
+  // Solange es nur EINE Zahlungsart gibt, deckt sie automatisch den ganzen (aktuellen)
+  // Total ab — inkl. wenn sich der Total nachträglich durch einen Rabatt ändert.
+  useEffect(() => {
+    if (payments.length === 1 && payments[0].method !== 'Gutschein') {
+      const rounded = Math.round(total * 100) / 100;
+      if (payments[0].amount !== rounded) {
+        setPayments([{ ...payments[0], amount: rounded }]);
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [total]);
 
   function applyDiscount() {
     const val = parseFloat(discountInput);
@@ -527,7 +543,7 @@ function CheckoutModal({
               {p.voucherError && <div style={{ fontSize: 11, color: 'var(--color-destructive)' }}>{p.voucherError}</div>}
               {p.voucherId && p.voucherRemaining != null && (
                 <div style={{ fontSize: 11, color: p.amount > p.voucherRemaining ? 'var(--color-destructive)' : '#777' }}>
-                  Restwert Gutschein: CHF {p.voucherRemaining.toFixed(2)} von CHF {(p.voucherValue ?? p.voucherRemaining).toFixed(2)}
+                  Restwert Gutschein: CHF {Math.max(0, p.voucherRemaining - p.amount).toFixed(2)} von CHF {(p.voucherValue ?? p.voucherRemaining).toFixed(2)}
                   {p.amount > p.voucherRemaining && ' — Betrag übersteigt Guthaben'}
                 </div>
               )}
@@ -1018,6 +1034,7 @@ export default function Kasse() {
       {showCheckout && (
         <CheckoutModal
           subtotal={subtotal}
+          initialMethod={paymentMethod}
           onClose={() => setShowCheckout(false)}
           onComplete={async (payments, total, discountType, discountValue) => {
             await handleCheckoutComplete(payments, total, discountType, discountValue);
