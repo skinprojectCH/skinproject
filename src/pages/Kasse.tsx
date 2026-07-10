@@ -44,6 +44,7 @@ interface SplitPayment {
   voucherCode?: string;
   voucherId?: string | null;
   voucherRemaining?: number | null;
+  voucherValue?: number | null;
   voucherChecking?: boolean;
   voucherError?: string | null;
 }
@@ -399,7 +400,7 @@ function CheckoutModal({
         return;
       }
       const cappedAmount = Math.min(payment.amount, voucher.remaining_value);
-      updatePayment(id, { voucherChecking: false, voucherError: null, voucherId: voucher.id, voucherRemaining: voucher.remaining_value, amount: cappedAmount });
+      updatePayment(id, { voucherChecking: false, voucherError: null, voucherId: voucher.id, voucherRemaining: voucher.remaining_value, voucherValue: voucher.value, amount: cappedAmount });
     } catch (e: any) {
       updatePayment(id, { voucherChecking: false, voucherError: e.message });
     }
@@ -465,39 +466,69 @@ function CheckoutModal({
       </div>
       {payments.map((p) => (
         <div key={p.id} style={{ marginBottom: 10 }}>
-          <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-            <select
-              value={p.method}
-              onChange={(e) => updatePayment(p.id, { method: e.target.value, voucherId: null, voucherRemaining: null, voucherError: null, voucherCode: '' })}
-              style={{ flex: 1, border: '1px solid #ddd', borderRadius: 4, padding: '8px 10px', fontSize: 13 }}
-            >
-              {PAYMENT_METHODS.map((m) => (
-                <option key={m}>{m}</option>
-              ))}
-            </select>
-            <input type="number" value={p.amount} onChange={(e) => updatePayment(p.id, { amount: parseFloat(e.target.value) || 0 })} style={{ width: 110, border: '1px solid #ddd', borderRadius: 4, padding: '8px 10px', fontSize: 13 }} />
-            <button onClick={() => removePayment(p.id)} style={{ background: 'none', border: 'none', fontSize: 14, color: '#999' }}>
-              ✕
-            </button>
-          </div>
+          {p.method === 'Gutschein' ? (
+            <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+              <select
+                value={p.method}
+                onChange={(e) => updatePayment(p.id, { method: e.target.value, voucherId: null, voucherRemaining: null, voucherError: null, voucherCode: '' })}
+                style={{
+                  border: 'none',
+                  borderRadius: 4,
+                  padding: '9px 10px',
+                  fontSize: 12,
+                  fontWeight: 600,
+                  background: '#111',
+                  color: '#fff',
+                  width: 108,
+                  flexShrink: 0,
+                }}
+              >
+                {PAYMENT_METHODS.map((m) => (
+                  <option key={m}>{m}</option>
+                ))}
+              </select>
+              <input
+                value={p.voucherCode || ''}
+                onChange={(e) => updatePayment(p.id, { voucherCode: e.target.value, voucherId: null, voucherRemaining: null, voucherError: null })}
+                onBlur={() => checkVoucherCode(p.id)}
+                placeholder="Gutschein-Code"
+                style={{ flex: 1, border: '1px solid #ddd', borderRadius: 4, padding: '8px 10px', fontSize: 13, fontFamily: 'monospace' }}
+              />
+              <input
+                type="number"
+                value={p.amount}
+                onChange={(e) => updatePayment(p.id, { amount: parseFloat(e.target.value) || 0 })}
+                style={{ width: 110, border: '1px solid #ddd', borderRadius: 4, padding: '8px 10px', fontSize: 13 }}
+              />
+              <button onClick={() => removePayment(p.id)} style={{ background: 'none', border: 'none', fontSize: 14, color: '#999' }}>
+                ✕
+              </button>
+            </div>
+          ) : (
+            <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+              <select
+                value={p.method}
+                onChange={(e) => updatePayment(p.id, { method: e.target.value, voucherId: null, voucherRemaining: null, voucherError: null, voucherCode: '' })}
+                style={{ flex: 1, border: '1px solid #ddd', borderRadius: 4, padding: '8px 10px', fontSize: 13 }}
+              >
+                {PAYMENT_METHODS.map((m) => (
+                  <option key={m}>{m}</option>
+                ))}
+              </select>
+              <input type="number" value={p.amount} onChange={(e) => updatePayment(p.id, { amount: parseFloat(e.target.value) || 0 })} style={{ width: 110, border: '1px solid #ddd', borderRadius: 4, padding: '8px 10px', fontSize: 13 }} />
+              <button onClick={() => removePayment(p.id)} style={{ background: 'none', border: 'none', fontSize: 14, color: '#999' }}>
+                ✕
+              </button>
+            </div>
+          )}
           {p.method === 'Gutschein' && (
-            <div style={{ marginTop: 6, paddingLeft: 2 }}>
-              <div style={{ display: 'flex', gap: 8 }}>
-                <input
-                  value={p.voucherCode || ''}
-                  onChange={(e) => updatePayment(p.id, { voucherCode: e.target.value, voucherId: null, voucherRemaining: null, voucherError: null })}
-                  placeholder="Gutschein-Code eingeben…"
-                  style={{ flex: 1, border: '1px solid #ddd', borderRadius: 4, padding: '7px 10px', fontSize: 12, fontFamily: 'monospace' }}
-                />
-                <button className="btn btn-secondary" style={{ padding: '6px 12px', fontSize: 12 }} onClick={() => checkVoucherCode(p.id)} disabled={!p.voucherCode || p.voucherChecking}>
-                  {p.voucherChecking ? 'Prüft…' : 'Prüfen'}
-                </button>
-              </div>
-              {p.voucherError && <div style={{ fontSize: 11, color: 'var(--color-destructive)', marginTop: 4 }}>{p.voucherError}</div>}
+            <div style={{ marginTop: 4, paddingLeft: 2 }}>
+              {p.voucherChecking && <div style={{ fontSize: 11, color: '#999' }}>Prüft Gutschein…</div>}
+              {p.voucherError && <div style={{ fontSize: 11, color: 'var(--color-destructive)' }}>{p.voucherError}</div>}
               {p.voucherId && p.voucherRemaining != null && (
-                <div style={{ fontSize: 11, color: '#1a7a3f', marginTop: 4 }}>
-                  ✓ Gültig — Restguthaben: CHF {p.voucherRemaining.toFixed(2)}
-                  {p.amount > p.voucherRemaining && ` (Betrag übersteigt Guthaben!)`}
+                <div style={{ fontSize: 11, color: p.amount > p.voucherRemaining ? 'var(--color-destructive)' : '#777' }}>
+                  Restwert Gutschein: CHF {p.voucherRemaining.toFixed(2)} von CHF {(p.voucherValue ?? p.voucherRemaining).toFixed(2)}
+                  {p.amount > p.voucherRemaining && ' — Betrag übersteigt Guthaben'}
                 </div>
               )}
             </div>
