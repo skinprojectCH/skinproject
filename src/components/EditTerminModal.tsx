@@ -7,6 +7,7 @@ import {
   deleteAppointment,
   fetchAppointmentLineItems,
   replaceAppointmentLineItems,
+  fetchOrderForAppointment,
   fetchArtists,
   fetchCustomers,
   fetchServices,
@@ -66,6 +67,8 @@ export default function EditTerminModal({ appointmentId, onClose }: Props) {
   const [saveError, setSaveError] = useState<string | null>(null);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [orderData, setOrderData] = useState<Awaited<ReturnType<typeof fetchOrderForAppointment>>>(null);
+  const [orderLoading, setOrderLoading] = useState(false);
 
   useEffect(() => {
     Promise.all([fetchAppointment(appointmentId), fetchAppointmentLineItems(appointmentId), fetchArtists(), fetchCustomers(), fetchServices(), fetchServiceCategories()])
@@ -80,6 +83,13 @@ export default function EditTerminModal({ appointmentId, onClose }: Props) {
         setServices(allServices.filter((s) => s.active));
         setCategories(allCategories);
         setSelectedServices(lineItems.length ? lineItems.map((li: any) => li.service_id) : ['']);
+        if (appt.status === 'kassiert') {
+          setOrderLoading(true);
+          fetchOrderForAppointment(appointmentId)
+            .then(setOrderData)
+            .catch((e) => setError(e.message))
+            .finally(() => setOrderLoading(false));
+        }
       })
       .catch((e) => setError(e.message))
       .finally(() => setLoading(false));
@@ -154,6 +164,13 @@ export default function EditTerminModal({ appointmentId, onClose }: Props) {
   if (status === 'kassiert') {
     const customer = customers.find((c) => c.id === selectedCustomer);
     const artist = artists.find((a) => a.id === selectedArtist);
+    const discountLabel =
+      orderData?.order.order_discount_type && orderData.order.order_discount_value
+        ? orderData.order.order_discount_type === 'percent'
+          ? `${orderData.order.order_discount_value}%`
+          : `CHF ${orderData.order.order_discount_value}`
+        : null;
+
     return (
       <Modal title="Termin (abgeschlossen)" onClose={onClose}>
         <div style={{ border: '1px solid var(--color-accent)', background: 'var(--color-accent-fill)', borderRadius: 6, padding: '10px 14px', marginBottom: 20, fontSize: 12, color: 'var(--color-accent)', fontWeight: 600 }}>
@@ -168,7 +185,7 @@ export default function EditTerminModal({ appointmentId, onClose }: Props) {
           {fieldLabel('Artist')}
           <div style={boxStyle}>{artist?.name || '—'}</div>
         </div>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 14 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 20 }}>
           <div>
             {fieldLabel('Datum')}
             <div style={boxStyle}>{date}</div>
@@ -178,19 +195,54 @@ export default function EditTerminModal({ appointmentId, onClose }: Props) {
             <div style={boxStyle}>{time}</div>
           </div>
         </div>
-        <div style={{ marginBottom: 22 }}>
-          {fieldLabel('Services')}
-          {selectedServices
-            .map((id) => services.find((s) => s.id === id))
-            .filter((s): s is Service => !!s)
-            .map((s) => (
-              <div key={s.id} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, padding: '6px 0', borderBottom: '1px solid #f0f0f0' }}>
-                <div>{s.name}</div>
-                <div style={{ color: '#777' }}>CHF {s.price}</div>
+
+        {orderLoading ? (
+          <div style={{ fontSize: 13, color: '#999', marginBottom: 20 }}>Lädt Kassenbeleg…</div>
+        ) : !orderData ? (
+          <div style={{ fontSize: 13, color: '#999', marginBottom: 20 }}>Kein Kassenbeleg gefunden für diesen Termin.</div>
+        ) : (
+          <>
+            <div style={{ marginBottom: 16 }}>
+              {fieldLabel('Verkauft')}
+              {orderData.lineItems.map((li: any) => (
+                <div key={li.id} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, padding: '6px 0', borderBottom: '1px solid #f0f0f0' }}>
+                  <div>{li.services?.name || li.products?.name || li.description}</div>
+                  <div style={{ color: '#777' }}>
+                    {li.quantity > 1 ? `${li.quantity}× ` : ''}CHF {li.unit_price}
+                  </div>
+                </div>
+              ))}
+              {orderData.lineItems.length === 0 && <div style={{ fontSize: 13, color: '#999' }}>Keine Positionen erfasst.</div>}
+            </div>
+
+            <div style={{ fontSize: 13, marginBottom: 4, display: 'flex', justifyContent: 'space-between', color: '#777' }}>
+              <div>Zwischentotal</div>
+              <div>CHF {orderData.order.subtotal}</div>
+            </div>
+            {discountLabel && (
+              <div style={{ fontSize: 13, marginBottom: 4, display: 'flex', justifyContent: 'space-between', color: 'var(--color-destructive)' }}>
+                <div>Rabatt ({discountLabel})</div>
+                <div>
+                  − CHF {(orderData.order.subtotal - orderData.order.total).toFixed(2)}
+                </div>
               </div>
-            ))}
-          {selectedServices.filter((id) => id).length === 0 && <div style={{ fontSize: 13, color: '#999' }}>Keine Dienstleistungen erfasst.</div>}
-        </div>
+            )}
+            <div style={{ fontSize: 16, fontWeight: 700, marginBottom: 16, display: 'flex', justifyContent: 'space-between', borderTop: '1px solid #eee', paddingTop: 8 }}>
+              <div>Total</div>
+              <div>CHF {orderData.order.total}</div>
+            </div>
+
+            <div style={{ marginBottom: 22 }}>
+              {fieldLabel('Bezahlt mit')}
+              {orderData.payments.map((p: any) => (
+                <div key={p.id} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, padding: '4px 0' }}>
+                  <div style={{ textTransform: 'capitalize' }}>{p.method}</div>
+                  <div>CHF {p.amount}</div>
+                </div>
+              ))}
+            </div>
+          </>
+        )}
 
         <button className="btn btn-secondary" style={{ width: '100%', justifyContent: 'center' }} onClick={onClose}>
           Schliessen
