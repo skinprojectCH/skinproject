@@ -164,23 +164,20 @@ function useNowMinutes() {
 }
 
 const ABSENCE_TYPE_LABELS: Record<string, string> = { ferien: 'Ferien', krank: 'Krank', abwesend: 'Abwesend' };
+const ABSENCE_BG = '#F6ECEC';
+const ABSENCE_TEXT = '#8B5A5A';
 
 function absenceForArtist(absences: Absence[], artistId: string) {
   return absences.find((a) => a.artist_id === artistId) || null;
 }
 
-// Kombiniert Schicht-basierte Schraffur mit einer gebuchten Absenz.
-// Ganztägige Absenz -> kompletter angezeigter Zeitraum blockiert.
-// Halbtägige Absenz -> zusätzlich zur normalen Schicht-Schraffur der jeweilige Halbtag.
-function offWindowsWithAbsence(shifts: Shift[], absences: Absence[], artistId: string) {
+// Der/die tatsächlich durch eine Absenz blockierte(n) Zeitbereich(e) (rot getönt, D3b-Stil) —
+// unabhängig von der normalen Schicht-Schraffur.
+function absenceWindowsForArtist(absences: Absence[], artistId: string): { start: number; end: number }[] {
   const absence = absenceForArtist(absences, artistId);
-  if (absence && absence.half_day === 'none') {
-    return [{ start: DISPLAY_START_MIN, end: DISPLAY_END_MIN }];
-  }
-  const base = offWindowsForArtist(shifts, artistId);
-  if (!absence) return base;
-  const half = absence.half_day === 'am' ? { start: DISPLAY_START_MIN, end: 12 * 60 } : { start: 12 * 60, end: DISPLAY_END_MIN };
-  return [...base, half];
+  if (!absence) return [];
+  if (absence.half_day === 'none') return [{ start: DISPLAY_START_MIN, end: DISPLAY_END_MIN }];
+  return absence.half_day === 'am' ? [{ start: DISPLAY_START_MIN, end: 12 * 60 }] : [{ start: 12 * 60, end: DISPLAY_END_MIN }];
 }
 
 const HATCH_BG = 'repeating-linear-gradient(45deg, #fafafa, #fafafa 6px, #f0f0f0 6px, #f0f0f0 12px)';
@@ -217,21 +214,32 @@ function DayView({
           const windows = shiftWindowsForArtist(shifts, artist.id);
           const label = windows.length ? windows.map((w) => `${minutesLabel(w.start)}–${minutesLabel(w.end)}`).join(', ') : null;
           const absence = absenceForArtist(absences, artist.id);
+          const fullDayAbsence = absence && absence.half_day === 'none';
           let statusText: string;
-          if (absence && absence.half_day === 'none') {
-            statusText = ABSENCE_TYPE_LABELS[absence.type];
+          if (fullDayAbsence) {
+            statusText = ABSENCE_TYPE_LABELS[absence!.type];
           } else if (absence) {
             statusText = `${label ? `Schicht ${label}` : 'Kein Dienst heute'} · ${ABSENCE_TYPE_LABELS[absence.type]} (${absence.half_day === 'am' ? 'Vorm.' : 'Nachm.'})`;
           } else {
             statusText = label ? `Schicht ${label}` : 'Kein Dienst heute';
           }
           return (
-            <div key={artist.id} style={{ flex: 1, minWidth: 0, background: '#fbfaf8', padding: '10px 8px', textAlign: 'center', borderLeft: '1px solid #eee' }}>
-              <div style={{ fontFamily: 'var(--font-heading)', fontSize: 13, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
+            <div
+              key={artist.id}
+              style={{
+                flex: 1,
+                minWidth: 0,
+                background: fullDayAbsence ? ABSENCE_BG : '#fbfaf8',
+                padding: '10px 8px',
+                textAlign: 'center',
+                borderLeft: '1px solid #eee',
+              }}
+            >
+              <div style={{ fontFamily: 'var(--font-heading)', fontSize: 13, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, color: fullDayAbsence ? ABSENCE_TEXT : '#111' }}>
                 <span style={{ width: 8, height: 8, borderRadius: '50%', background: artist.calendar_color, display: 'inline-block', flexShrink: 0 }} />
                 <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{artist.name}</span>
               </div>
-              <div style={{ fontSize: 10, color: label || (absence && absence.half_day !== 'none') ? '#999' : 'var(--color-destructive)' }}>{statusText}</div>
+              <div style={{ fontSize: 10, color: fullDayAbsence ? ABSENCE_TEXT : label || absence ? '#999' : 'var(--color-destructive)', fontWeight: fullDayAbsence ? 700 : 400 }}>{statusText}</div>
             </div>
           );
         })}
@@ -280,7 +288,9 @@ function DayView({
 
           {/* Spalten */}
           {artists.map((artist) => {
-            const offWindows = offWindowsWithAbsence(shifts, absences, artist.id);
+            const offWindows = offWindowsForArtist(shifts, artist.id);
+            const absenceWindows = absenceWindowsForArtist(absences, artist.id);
+            const absence = absenceForArtist(absences, artist.id);
             const artistAppointments = appointments.filter((a) => a.artistId === artist.id);
             return (
               <div
@@ -316,6 +326,26 @@ function DayView({
                       pointerEvents: 'none',
                     }}
                   />
+                ))}
+
+                {absenceWindows.map((w, i) => (
+                  <div
+                    key={`abs-${i}`}
+                    style={{
+                      position: 'absolute',
+                      top: (w.start - DISPLAY_START_MIN) * PX_PER_MIN,
+                      height: Math.max(0, (w.end - w.start) * PX_PER_MIN),
+                      left: 0,
+                      right: 0,
+                      background: ABSENCE_BG,
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      pointerEvents: 'none',
+                    }}
+                  >
+                    <div style={{ fontSize: 10, color: ABSENCE_TEXT, fontWeight: 700 }}>{absence ? ABSENCE_TYPE_LABELS[absence.type] : ''}</div>
+                  </div>
                 ))}
 
                 {artistAppointments.map((appt) => {
@@ -486,13 +516,24 @@ function WeekView({
               const isToday = d === todayStr;
               const dt = new Date(d);
               const absence = absenceForArtist(weekAbsences[d] || [], artistId);
+              const fullDayAbsence = absence && absence.half_day === 'none';
               return (
-                <div key={d} style={{ flex: 1, minWidth: 0, background: isToday ? 'var(--color-accent-fill)' : '#fbfaf8', padding: '10px 4px', textAlign: 'center', borderLeft: '1px solid #eee' }}>
-                  <div style={{ fontFamily: 'var(--font-heading)', fontSize: 13, fontWeight: 700, color: isToday ? 'var(--color-accent)' : '#111' }}>
+                <div
+                  key={d}
+                  style={{
+                    flex: 1,
+                    minWidth: 0,
+                    background: fullDayAbsence ? ABSENCE_BG : isToday ? 'var(--color-accent-fill)' : '#fbfaf8',
+                    padding: '10px 4px',
+                    textAlign: 'center',
+                    borderLeft: '1px solid #eee',
+                  }}
+                >
+                  <div style={{ fontFamily: 'var(--font-heading)', fontSize: 13, fontWeight: 700, color: fullDayAbsence ? ABSENCE_TEXT : isToday ? 'var(--color-accent)' : '#111' }}>
                     {WEEKDAY_LABELS[(dt.getDay() + 6) % 7]} {dt.getDate()}.
                   </div>
                   {absence && (
-                    <div style={{ fontSize: 9, color: 'var(--color-destructive)' }}>
+                    <div style={{ fontSize: 9, color: ABSENCE_TEXT, fontWeight: fullDayAbsence ? 700 : 400 }}>
                       {ABSENCE_TYPE_LABELS[absence.type]}
                       {absence.half_day !== 'none' ? ` (${absence.half_day === 'am' ? 'Vorm.' : 'Nachm.'})` : ''}
                     </div>
@@ -515,7 +556,10 @@ function WeekView({
 
               {days.map((d) => {
                 const dayShifts = weekShifts[d] || [];
-                const offWindows = offWindowsWithAbsence(dayShifts, weekAbsences[d] || [], artistId);
+                const dayAbsences = weekAbsences[d] || [];
+                const offWindows = offWindowsForArtist(dayShifts, artistId);
+                const absenceWindows = absenceWindowsForArtist(dayAbsences, artistId);
+                const dayAbsence = absenceForArtist(dayAbsences, artistId);
                 const dayAppointments = weekAppointments[d] || [];
                 const isToday = d === todayStr;
                 const showNowLine = isToday && nowMinutes >= DISPLAY_START_MIN && nowMinutes <= DISPLAY_END_MIN;
@@ -554,6 +598,26 @@ function WeekView({
                           pointerEvents: 'none',
                         }}
                       />
+                    ))}
+
+                    {absenceWindows.map((w, i) => (
+                      <div
+                        key={`abs-${i}`}
+                        style={{
+                          position: 'absolute',
+                          top: (w.start - DISPLAY_START_MIN) * PX_PER_MIN,
+                          height: Math.max(0, (w.end - w.start) * PX_PER_MIN),
+                          left: 0,
+                          right: 0,
+                          background: ABSENCE_BG,
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          pointerEvents: 'none',
+                        }}
+                      >
+                        <div style={{ fontSize: 9, color: ABSENCE_TEXT, fontWeight: 700 }}>{dayAbsence ? ABSENCE_TYPE_LABELS[dayAbsence.type] : ''}</div>
+                      </div>
                     ))}
 
                     {showNowLine && (
