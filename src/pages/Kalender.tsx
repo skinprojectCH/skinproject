@@ -57,7 +57,7 @@ const statusPillStyle = (status: string): React.CSSProperties => {
     kassiert: { border: 'var(--color-accent)', color: 'var(--color-accent)' },
     gebucht: { border: '#ddd', color: '#777' },
     storniert: { border: 'var(--color-destructive)', color: 'var(--color-destructive)' },
-    nicht_erschienen: { border: '#ddd', color: '#777' },
+    nicht_erschienen: { border: 'var(--color-destructive)', color: 'var(--color-destructive)' },
   };
   const c = map[status] || map.gebucht;
   return {
@@ -152,6 +152,15 @@ function CheckIcon() {
   return (
     <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
       <polyline points="20 6 9 17 4 12" />
+    </svg>
+  );
+}
+
+function XIcon() {
+  return (
+    <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
+      <line x1="18" y1="6" x2="6" y2="18" />
+      <line x1="6" y1="6" x2="18" y2="18" />
     </svg>
   );
 }
@@ -458,8 +467,8 @@ function DayView({
                         height,
                         left: 4,
                         right: 4,
-                        background: appt.status === 'kassiert' ? '#f2f2ee' : 'var(--color-accent-fill)',
-                        borderLeft: `3px solid ${appt.artistColor}`,
+                        background: appt.status === 'kassiert' || appt.status === 'nicht_erschienen' ? '#f2f2ee' : 'var(--color-accent-fill)',
+                        borderLeft: `3px solid ${appt.status === 'nicht_erschienen' ? 'var(--color-destructive)' : appt.artistColor}`,
                         borderRadius: '0 4px 4px 0',
                         padding: '4px 6px',
                         fontSize: 11,
@@ -467,15 +476,20 @@ function DayView({
                         cursor: 'pointer',
                         overflow: 'hidden',
                         boxShadow: '0 1px 2px rgba(0,0,0,0.06)',
-                        opacity: appt.status === 'kassiert' ? 0.75 : 1,
+                        opacity: appt.status === 'kassiert' || appt.status === 'nicht_erschienen' ? 0.75 : 1,
                       }}
-                      title={`${appt.time}–${appt.endTime} · ${appt.customer}${appt.services.length ? ' · ' + appt.services.join(', ') : ''}${appt.status === 'kassiert' ? ' · kassiert' : ''}`}
+                      title={`${appt.time}–${appt.endTime} · ${appt.customer}${appt.services.length ? ' · ' + appt.services.join(', ') : ''}${appt.status === 'kassiert' ? ' · kassiert' : ''}${appt.status === 'nicht_erschienen' ? ' · nicht erschienen' : ''}`}
                     >
                       <div style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 4 }}>
                         <span>
                           {appt.time} – {appt.endTime}
                         </span>
                         {appt.status === 'kassiert' && <CheckIcon />}
+                        {appt.status === 'nicht_erschienen' && (
+                          <span style={{ color: 'var(--color-destructive)' }}>
+                            <XIcon />
+                          </span>
+                        )}
                       </div>
                       <div style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                         {appt.customer}
@@ -749,8 +763,8 @@ function WeekView({
                             height,
                             left: 2,
                             right: 2,
-                            background: appt.status === 'kassiert' ? '#f2f2ee' : 'var(--color-accent-fill)',
-                            borderLeft: `3px solid ${artistColor}`,
+                            background: appt.status === 'kassiert' || appt.status === 'nicht_erschienen' ? '#f2f2ee' : 'var(--color-accent-fill)',
+                            borderLeft: `3px solid ${appt.status === 'nicht_erschienen' ? 'var(--color-destructive)' : artistColor}`,
                             borderRadius: '0 4px 4px 0',
                             padding: '2px 4px',
                             fontSize: 10,
@@ -758,15 +772,20 @@ function WeekView({
                             cursor: 'pointer',
                             overflow: 'hidden',
                             boxShadow: '0 1px 2px rgba(0,0,0,0.06)',
-                            opacity: appt.status === 'kassiert' ? 0.75 : 1,
+                            opacity: appt.status === 'kassiert' || appt.status === 'nicht_erschienen' ? 0.75 : 1,
                           }}
-                          title={`${appt.time}–${appt.endTime} · ${appt.customer}${appt.services.length ? ' · ' + appt.services.join(', ') : ''}${appt.status === 'kassiert' ? ' · kassiert' : ''}`}
+                          title={`${appt.time}–${appt.endTime} · ${appt.customer}${appt.services.length ? ' · ' + appt.services.join(', ') : ''}${appt.status === 'kassiert' ? ' · kassiert' : ''}${appt.status === 'nicht_erschienen' ? ' · nicht erschienen' : ''}`}
                         >
                           <div style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 4 }}>
                             <span>
                               {appt.time}–{appt.endTime}
                             </span>
                             {appt.status === 'kassiert' && <CheckIcon />}
+                            {appt.status === 'nicht_erschienen' && (
+                              <span style={{ color: 'var(--color-destructive)' }}>
+                                <XIcon />
+                              </span>
+                            )}
                           </div>
                           <div style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{appt.customer}</div>
                           {appt.services.length > 0 && (
@@ -851,8 +870,9 @@ function ListView({
             outline: 'none',
           }}
         >
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6, opacity: a.status === 'kassiert' ? 0.7 : 1 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, opacity: a.status === 'kassiert' || a.status === 'nicht_erschienen' ? 0.7 : 1 }}>
             {a.status === 'kassiert' && <span style={{ color: 'var(--color-accent)' }}><CheckIcon /></span>}
+            {a.status === 'nicht_erschienen' && <span style={{ color: 'var(--color-destructive)' }}><XIcon /></span>}
             <span>
               {a.time} – {a.endTime}
             </span>

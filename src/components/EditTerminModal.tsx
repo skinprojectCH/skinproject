@@ -161,7 +161,8 @@ export default function EditTerminModal({ appointmentId, onClose }: Props) {
     );
   }
 
-  if (status === 'kassiert') {
+  if (status === 'kassiert' || status === 'nicht_erschienen') {
+    const isNoShow = status === 'nicht_erschienen';
     const customer = customers.find((c) => c.id === selectedCustomer);
     const artist = artists.find((a) => a.id === selectedArtist);
     const discountLabel =
@@ -172,9 +173,22 @@ export default function EditTerminModal({ appointmentId, onClose }: Props) {
         : null;
 
     return (
-      <Modal title="Termin (abgeschlossen)" onClose={onClose}>
-        <div style={{ border: '1px solid var(--color-accent)', background: 'var(--color-accent-fill)', borderRadius: 6, padding: '10px 14px', marginBottom: 20, fontSize: 12, color: 'var(--color-accent)', fontWeight: 600 }}>
-          ✓ Dieser Termin wurde bereits kassiert und ist abgeschlossen — keine Änderungen mehr möglich.
+      <Modal title={isNoShow ? 'Termin (nicht erschienen)' : 'Termin (abgeschlossen)'} onClose={onClose}>
+        <div
+          style={{
+            border: `1px solid ${isNoShow ? 'var(--color-destructive)' : 'var(--color-accent)'}`,
+            background: isNoShow ? '#F6ECEC' : 'var(--color-accent-fill)',
+            borderRadius: 6,
+            padding: '10px 14px',
+            marginBottom: 20,
+            fontSize: 12,
+            color: isNoShow ? 'var(--color-destructive)' : 'var(--color-accent)',
+            fontWeight: 600,
+          }}
+        >
+          {isNoShow
+            ? '✕ Dieser Termin wurde als "Nicht erschienen" markiert und ist abgeschlossen — keine Änderungen mehr möglich.'
+            : '✓ Dieser Termin wurde bereits kassiert und ist abgeschlossen — keine Änderungen mehr möglich.'}
         </div>
 
         <div style={{ marginBottom: 14 }}>
@@ -196,7 +210,7 @@ export default function EditTerminModal({ appointmentId, onClose }: Props) {
           </div>
         </div>
 
-        {orderLoading ? (
+        {isNoShow ? null : orderLoading ? (
           <div style={{ fontSize: 13, color: '#999', marginBottom: 20 }}>Lädt Kassenbeleg…</div>
         ) : !orderData ? (
           <div style={{ fontSize: 13, color: '#999', marginBottom: 20 }}>Kein Kassenbeleg gefunden für diesen Termin.</div>
