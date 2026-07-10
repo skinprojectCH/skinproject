@@ -449,6 +449,22 @@ export async function fetchAppointmentsForCustomer(customerId: string) {
   return data;
 }
 
+// Verkäufe ohne Termin (z.B. reiner Artikelverkauf an der Kasse) — damit sie trotzdem
+// im Kalender/Kassenbuch sichtbar sind, statt spurlos zu verschwinden.
+export async function fetchWalkInOrdersForDay(dateISO: string) {
+  const start = `${dateISO}T00:00:00`;
+  const end = `${dateISO}T23:59:59`;
+  const { data, error } = await supabase
+    .from('orders')
+    .select('*, customers(vorname, name, phone), order_line_items(description, quantity, unit_price)')
+    .is('appointment_id', null)
+    .gte('created_at', start)
+    .lte('created_at', end)
+    .order('created_at');
+  if (error) throw error;
+  return data;
+}
+
 export async function fetchOrderForAppointment(appointmentId: string) {
   const { data: order, error } = await supabase.from('orders').select('*').eq('appointment_id', appointmentId).maybeSingle();
   if (error) throw error;

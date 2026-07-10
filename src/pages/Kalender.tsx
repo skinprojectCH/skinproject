@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import TerminModal from '../components/TerminModal';
 import EditTerminModal from '../components/EditTerminModal';
 import Modal from '../components/Modal';
-import { fetchAppointmentsForDay, fetchArtists, fetchLocations, fetchCurrentUserLocationId, fetchShiftsForDate, fetchAbsencesForDate, deleteAbsence, type Artist, type Location, type Shift, type Absence } from '../lib/queries';
+import { fetchAppointmentsForDay, fetchArtists, fetchLocations, fetchCurrentUserLocationId, fetchShiftsForDate, fetchAbsencesForDate, fetchWalkInOrdersForDay, deleteAbsence, type Artist, type Location, type Shift, type Absence } from '../lib/queries';
 
 const FAVORITE_LOCATION_KEY = 'skinproject:favoriteLocationId';
 
@@ -875,12 +875,14 @@ function WeekView({
 function ListView({
   appointments,
   absences,
+  walkInOrders,
   artists,
   onSelectAppointment,
   onSelectAbsence,
 }: {
   appointments: LoadedAppointment[];
   absences: Absence[];
+  walkInOrders: any[];
   artists: Artist[];
   onSelectAppointment: (a: LoadedAppointment) => void;
   onSelectAbsence: (absence: Absence, artistName: string) => void;
@@ -983,6 +985,37 @@ function ListView({
           ))}
         </div>
       )}
+
+      {walkInOrders.length > 0 && (
+        <div style={{ marginTop: 24 }}>
+          <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 4 }}>Kassenbuch — Verkäufe ohne Termin</div>
+          <div style={{ fontSize: 11, color: '#999', marginBottom: 10 }}>Direktverkäufe an der Kasse (z.B. reiner Artikelverkauf ohne Buchung).</div>
+          {walkInOrders.map((order: any) => {
+            const positions = (order.order_line_items || []).map((li: any) => li.description).join(', ');
+            const customerLabel = order.customers ? `${order.customers.vorname} ${order.customers.name}` : 'Laufkunde';
+            return (
+              <div
+                key={order.id}
+                style={{
+                  display: 'grid',
+                  gridTemplateColumns: '90px 1fr 1fr 100px',
+                  padding: '10px 12px',
+                  fontSize: 13,
+                  border: '1px solid #eee',
+                  borderRadius: 4,
+                  marginBottom: 6,
+                  alignItems: 'center',
+                }}
+              >
+                <div>{new Date(order.created_at).toLocaleTimeString('de-CH', { hour: '2-digit', minute: '2-digit' })}</div>
+                <div>{customerLabel}</div>
+                <div style={{ color: '#777', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{positions || '—'}</div>
+                <div style={{ fontWeight: 600, textAlign: 'right' }}>CHF {order.total}</div>
+              </div>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }
@@ -997,6 +1030,7 @@ export default function Kalender() {
   const [artists, setArtists] = useState<Artist[]>([]);
   const [shifts, setShifts] = useState<Shift[]>([]);
   const [absences, setAbsences] = useState<Absence[]>([]);
+  const [walkInOrders, setWalkInOrders] = useState<any[]>([]);
   const [locations, setLocations] = useState<Location[]>([]);
   const [selectedLocationId, setSelectedLocationId] = useState<string>('');
   const [favoriteLocationId, setFavoriteLocationId] = useState<string | null>(() => localStorage.getItem(FAVORITE_LOCATION_KEY));
@@ -1034,6 +1068,8 @@ export default function Kalender() {
       setShifts(dayShifts);
       const dayAbsences = await fetchAbsencesForDate(scopedArtists.map((a) => a.id), date);
       setAbsences(dayAbsences);
+      const dayWalkInOrders = await fetchWalkInOrdersForDay(date);
+      setWalkInOrders(dayWalkInOrders);
       const mapped: LoadedAppointment[] = (rawAppointments as any[]).map((a) => mapAppointmentRow(a, date));
       setAppointments(mapped);
     } catch (e: any) {
@@ -1168,6 +1204,7 @@ export default function Kalender() {
               <ListView
                 appointments={appointments}
                 absences={absences}
+                walkInOrders={walkInOrders}
                 artists={artists}
                 onSelectAppointment={setSelectedAppointment}
                 onSelectAbsence={(absence, artistName) => setSelectedAbsence({ absence, artistName })}
