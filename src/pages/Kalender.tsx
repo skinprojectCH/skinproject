@@ -125,21 +125,41 @@ function offWindowsForArtist(shifts: Shift[], artistId: string) {
   return off;
 }
 
+function useNowMinutes() {
+  const [now, setNow] = useState(() => {
+    const d = new Date();
+    return d.getHours() * 60 + d.getMinutes();
+  });
+  useEffect(() => {
+    const interval = setInterval(() => {
+      const d = new Date();
+      setNow(d.getHours() * 60 + d.getMinutes());
+    }, 30000);
+    return () => clearInterval(interval);
+  }, []);
+  return now;
+}
+
 const HATCH_BG = 'repeating-linear-gradient(45deg, #fafafa, #fafafa 6px, #f0f0f0 6px, #f0f0f0 12px)';
 
 function DayView({
   appointments,
   artists,
   shifts,
+  isToday,
   onSelectAppointment,
   onCreateAtSlot,
 }: {
   appointments: LoadedAppointment[];
   artists: Artist[];
   shifts: Shift[];
+  isToday: boolean;
   onSelectAppointment: (a: LoadedAppointment) => void;
   onCreateAtSlot: (artistId: string, time: string) => void;
 }) {
+  const nowMinutes = useNowMinutes();
+  const showNowIndicator = isToday && nowMinutes >= DISPLAY_START_MIN && nowMinutes <= DISPLAY_END_MIN;
+  const nowTop = (nowMinutes - DISPLAY_START_MIN) * PX_PER_MIN;
   const hourMarks: number[] = [];
   for (let m = DISPLAY_START_MIN; m <= DISPLAY_END_MIN; m += 60) hourMarks.push(m);
 
@@ -167,6 +187,20 @@ function DayView({
       {/* Zeitraster — einziger scrollbarer Bereich */}
       <div style={{ flex: 1, minHeight: 0, overflowY: 'auto' }}>
         <div style={{ display: 'flex', position: 'relative' }}>
+          {showNowIndicator && (
+            <div
+              style={{
+                position: 'absolute',
+                top: nowTop,
+                left: 56,
+                right: 0,
+                height: 1,
+                background: '#111',
+                zIndex: 5,
+                pointerEvents: 'none',
+              }}
+            />
+          )}
           {/* Zeitachse */}
           <div style={{ width: 56, flexShrink: 0, position: 'relative', height: GRID_HEIGHT, background: '#fff' }}>
             {hourMarks.map((m) => (
@@ -174,6 +208,20 @@ function DayView({
                 {minutesLabel(m)}
               </div>
             ))}
+            {showNowIndicator && (
+              <div
+                style={{
+                  position: 'absolute',
+                  top: nowTop - 5,
+                  right: -1,
+                  width: 0,
+                  height: 0,
+                  borderTop: '5px solid transparent',
+                  borderBottom: '5px solid transparent',
+                  borderLeft: '7px solid #111',
+                }}
+              />
+            )}
           </div>
 
           {/* Spalten */}
@@ -456,6 +504,7 @@ export default function Kalender() {
               appointments={appointments}
               artists={artists}
               shifts={shifts}
+              isToday={date === todayISO()}
               onSelectAppointment={setSelectedAppointment}
               onCreateAtSlot={(artistId, time) => {
                 setNewTerminPrefill({ artistId, time });
