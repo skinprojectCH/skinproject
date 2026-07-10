@@ -6,18 +6,19 @@ import {
   fetchProducts,
   fetchServiceCategories,
   fetchProductCategories,
+  fetchCustomers,
   createOrder,
   addOrderLineItems,
   addPayments,
   fetchAppointment,
   fetchAppointmentLineItems,
-  fetchCustomer,
   fetchArtists,
   updateAppointment,
   type Service,
   type Product,
   type ServiceCategory,
   type ProductCategory,
+  type Customer,
 } from '../lib/queries';
 
 const PAYMENT_METHODS = ['Karte', 'Bar', 'Twint', 'Rechnung'];
@@ -393,16 +394,18 @@ export default function Kasse() {
   const [completed, setCompleted] = useState(false);
 
   const [contextLabel, setContextLabel] = useState<string | null>(null);
-  const [contextCustomerId, setContextCustomerId] = useState<string | null>(null);
   const [contextError, setContextError] = useState<string | null>(null);
+  const [customers, setCustomers] = useState<Customer[]>([]);
+  const [selectedCustomerId, setSelectedCustomerId] = useState<string>('');
 
   useEffect(() => {
-    Promise.all([fetchServices(), fetchProducts(), fetchServiceCategories(), fetchProductCategories()])
-      .then(([s, p, sc, pc]) => {
+    Promise.all([fetchServices(), fetchProducts(), fetchServiceCategories(), fetchProductCategories(), fetchCustomers()])
+      .then(([s, p, sc, pc, c]) => {
         setServices(s.filter((sv) => sv.active));
         setProducts(p.filter((pr) => pr.active));
         setServiceCategories(sc);
         setProductCategories(pc);
+        setCustomers(c);
       })
       .finally(() => setLoading(false));
   }, []);
@@ -414,13 +417,10 @@ export default function Kasse() {
       try {
         const [appt, lineItems, allArtists] = await Promise.all([fetchAppointment(appointmentId), fetchAppointmentLineItems(appointmentId), fetchArtists()]);
         const artist = allArtists.find((a) => a.id === appt.artist_id);
-        let customerLabel = 'Laufkunde';
         if (appt.customer_id) {
-          const customer = await fetchCustomer(appt.customer_id);
-          customerLabel = `${customer.vorname} ${customer.name}`;
-          setContextCustomerId(appt.customer_id);
+          setSelectedCustomerId(appt.customer_id);
         }
-        setContextLabel(`Termin: ${customerLabel} · ${artist?.name || '—'} · ${new Date(appt.start_time).toLocaleString('de-CH', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}`);
+        setContextLabel(`Termin: ${artist?.name || '—'} · ${new Date(appt.start_time).toLocaleString('de-CH', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}`);
         setItems(
           (lineItems as any[]).map((li) => ({
             id: crypto.randomUUID(),
@@ -450,7 +450,7 @@ export default function Kasse() {
   async function handleCheckoutComplete(payments: { method: string; amount: number }[], total: number, discountPct: number) {
     const order = await createOrder({
       appointment_id: appointmentId || null,
-      customer_id: contextCustomerId,
+      customer_id: selectedCustomerId || null,
       subtotal,
       order_discount_type: discountPct > 0 ? 'percent' : null,
       order_discount_value: discountPct > 0 ? discountPct : null,
@@ -497,11 +497,31 @@ export default function Kasse() {
       <div style={{ display: 'flex', gap: 28 }}>
         <div style={{ flex: 1, minWidth: 0 }}>
           <h1 style={{ fontSize: 24, marginBottom: 6 }}>Kasse</h1>
-          <div style={{ fontSize: 12, color: contextLabel ? 'var(--color-accent)' : '#999', marginBottom: 20, fontWeight: contextLabel ? 600 : 400 }}>
-            {contextError
-              ? `Fehler beim Laden des Termins: ${contextError}`
-              : contextLabel || 'Direktverkauf ohne Termin (Laufkunde). Für Termin-Kassieren: Kalender → Termin → "Kassieren".'}
-          </div>
+          {contextError ? (
+            <div style={{ fontSize: 12, color: 'var(--color-destructive)', marginBottom: 20 }}>Fehler beim Laden des Termins: {contextError}</div>
+          ) : (
+            <>
+              {contextLabel && <div style={{ fontSize: 12, color: 'var(--color-accent)', fontWeight: 600, marginBottom: 10 }}>{contextLabel}</div>}
+              <div style={{ marginBottom: 20 }}>
+                <div className="label-uppercase" style={{ marginBottom: 4 }}>
+                  Kunde
+                </div>
+                <select
+                  value={selectedCustomerId}
+                  onChange={(e) => setSelectedCustomerId(e.target.value)}
+                  style={{ border: '1px solid #ddd', borderRadius: 4, padding: '9px 10px', fontSize: 13, width: 280, fontFamily: 'var(--font-body)' }}
+                >
+                  <option value="">Laufkunde (kein Kunde)</option>
+                  {customers.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.vorname} {c.name}
+                      {c.phone ? ` · ${c.phone}` : ''}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </>
+          )}
 
           <div
             style={{
