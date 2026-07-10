@@ -775,13 +775,28 @@ function WeekView({
   );
 }
 
-function ListView({ appointments }: { appointments: LoadedAppointment[] }) {
+function ListView({
+  appointments,
+  absences,
+  artists,
+  onSelectAppointment,
+  onSelectAbsence,
+}: {
+  appointments: LoadedAppointment[];
+  absences: Absence[];
+  artists: Artist[];
+  onSelectAppointment: (a: LoadedAppointment) => void;
+  onSelectAbsence: (absence: Absence, artistName: string) => void;
+}) {
+  const [hoveredRow, setHoveredRow] = useState<string | null>(null);
+  const artistName = (id: string) => artists.find((a) => a.id === id)?.name || '—';
+
   return (
     <div>
       <div
         style={{
           display: 'grid',
-          gridTemplateColumns: '90px 1fr 1fr 1fr 100px',
+          gridTemplateColumns: '110px 1fr 1fr 1.4fr 100px',
           padding: '10px 12px',
           fontSize: 11,
           textTransform: 'uppercase',
@@ -794,19 +809,79 @@ function ListView({ appointments }: { appointments: LoadedAppointment[] }) {
         <div>Zeit</div>
         <div>Kunde</div>
         <div>Artist</div>
-        <div>Service</div>
+        <div>Dienstleistungen</div>
         <div>Status</div>
       </div>
       {appointments.map((a) => (
-        <div key={a.id} style={{ display: 'grid', gridTemplateColumns: '90px 1fr 1fr 1fr 100px', padding: '14px 12px', fontSize: 13, borderBottom: '1px solid #eee', alignItems: 'center' }}>
-          <div>{a.time}</div>
-          <div>{a.customer}</div>
+        <div
+          key={a.id}
+          onClick={() => onSelectAppointment(a)}
+          onMouseEnter={() => setHoveredRow(a.id)}
+          onMouseLeave={() => setHoveredRow(null)}
+          role="button"
+          tabIndex={0}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') onSelectAppointment(a);
+          }}
+          style={{
+            display: 'grid',
+            gridTemplateColumns: '110px 1fr 1fr 1.4fr 100px',
+            padding: '14px 12px',
+            fontSize: 13,
+            borderBottom: '1px solid #eee',
+            alignItems: 'center',
+            cursor: 'pointer',
+            background: hoveredRow === a.id ? '#fbfaf8' : 'transparent',
+            outline: 'none',
+          }}
+        >
+          <div>
+            {a.time} – {a.endTime}
+          </div>
+          <div>
+            {a.customer}
+            {a.customerPhone && <div style={{ fontSize: 11, color: '#999' }}>{a.customerPhone}</div>}
+          </div>
           <div>{a.artistName}</div>
-          <div>{a.label}</div>
+          <div style={{ color: a.services.length ? '#111' : '#999' }}>{a.services.length ? a.services.join(', ') : '—'}</div>
           <div style={statusPillStyle(a.status)}>{a.status}</div>
         </div>
       ))}
       {appointments.length === 0 && <div style={{ padding: '20px 12px', fontSize: 13, color: '#999' }}>Keine Termine für diesen Tag.</div>}
+
+      {absences.length > 0 && (
+        <div style={{ marginTop: 24 }}>
+          <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 10 }}>Absenzen</div>
+          {absences.map((abs) => (
+            <div
+              key={abs.id}
+              onClick={() => onSelectAbsence(abs, artistName(abs.artist_id))}
+              role="button"
+              tabIndex={0}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') onSelectAbsence(abs, artistName(abs.artist_id));
+              }}
+              style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                padding: '10px 12px',
+                fontSize: 13,
+                background: ABSENCE_BG,
+                borderRadius: 4,
+                marginBottom: 6,
+                cursor: 'pointer',
+              }}
+            >
+              <div style={{ color: ABSENCE_TEXT, fontWeight: 600 }}>{artistName(abs.artist_id)}</div>
+              <div style={{ color: ABSENCE_TEXT }}>
+                {ABSENCE_TYPE_LABELS[abs.type]}
+                {abs.half_day !== 'none' ? ` (${abs.half_day === 'am' ? 'Vormittag' : 'Nachmittag'})` : ' (ganzer Tag)'}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
@@ -989,7 +1064,13 @@ export default function Kalender() {
           )}
           {view === 'liste' && (
             <div style={{ height: '100%', overflowY: 'auto' }}>
-              <ListView appointments={appointments} />
+              <ListView
+                appointments={appointments}
+                absences={absences}
+                artists={artists}
+                onSelectAppointment={setSelectedAppointment}
+                onSelectAbsence={(absence, artistName) => setSelectedAbsence({ absence, artistName })}
+              />
             </div>
           )}
         </div>
