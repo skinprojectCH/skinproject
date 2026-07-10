@@ -30,10 +30,11 @@ const SIMPLE_PAYMENT_METHODS = ['Karte', 'Bar', 'Rechnung']; // Gutschein brauch
 interface LineItem {
   id: string;
   label: string;
-  kind: 'service' | 'product';
+  kind: 'service' | 'product' | 'voucher';
   refId: string;
   qty: number;
   unitPrice: number;
+  voucherCode?: string;
 }
 
 interface SplitPayment {
@@ -249,6 +250,70 @@ function AddProductModal({
               .filter((p) => quantities[p.id] > 0)
               .map((p) => ({ id: crypto.randomUUID(), label: p.name, kind: 'product', refId: p.id, qty: quantities[p.id], unitPrice: p.price }));
             onAdd(items);
+            onClose();
+          }}
+        >
+          Hinzufügen
+        </button>
+      </div>
+    </Modal>
+  );
+}
+
+function generateVoucherCode() {
+  return '2SK-' + Math.random().toString(36).slice(2, 7).toUpperCase();
+}
+
+function SellVoucherModal({ onClose, onAdd }: { onClose: () => void; onAdd: (item: LineItem) => void }) {
+  const [value, setValue] = useState('');
+  const [code, setCode] = useState(generateVoucherCode());
+  const [error, setError] = useState<string | null>(null);
+
+  const numValue = parseFloat(value);
+  const valid = !isNaN(numValue) && numValue > 0;
+
+  return (
+    <Modal title="Gutschein verkaufen" onClose={onClose} width={380}>
+      <div style={{ marginBottom: 14 }}>
+        <div className="label-uppercase" style={{ marginBottom: 4 }}>
+          Wert (CHF)
+        </div>
+        <input
+          value={value}
+          onChange={(e) => setValue(e.target.value)}
+          style={{ border: '1px solid #ddd', borderRadius: 4, padding: '9px 10px', fontSize: 13, width: '100%' }}
+          placeholder="z.B. 100"
+          inputMode="decimal"
+          autoFocus
+        />
+      </div>
+      <div style={{ marginBottom: 20 }}>
+        <div className="label-uppercase" style={{ marginBottom: 4 }}>
+          Gutschein-Code
+        </div>
+        <div style={{ display: 'flex', gap: 8 }}>
+          <div style={{ flex: 1, border: '1px solid #ddd', borderRadius: 4, padding: '9px 10px', fontSize: 13, fontFamily: 'monospace' }}>{code}</div>
+          <button className="btn btn-secondary" onClick={() => setCode(generateVoucherCode())}>
+            ↻
+          </button>
+        </div>
+        <div style={{ fontSize: 11, color: '#999', marginTop: 4 }}>Wird erst beim Abschliessen des Verkaufs tatsächlich erstellt.</div>
+      </div>
+      {error && <div style={{ fontSize: 12, color: 'var(--color-destructive)', marginBottom: 12 }}>{error}</div>}
+      <div style={{ display: 'flex', gap: 10 }}>
+        <button className="btn btn-secondary" style={{ flex: 1, justifyContent: 'center' }} onClick={onClose}>
+          Abbrechen
+        </button>
+        <button
+          className="btn btn-primary"
+          style={{ flex: 1, justifyContent: 'center', opacity: valid ? 1 : 0.5 }}
+          disabled={!valid}
+          onClick={() => {
+            if (!valid) {
+              setError('Bitte einen gültigen Wert eingeben.');
+              return;
+            }
+            onAdd({ id: crypto.randomUUID(), label: `Gutschein ${code}`, kind: 'voucher', refId: code, qty: 1, unitPrice: numValue, voucherCode: code });
             onClose();
           }}
         >
@@ -558,6 +623,7 @@ export default function Kasse() {
   const [productCategories, setProductCategories] = useState<ProductCategory[]>([]);
   const [loading, setLoading] = useState(true);
   const [showServiceModal, setShowServiceModal] = useState(false);
+  const [showVoucherModal, setShowVoucherModal] = useState(false);
   const [showProductModal, setShowProductModal] = useState(false);
   const [showCheckout, setShowCheckout] = useState(false);
   const [completed, setCompleted] = useState(false);
@@ -656,6 +722,9 @@ export default function Kasse() {
         line_total: i.qty * i.unitPrice,
       })),
       payments: payments.map((p) => ({ ...p, method: p.method.toLowerCase() })),
+      vouchersToCreate: items
+        .filter((i) => i.kind === 'voucher')
+        .map((i) => ({ code: i.voucherCode || i.refId, value: i.unitPrice, buyer_customer_id: selectedCustomerId || null })),
     });
     setShowCheckout(false);
     setCompleted(true);
@@ -822,6 +891,9 @@ export default function Kasse() {
             <button className="btn btn-outline" onClick={() => setShowProductModal(true)}>
               + Artikel hinzufügen
             </button>
+            <button className="btn btn-outline" onClick={() => setShowVoucherModal(true)}>
+              + Gutschein verkaufen
+            </button>
           </div>
         </div>
 
@@ -911,6 +983,7 @@ export default function Kasse() {
       {showProductModal && (
         <AddProductModal products={products} categories={productCategories} onClose={() => setShowProductModal(false)} onAdd={(newItems) => setItems((prev) => [...prev, ...newItems])} />
       )}
+      {showVoucherModal && <SellVoucherModal onClose={() => setShowVoucherModal(false)} onAdd={(item) => setItems((prev) => [...prev, item])} />}
       {showCheckout && (
         <CheckoutModal
           subtotal={subtotal}

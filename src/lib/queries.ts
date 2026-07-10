@@ -527,6 +527,7 @@ export async function checkoutOrder(input: {
   total: number;
   lineItems: { service_id?: string | null; product_id?: string | null; description: string; quantity: number; unit_price: number; line_total: number }[];
   payments: { method: string; amount: number; voucher_id?: string | null }[];
+  vouchersToCreate?: { code: string; value: number; buyer_customer_id?: string | null }[];
 }) {
   const { data, error } = await supabase.rpc('checkout_order', {
     p_appointment_id: input.appointmentId,
@@ -538,6 +539,7 @@ export async function checkoutOrder(input: {
     p_total: input.total,
     p_line_items: input.lineItems,
     p_payments: input.payments,
+    p_vouchers: input.vouchersToCreate || [],
   });
   if (error) throw error;
   return data as string;
