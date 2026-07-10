@@ -50,3 +50,13 @@
   color: #fff;
   opacity: 1;
 }
+
+.payment-method-btn {
+  transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+}
+
+.payment-method-btn:hover:not(.payment-method-btn--selected) {
+  background: var(--color-primary);
+  border-color: var(--color-primary);
+  color: #fff;
+}

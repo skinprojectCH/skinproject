@@ -739,6 +739,7 @@ export default function Kasse() {
               <button
                 key={m}
                 onClick={() => setPaymentMethod(m)}
+                className={`payment-method-btn${paymentMethod === m ? ' payment-method-btn--selected' : ''}`}
                 style={{
                   padding: '10px 6px',
                   fontSize: 12,
