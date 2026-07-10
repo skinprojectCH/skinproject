@@ -807,12 +807,6 @@ export default function Kalender() {
             reload();
             setRefreshKey((k) => k + 1);
           }}
-          customer={selectedAppointment.customer}
-          customerPhone={selectedAppointment.customerPhone}
-          artist={selectedAppointment.artistName}
-          date={new Date(selectedAppointment.dateISO).toLocaleDateString('de-CH')}
-          time={selectedAppointment.time}
-          endTime={selectedAppointment.endTime}
         />
       )}
     </div>

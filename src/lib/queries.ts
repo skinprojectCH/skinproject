@@ -68,6 +68,7 @@ export interface Appointment {
   id: string;
   customer_id: string | null;
   artist_id: string | null;
+  location_id: string | null;
   start_time: string;
   end_time: string;
   type: 'termin' | 'absenz';
@@ -436,6 +437,12 @@ export async function replaceAppointmentLineItems(appointmentId: string, items: 
   const { error: deleteError } = await supabase.from('appointment_line_items').delete().eq('appointment_id', appointmentId);
   if (deleteError) throw deleteError;
   await addAppointmentLineItems(appointmentId, items);
+}
+
+export async function fetchAppointment(id: string) {
+  const { data, error } = await supabase.from('appointments').select('*').eq('id', id).single();
+  if (error) throw error;
+  return data as Appointment;
 }
 
 export async function createAppointment(input: {
