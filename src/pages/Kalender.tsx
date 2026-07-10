@@ -287,10 +287,13 @@ function DayView({
 
   return (
     <div style={{ border: '1px solid #eee', borderRadius: 6, overflow: 'hidden', display: 'flex', flexDirection: 'column', height: '100%' }}>
-      {/* Kopfzeile: Artist-Namen + Schichtzeiten — bleibt fix, scrollt nicht mit */}
-      <div style={{ display: 'flex', borderBottom: '1px solid #eee', flexShrink: 0 }}>
-        <div style={{ width: 56, flexShrink: 0, background: '#fff' }} />
-        {artists.map((artist) => {
+      {/* Kopfzeile + Zeitraster in EINEM scrollenden Container, damit Scrollbar-Breite
+          Kopfzeile und Spalten gleichermassen betrifft (sonst Breiten-Versatz). Kopfzeile
+          bleibt optisch fix via position:sticky. */}
+      <div style={{ flex: 1, minHeight: 0, overflowY: 'auto' }}>
+        <div style={{ display: 'flex', borderBottom: '1px solid #eee', position: 'sticky', top: 0, zIndex: 10, background: '#fff' }}>
+          <div style={{ width: 56, flexShrink: 0, background: '#fff' }} />
+          {artists.map((artist) => {
           const windows = shiftWindowsForArtist(shifts, artist.id);
           const label = windows.length ? windows.map((w) => `${minutesLabel(w.start)}–${minutesLabel(w.end)}`).join(', ') : null;
           const absence = absenceForArtist(absences, artist.id);
@@ -324,10 +327,9 @@ function DayView({
           );
         })}
         {artists.length === 0 && <div style={{ flex: 1, padding: '10px 8px', fontSize: 12, color: '#999' }}>Keine Artists an dieser Location.</div>}
-      </div>
+        </div>
 
-      {/* Zeitraster — einziger scrollbarer Bereich */}
-      <div style={{ flex: 1, minHeight: 0, overflowY: 'auto' }}>
+        {/* Zeitraster */}
         <div style={{ display: 'flex', position: 'relative' }}>
           {showNowIndicator && (
             <div
@@ -596,8 +598,9 @@ function WeekView({
         <div style={{ fontSize: 13, color: 'var(--color-destructive)' }}>Fehler: {error}</div>
       ) : (
         <div style={{ border: '1px solid #eee', borderRadius: 6, overflow: 'hidden', display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 }}>
-          {/* Kopfzeile: Wochentage — fix, scrollt nicht mit */}
-          <div style={{ display: 'flex', borderBottom: '1px solid #eee', flexShrink: 0 }}>
+          {/* Kopfzeile + Zeitraster in EINEM scrollenden Container (siehe Kommentar in DayView) */}
+          <div style={{ flex: 1, minHeight: 0, overflowY: 'auto' }}>
+            <div style={{ display: 'flex', borderBottom: '1px solid #eee', position: 'sticky', top: 0, zIndex: 10, background: '#fff' }}>
             <div style={{ width: 56, flexShrink: 0, background: '#fff' }} />
             {days.map((d) => {
               const isToday = d === todayStr;
@@ -628,10 +631,9 @@ function WeekView({
                 </div>
               );
             })}
-          </div>
+            </div>
 
-          {/* Zeitraster — einziger scrollbarer Bereich */}
-          <div style={{ flex: 1, minHeight: 0, overflowY: 'auto' }}>
+            {/* Zeitraster */}
             <div style={{ display: 'flex', position: 'relative' }}>
               <div style={{ width: 56, flexShrink: 0, position: 'relative', height: GRID_HEIGHT, background: '#fff' }}>
                 {hourMarks.map((m) => (
