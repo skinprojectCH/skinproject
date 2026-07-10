@@ -275,6 +275,58 @@ function absenceWindowsForArtist(absences: Absence[], artistId: string): { start
   return absence.half_day === 'am' ? [{ start: DISPLAY_START_MIN, end: 12 * 60 }] : [{ start: 12 * 60, end: DISPLAY_END_MIN }];
 }
 
+// Ordnet zeitlich überschneidende Termine innerhalb einer Spalte nebeneinander an,
+// statt sie übereinanderzulegen. Klassischer "Interval Scheduling"-Ansatz:
+// jeder Termin bekommt eine Spalten-Nummer innerhalb seines Überschneidungs-Clusters.
+function layoutOverlaps(appts: LoadedAppointment[]): Map<string, { col: number; totalCols: number }> {
+  const sorted = [...appts].sort((a, b) => a.startMinutes - b.startMinutes);
+  const result = new Map<string, { col: number; totalCols: number }>();
+
+  let cluster: LoadedAppointment[] = [];
+  let clusterEnd = -1;
+
+  function flushCluster() {
+    if (cluster.length === 0) return;
+    const columnEnds: number[] = [];
+    const colOf = new Map<string, number>();
+    for (const appt of cluster) {
+      let placed = false;
+      for (let c = 0; c < columnEnds.length; c++) {
+        if (columnEnds[c] <= appt.startMinutes) {
+          columnEnds[c] = appt.endMinutes;
+          colOf.set(appt.id, c);
+          placed = true;
+          break;
+        }
+      }
+      if (!placed) {
+        columnEnds.push(appt.endMinutes);
+        colOf.set(appt.id, columnEnds.length - 1);
+      }
+    }
+    const totalCols = columnEnds.length;
+    for (const appt of cluster) {
+      result.set(appt.id, { col: colOf.get(appt.id)!, totalCols });
+    }
+    cluster = [];
+    clusterEnd = -1;
+  }
+
+  for (const appt of sorted) {
+    if (cluster.length === 0 || appt.startMinutes < clusterEnd) {
+      cluster.push(appt);
+      clusterEnd = Math.max(clusterEnd, appt.endMinutes);
+    } else {
+      flushCluster();
+      cluster.push(appt);
+      clusterEnd = appt.endMinutes;
+    }
+  }
+  flushCluster();
+
+  return result;
+}
+
 const HATCH_BG = 'repeating-linear-gradient(45deg, #fafafa, #fafafa 6px, #f0f0f0 6px, #f0f0f0 12px)';
 
 function DayView({
@@ -391,6 +443,7 @@ function DayView({
             const absenceWindows = absenceWindowsForArtist(absences, artist.id);
             const absence = absenceForArtist(absences, artist.id);
             const artistAppointments = appointments.filter((a) => a.artistId === artist.id);
+            const overlapLayout = layoutOverlaps(artistAppointments);
             return (
               <div
                 key={artist.id}
@@ -456,6 +509,9 @@ function DayView({
                 {artistAppointments.map((appt) => {
                   const top = Math.max(0, (appt.startMinutes - DISPLAY_START_MIN) * PX_PER_MIN);
                   const height = Math.max(18, (appt.endMinutes - appt.startMinutes) * PX_PER_MIN);
+                  const layout = overlapLayout.get(appt.id) || { col: 0, totalCols: 1 };
+                  const widthPct = 100 / layout.totalCols;
+                  const leftPct = layout.col * widthPct;
                   return (
                     <div
                       key={appt.id}
@@ -465,8 +521,8 @@ function DayView({
                         position: 'absolute',
                         top,
                         height,
-                        left: 4,
-                        right: 4,
+                        left: `calc(${leftPct}% + ${layout.col === 0 ? 4 : 2}px)`,
+                        width: `calc(${widthPct}% - ${layout.totalCols > 1 ? 4 : 8}px)`,
                         background: appt.status === 'kassiert' || appt.status === 'nicht_erschienen' ? '#f2f2ee' : 'var(--color-accent-fill)',
                         borderLeft: `3px solid ${appt.status === 'nicht_erschienen' ? 'var(--color-destructive)' : appt.artistColor}`,
                         borderRadius: '0 4px 4px 0',
@@ -477,6 +533,7 @@ function DayView({
                         overflow: 'hidden',
                         boxShadow: '0 1px 2px rgba(0,0,0,0.06)',
                         opacity: appt.status === 'kassiert' || appt.status === 'nicht_erschienen' ? 0.75 : 1,
+                        zIndex: 2,
                       }}
                       title={`${appt.time}–${appt.endTime} · ${appt.customer}${appt.services.length ? ' · ' + appt.services.join(', ') : ''}${appt.status === 'kassiert' ? ' · kassiert' : ''}${appt.status === 'nicht_erschienen' ? ' · nicht erschienen' : ''}`}
                     >
@@ -677,6 +734,7 @@ function WeekView({
                 const absenceWindows = absenceWindowsForArtist(dayAbsences, artistId);
                 const dayAbsence = absenceForArtist(dayAbsences, artistId);
                 const dayAppointments = weekAppointments[d] || [];
+                const dayOverlapLayout = layoutOverlaps(dayAppointments);
                 const isToday = d === todayStr;
                 const showNowLine = isToday && nowMinutes >= DISPLAY_START_MIN && nowMinutes <= DISPLAY_END_MIN;
                 const artistColor = artists.find((a) => a.id === artistId)?.calendar_color || 'var(--color-accent)';
@@ -749,6 +807,9 @@ function WeekView({
                     {dayAppointments.map((appt) => {
                       const top = Math.max(0, (appt.startMinutes - DISPLAY_START_MIN) * PX_PER_MIN);
                       const height = Math.max(16, (appt.endMinutes - appt.startMinutes) * PX_PER_MIN);
+                      const layout = dayOverlapLayout.get(appt.id) || { col: 0, totalCols: 1 };
+                      const widthPct = 100 / layout.totalCols;
+                      const leftPct = layout.col * widthPct;
                       return (
                         <div
                           key={appt.id}
@@ -761,8 +822,8 @@ function WeekView({
                             position: 'absolute',
                             top,
                             height,
-                            left: 2,
-                            right: 2,
+                            left: `calc(${leftPct}% + ${layout.col === 0 ? 2 : 1}px)`,
+                            width: `calc(${widthPct}% - ${layout.totalCols > 1 ? 2 : 4}px)`,
                             background: appt.status === 'kassiert' || appt.status === 'nicht_erschienen' ? '#f2f2ee' : 'var(--color-accent-fill)',
                             borderLeft: `3px solid ${appt.status === 'nicht_erschienen' ? 'var(--color-destructive)' : artistColor}`,
                             borderRadius: '0 4px 4px 0',
@@ -770,6 +831,7 @@ function WeekView({
                             fontSize: 10,
                             fontWeight: 500,
                             cursor: 'pointer',
+                            zIndex: 2,
                             overflow: 'hidden',
                             boxShadow: '0 1px 2px rgba(0,0,0,0.06)',
                             opacity: appt.status === 'kassiert' || appt.status === 'nicht_erschienen' ? 0.75 : 1,
