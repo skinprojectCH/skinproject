@@ -127,7 +127,19 @@ function offWindowsForArtist(shifts: Shift[], artistId: string) {
 
 const HATCH_BG = 'repeating-linear-gradient(45deg, #fafafa, #fafafa 6px, #f0f0f0 6px, #f0f0f0 12px)';
 
-function DayView({ appointments, artists, shifts, onSelectAppointment }: { appointments: LoadedAppointment[]; artists: Artist[]; shifts: Shift[]; onSelectAppointment: (a: LoadedAppointment) => void }) {
+function DayView({
+  appointments,
+  artists,
+  shifts,
+  onSelectAppointment,
+  onCreateAtSlot,
+}: {
+  appointments: LoadedAppointment[];
+  artists: Artist[];
+  shifts: Shift[];
+  onSelectAppointment: (a: LoadedAppointment) => void;
+  onCreateAtSlot: (artistId: string, time: string) => void;
+}) {
   const hourMarks: number[] = [];
   for (let m = DISPLAY_START_MIN; m <= DISPLAY_END_MIN; m += 60) hourMarks.push(m);
 
@@ -171,12 +183,21 @@ function DayView({ appointments, artists, shifts, onSelectAppointment }: { appoi
             return (
               <div
                 key={artist.id}
+                onDoubleClick={(e) => {
+                  const rect = e.currentTarget.getBoundingClientRect();
+                  const offsetY = e.clientY - rect.top;
+                  const rawMinutes = DISPLAY_START_MIN + offsetY / PX_PER_MIN;
+                  const snapped = Math.round(rawMinutes / 15) * 15;
+                  const clamped = Math.min(Math.max(snapped, DISPLAY_START_MIN), DISPLAY_END_MIN - 15);
+                  onCreateAtSlot(artist.id, minutesLabel(clamped));
+                }}
                 style={{
                   flex: 1,
                   minWidth: 0,
                   position: 'relative',
                   height: GRID_HEIGHT,
                   borderLeft: '1px solid #eee',
+                  cursor: 'copy',
                   backgroundImage: `repeating-linear-gradient(180deg, transparent, transparent ${60 * PX_PER_MIN - 1}px, #f2f2f2 ${60 * PX_PER_MIN - 1}px, #f2f2f2 ${60 * PX_PER_MIN}px)`,
                 }}
               >
@@ -202,6 +223,7 @@ function DayView({ appointments, artists, shifts, onSelectAppointment }: { appoi
                     <div
                       key={appt.id}
                       onClick={() => onSelectAppointment(appt)}
+                      onDoubleClick={(e) => e.stopPropagation()}
                       style={{
                         position: 'absolute',
                         top,
@@ -279,6 +301,7 @@ function ListView({ appointments }: { appointments: LoadedAppointment[] }) {
 export default function Kalender() {
   const [view, setView] = useState<ViewMode>('tag');
   const [showNewTermin, setShowNewTermin] = useState(false);
+  const [newTerminPrefill, setNewTerminPrefill] = useState<{ artistId?: string; time?: string }>({});
   const [selectedAppointment, setSelectedAppointment] = useState<LoadedAppointment | null>(null);
   const [appointments, setAppointments] = useState<LoadedAppointment[]>([]);
   const [artists, setArtists] = useState<Artist[]>([]);
@@ -417,7 +440,7 @@ export default function Kalender() {
           <button className="btn btn-accent" onClick={() => setDate(todayISO())}>
             Heute
           </button>
-          <button className="btn btn-primary" onClick={() => setShowNewTermin(true)}>
+          <button className="btn btn-primary" onClick={() => { setNewTerminPrefill({}); setShowNewTermin(true); }}>
             + Neuer Termin
           </button>
         </div>
@@ -428,7 +451,18 @@ export default function Kalender() {
 
       {!loading && !error && (
         <div style={{ flex: 1, minHeight: 0 }}>
-          {view === 'tag' && <DayView appointments={appointments} artists={artists} shifts={shifts} onSelectAppointment={setSelectedAppointment} />}
+          {view === 'tag' && (
+            <DayView
+              appointments={appointments}
+              artists={artists}
+              shifts={shifts}
+              onSelectAppointment={setSelectedAppointment}
+              onCreateAtSlot={(artistId, time) => {
+                setNewTerminPrefill({ artistId, time });
+                setShowNewTermin(true);
+              }}
+            />
+          )}
           {view === 'woche' && <div style={{ fontSize: 13, color: '#999' }}>Wochenansicht folgt (Mehrtages-Query).</div>}
           {view === 'liste' && (
             <div style={{ height: '100%', overflowY: 'auto' }}>
@@ -442,6 +476,8 @@ export default function Kalender() {
         <TerminModal
           locationId={selectedLocationId}
           initialDate={date}
+          initialTime={newTerminPrefill.time}
+          initialArtistId={newTerminPrefill.artistId}
           onClose={() => setShowNewTermin(false)}
           onSave={() => {
             setShowNewTermin(false);

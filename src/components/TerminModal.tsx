@@ -18,7 +18,7 @@ function fieldLabel(text: string) {
 
 const boxStyle: React.CSSProperties = { border: '1px solid #ddd', borderRadius: 4, padding: '9px 10px', fontSize: 13 };
 
-export default function TerminModal({ onClose, onSave, locationId, initialDate }: { onClose: () => void; onSave: () => void; locationId?: string; initialDate?: string }) {
+export default function TerminModal({ onClose, onSave, locationId, initialDate, initialTime, initialArtistId }: { onClose: () => void; onSave: () => void; locationId?: string; initialDate?: string; initialTime?: string; initialArtistId?: string }) {
   const [tab, setTab] = useState<'termin' | 'absenz'>('termin');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -34,7 +34,10 @@ export default function TerminModal({ onClose, onSave, locationId, initialDate }
         setArtists(scopedArtists);
         setCustomers(c);
         setServices(s.filter((sv) => sv.active));
-        if (scopedArtists.length) setSelectedArtist(scopedArtists[0].id);
+        if (scopedArtists.length) {
+          const preferred = initialArtistId && scopedArtists.some((art) => art.id === initialArtistId) ? initialArtistId : scopedArtists[0].id;
+          setSelectedArtist(preferred);
+        }
         if (s.length) setSelectedServices([s[0].id]);
       })
       .catch((e) => setError(e.message));
@@ -44,7 +47,7 @@ export default function TerminModal({ onClose, onSave, locationId, initialDate }
   const [selectedCustomer, setSelectedCustomer] = useState<string>('');
   const [selectedArtist, setSelectedArtist] = useState<string>('');
   const [date, setDate] = useState<string>(initialDate || new Date().toISOString().slice(0, 10));
-  const [time, setTime] = useState<string>('14:00');
+  const [time, setTime] = useState<string>(initialTime || '14:00');
   const [selectedServices, setSelectedServices] = useState<string[]>([]);
   const totalDuration = selectedServices.reduce((sum, id) => sum + (services.find((s) => s.id === id)?.duration_minutes || 0), 0);
   const totalPrice = selectedServices.reduce((sum, id) => sum + (services.find((s) => s.id === id)?.price || 0), 0);
