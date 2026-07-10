@@ -10,6 +10,7 @@ import {
   fetchOrderForAppointment,
   fetchArtists,
   fetchCustomers,
+  createCustomer,
   fetchServices,
   fetchServiceCategories,
   type Artist,
@@ -58,6 +59,40 @@ export default function EditTerminModal({ appointmentId, onClose }: Props) {
   const [categoryFilter, setCategoryFilter] = useState('');
 
   const [selectedCustomer, setSelectedCustomer] = useState('');
+
+  // Inline "Neuer Kunde"-Formular
+  const [showNewCustomer, setShowNewCustomer] = useState(false);
+  const [newCustomerVorname, setNewCustomerVorname] = useState('');
+  const [newCustomerName, setNewCustomerName] = useState('');
+  const [newCustomerPhone, setNewCustomerPhone] = useState('');
+  const [savingCustomer, setSavingCustomer] = useState(false);
+  const [customerError, setCustomerError] = useState<string | null>(null);
+  const [customerAttempted, setCustomerAttempted] = useState(false);
+
+  async function handleCreateCustomer() {
+    setCustomerAttempted(true);
+    if (!newCustomerVorname.trim() || !newCustomerName.trim()) return;
+    setSavingCustomer(true);
+    setCustomerError(null);
+    try {
+      const created = await createCustomer({
+        vorname: newCustomerVorname.trim(),
+        name: newCustomerName.trim(),
+        phone: newCustomerPhone.trim() || null,
+      });
+      setCustomers((prev) => [...prev, created]);
+      setSelectedCustomer(created.id);
+      setShowNewCustomer(false);
+      setNewCustomerVorname('');
+      setNewCustomerName('');
+      setNewCustomerPhone('');
+      setCustomerAttempted(false);
+    } catch (e: any) {
+      setCustomerError(e.message);
+    } finally {
+      setSavingCustomer(false);
+    }
+  }
   const [selectedArtist, setSelectedArtist] = useState('');
   const [date, setDate] = useState('');
   const [time, setTime] = useState('');
@@ -278,6 +313,51 @@ export default function EditTerminModal({ appointmentId, onClose }: Props) {
             </option>
           ))}
         </select>
+        {!showNewCustomer ? (
+          <div onClick={() => setShowNewCustomer(true)} style={{ fontSize: 11, color: 'var(--color-accent)', fontWeight: 600, cursor: 'pointer', marginTop: 6 }}>
+            + Neuen Kunden erfassen
+          </div>
+        ) : (
+          <div style={{ border: '1px solid #eee', borderRadius: 6, padding: 12, marginTop: 8 }}>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 8 }}>
+              <input
+                value={newCustomerVorname}
+                onChange={(e) => setNewCustomerVorname(e.target.value)}
+                placeholder="Vorname"
+                style={{ ...boxStyle, border: customerAttempted && !newCustomerVorname.trim() ? '1px solid var(--color-destructive)' : boxStyle.border }}
+              />
+              <input
+                value={newCustomerName}
+                onChange={(e) => setNewCustomerName(e.target.value)}
+                placeholder="Name"
+                style={{ ...boxStyle, border: customerAttempted && !newCustomerName.trim() ? '1px solid var(--color-destructive)' : boxStyle.border }}
+              />
+            </div>
+            <input value={newCustomerPhone} onChange={(e) => setNewCustomerPhone(e.target.value)} placeholder="Mobile (optional)" style={{ ...boxStyle, marginBottom: 8 }} />
+            {customerError && <div style={{ fontSize: 11, color: 'var(--color-destructive)', marginBottom: 8 }}>{customerError}</div>}
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button
+                className="btn btn-secondary"
+                style={{ flex: 1, justifyContent: 'center', fontSize: 12, padding: '7px 10px' }}
+                onClick={() => {
+                  setShowNewCustomer(false);
+                  setCustomerError(null);
+                  setCustomerAttempted(false);
+                }}
+              >
+                Abbrechen
+              </button>
+              <button
+                className="btn btn-primary"
+                style={{ flex: 1, justifyContent: 'center', fontSize: 12, padding: '7px 10px', opacity: savingCustomer ? 0.6 : 1 }}
+                disabled={savingCustomer}
+                onClick={handleCreateCustomer}
+              >
+                {savingCustomer ? 'Speichert…' : 'Kunde erstellen'}
+              </button>
+            </div>
+          </div>
+        )}
       </div>
 
       <div style={{ marginBottom: 14 }}>
