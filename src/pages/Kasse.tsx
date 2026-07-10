@@ -7,13 +7,10 @@ import {
   fetchServiceCategories,
   fetchProductCategories,
   fetchCustomers,
-  createOrder,
-  addOrderLineItems,
-  addPayments,
+  checkoutOrder,
   fetchAppointment,
   fetchAppointmentLineItems,
   fetchArtists,
-  updateAppointment,
   type Service,
   type Product,
   type ServiceCategory,
@@ -549,29 +546,23 @@ export default function Kasse() {
   }
 
   async function handleCheckoutComplete(payments: { method: string; amount: number }[], total: number, discountType: 'percent' | 'chf' | null, discountValue: number) {
-    const order = await createOrder({
-      appointment_id: appointmentId || null,
-      customer_id: selectedCustomerId || null,
+    await checkoutOrder({
+      appointmentId: appointmentId || null,
+      customerId: selectedCustomerId || null,
       subtotal,
-      order_discount_type: discountType,
-      order_discount_value: discountType ? discountValue : null,
+      discountType,
+      discountValue: discountType ? discountValue : null,
       total,
-    });
-    await addOrderLineItems(
-      order.id,
-      items.map((i) => ({
-        service_id: i.kind === 'service' ? i.refId : undefined,
-        product_id: i.kind === 'product' ? i.refId : undefined,
+      lineItems: items.map((i) => ({
+        service_id: i.kind === 'service' ? i.refId : null,
+        product_id: i.kind === 'product' ? i.refId : null,
         description: i.label,
         quantity: i.qty,
         unit_price: i.unitPrice,
         line_total: i.qty * i.unitPrice,
-      }))
-    );
-    await addPayments(order.id, payments.map((p) => ({ ...p, method: p.method.toLowerCase() })));
-    if (appointmentId) {
-      await updateAppointment(appointmentId, { status: 'kassiert' });
-    }
+      })),
+      payments: payments.map((p) => ({ ...p, method: p.method.toLowerCase() })),
+    });
     setShowCheckout(false);
     setCompleted(true);
     setItems([]);

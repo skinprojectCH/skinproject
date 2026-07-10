@@ -470,6 +470,30 @@ export async function deleteAppointment(id: string) {
 }
 
 // ---------- Orders / Kasse ----------
+export async function checkoutOrder(input: {
+  appointmentId: string | null;
+  customerId: string | null;
+  subtotal: number;
+  discountType: 'percent' | 'chf' | null;
+  discountValue: number | null;
+  total: number;
+  lineItems: { service_id?: string | null; product_id?: string | null; description: string; quantity: number; unit_price: number; line_total: number }[];
+  payments: { method: string; amount: number }[];
+}) {
+  const { data, error } = await supabase.rpc('checkout_order', {
+    p_appointment_id: input.appointmentId,
+    p_customer_id: input.customerId,
+    p_subtotal: input.subtotal,
+    p_discount_type: input.discountType,
+    p_discount_value: input.discountValue,
+    p_total: input.total,
+    p_line_items: input.lineItems,
+    p_payments: input.payments,
+  });
+  if (error) throw error;
+  return data as string;
+}
+
 export async function createOrder(input: {
   appointment_id?: string | null;
   customer_id?: string | null;
