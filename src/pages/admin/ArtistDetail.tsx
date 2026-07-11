@@ -14,10 +14,10 @@ import {
 } from '../../lib/queries';
 
 const ARTIST_COLORS = [
-  '#B08D3D', '#7A8A99', '#8B5A5A', '#6B5B45', '#5B7A6B', '#7A5B77',
-  '#4A6B7A', '#7A6B4A', '#6B4A5B', '#4A7A5E', '#7A4A4A', '#5B6B7A',
-  '#8A7A5B', '#5B4A6B', '#7A5B4A', '#4A5B6B', '#6B7A4A', '#7A4A6B',
-  '#4A6B6B', '#8A5B6B',
+  '#6667AB', '#C17A5D', '#7E9680', '#7C2D42', '#C7B36C', '#B79AA0',
+  '#3F6B7A', '#A8542E', '#4F7942', '#8E4585', '#C9A227', '#4A5D7A',
+  '#B5533C', '#5C8374', '#9B5D73', '#705C8C', '#B08D3D', '#3E6B5C',
+  '#A65B6B', '#5B4A6B',
 ];
 
 const inputStyle: React.CSSProperties = { border: '1px solid #ddd', borderRadius: 4, padding: '9px 10px', fontSize: 13, width: '100%', fontFamily: 'var(--font-body)' };
