@@ -231,6 +231,7 @@ export interface CustomerDocument {
   appointment_id: string | null;
   type: 'id_photo' | 'signature' | 'photo' | 'document';
   storage_path: string;
+  file_name: string | null;
   created_at: string;
 }
 
@@ -248,7 +249,7 @@ export async function uploadCustomerFile(customerId: string, file: File, type: '
   if (uploadError) throw uploadError;
   const { data, error } = await supabase
     .from('customer_documents')
-    .insert({ customer_id: customerId, type, storage_path: path, appointment_id: appointmentId || null })
+    .insert({ customer_id: customerId, type, storage_path: path, appointment_id: appointmentId || null, file_name: file.name })
     .select()
     .single();
   if (error) throw error;
