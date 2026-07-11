@@ -644,6 +644,7 @@ function AppointmentDetail({ appt, artistId, locationId, onClose }: { appt: any;
 // Termine-Tab: Tageskalender (Liste, keine Wochenansicht)
 // ============================================================
 const CHUNK_DAYS = 14;
+const MAX_LOOKAHEAD_DAYS = 180;
 
 function formatDateHeader(dateISO: string) {
   const today = todayISO();
@@ -656,6 +657,7 @@ function TermineTab({ artistId, locationId }: { artistId: string; locationId: st
   const [appointments, setAppointments] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
+  const [hasMore, setHasMore] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [rangeEndOffset, setRangeEndOffset] = useState(0);
   const [selected, setSelected] = useState<any | null>(null);
@@ -672,6 +674,7 @@ function TermineTab({ artistId, locationId }: { artistId: string; locationId: st
   function reload() {
     setLoading(true);
     setError(null);
+    setHasMore(true);
     loadChunk(0, CHUNK_DAYS, false)
       .then(() => setRangeEndOffset(CHUNK_DAYS))
       .catch((e) => setError(e.message))
@@ -681,18 +684,21 @@ function TermineTab({ artistId, locationId }: { artistId: string; locationId: st
   useEffect(reload, [artistId]);
 
   function loadMore() {
-    if (loadingMore || loading) return;
+    if (loadingMore || loading || !hasMore) return;
     setLoadingMore(true);
-    const newEnd = rangeEndOffset + CHUNK_DAYS;
+    const newEnd = Math.min(rangeEndOffset + CHUNK_DAYS, MAX_LOOKAHEAD_DAYS);
     loadChunk(rangeEndOffset + 1, newEnd, true)
-      .then(() => setRangeEndOffset(newEnd))
+      .then(() => {
+        setRangeEndOffset(newEnd);
+        if (newEnd >= MAX_LOOKAHEAD_DAYS) setHasMore(false);
+      })
       .catch((e) => setError(e.message))
       .finally(() => setLoadingMore(false));
   }
 
   useEffect(() => {
     const el = sentinelRef.current;
-    if (!el) return;
+    if (!el || !hasMore) return;
     const observer = new IntersectionObserver(
       (entries) => {
         if (entries[0].isIntersecting) loadMore();
@@ -702,7 +708,7 @@ function TermineTab({ artistId, locationId }: { artistId: string; locationId: st
     observer.observe(el);
     return () => observer.disconnect();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [rangeEndOffset, loading, loadingMore]);
+  }, [rangeEndOffset, loading, loadingMore, hasMore]);
 
   const grouped = (() => {
     const map: Record<string, any[]> = {};
@@ -755,8 +761,11 @@ function TermineTab({ artistId, locationId }: { artistId: string; locationId: st
           </div>
         ))}
 
-      <div ref={sentinelRef} style={{ height: 1 }} />
+      {hasMore && <div ref={sentinelRef} style={{ height: 1 }} />}
       {loadingMore && <div style={{ fontSize: 12, color: '#999', textAlign: 'center', padding: '10px 0' }}>Lädt weitere Termine…</div>}
+      {!loading && !hasMore && appointments.length > 0 && (
+        <div style={{ fontSize: 12, color: '#999', textAlign: 'center', padding: '10px 0' }}>Keine weiteren Termine in den nächsten 6 Monaten.</div>
+      )}
 
       {selected && <AppointmentDetail appt={selected} artistId={artistId} locationId={locationId} onClose={() => { setSelected(null); reload(); }} />}
 
