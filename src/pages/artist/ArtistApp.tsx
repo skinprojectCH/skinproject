@@ -10,10 +10,21 @@ import {
   getCustomerFileUrl,
   deleteCustomerDocument,
   updateAppointment,
+  fetchCustomers,
+  fetchServices,
+  fetchServiceCategories,
+  fetchAppointmentLineItems,
+  createAppointment,
+  addAppointmentLineItems,
+  replaceAppointmentLineItems,
   type Artist,
+  type Customer,
+  type Service,
+  type ServiceCategory,
   type CustomerDocument,
 } from '../../lib/queries';
 import { formatCHF } from '../../lib/format';
+import NewCustomerModal from '../../components/NewCustomerModal';
 
 function todayISO() {
   return new Date().toISOString().slice(0, 10);
@@ -189,9 +200,241 @@ function Lightbox({ url, onClose }: { url: string; onClose: () => void }) {
 }
 
 // ============================================================
+// Termin buchen / ändern (gemeinsames Formular)
+// ============================================================
+const formBoxStyle: React.CSSProperties = { border: '1px solid var(--color-border)', borderRadius: 4, padding: '9px 10px', fontSize: 13, width: '100%', fontFamily: 'var(--font-body)' };
+
+function formFieldLabel(text: string) {
+  return (
+    <div className="label-uppercase" style={{ marginBottom: 4 }}>
+      {text}
+    </div>
+  );
+}
+
+function toDateInput(iso: string) {
+  const d = new Date(iso);
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+}
+
+function toTimeInput(iso: string) {
+  const d = new Date(iso);
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return `${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
+function TerminForm({
+  artistId,
+  locationId,
+  editAppointment,
+  onSaved,
+  onCancel,
+}: {
+  artistId: string;
+  locationId: string | null;
+  editAppointment?: any | null; // vorhandener Termin = Bearbeiten-Modus, sonst Neu-Buchen
+  onSaved: () => void;
+  onCancel: () => void;
+}) {
+  const isEdit = !!editAppointment;
+  const [loading, setLoading] = useState(true);
+  const [customers, setCustomers] = useState<Customer[]>([]);
+  const [services, setServices] = useState<Service[]>([]);
+  const [categories, setCategories] = useState<ServiceCategory[]>([]);
+  const [categoryFilter, setCategoryFilter] = useState('');
+  const [showNewCustomer, setShowNewCustomer] = useState(false);
+
+  const [selectedCustomer, setSelectedCustomer] = useState('');
+  const [date, setDate] = useState(todayISO());
+  const [time, setTime] = useState('14:00');
+  const [selectedServices, setSelectedServices] = useState<string[]>(['']);
+
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    Promise.all([
+      fetchCustomers(),
+      fetchServices(),
+      fetchServiceCategories(),
+      isEdit ? fetchAppointmentLineItems(editAppointment.id) : Promise.resolve([]),
+    ])
+      .then(([c, s, cats, lineItems]) => {
+        setCustomers(c);
+        setServices(s.filter((sv) => sv.active));
+        setCategories(cats);
+        if (isEdit) {
+          setSelectedCustomer(editAppointment.customer_id || '');
+          setDate(toDateInput(editAppointment.start_time));
+          setTime(toTimeInput(editAppointment.start_time));
+          setSelectedServices((lineItems as any[]).length ? (lineItems as any[]).map((li) => li.service_id) : ['']);
+        }
+      })
+      .catch((e) => setError(e.message))
+      .finally(() => setLoading(false));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const totalDuration = selectedServices.reduce((sum, id) => sum + (services.find((s) => s.id === id)?.duration_minutes || 0), 0);
+  const totalPrice = selectedServices.reduce((sum, id) => sum + (services.find((s) => s.id === id)?.price || 0), 0);
+
+  async function handleSave() {
+    if (!date || !time) {
+      setError('Bitte Datum und Zeit auswählen.');
+      return;
+    }
+    setSaving(true);
+    setError(null);
+    try {
+      const startDate = new Date(`${date}T${time}:00`);
+      const startISO = startDate.toISOString();
+      const endDate = new Date(startDate);
+      endDate.setMinutes(endDate.getMinutes() + (totalDuration || 30));
+
+      const lineItems = selectedServices
+        .map((id) => services.find((s) => s.id === id))
+        .filter((s): s is Service => !!s)
+        .map((s) => ({ service_id: s.id, quantity: 1, unit_price: s.price }));
+
+      if (isEdit) {
+        await updateAppointment(editAppointment.id, {
+          customer_id: selectedCustomer || null,
+          start_time: startISO,
+          end_time: endDate.toISOString(),
+        });
+        await replaceAppointmentLineItems(editAppointment.id, lineItems);
+      } else {
+        const created = await createAppointment({
+          customer_id: selectedCustomer || null,
+          artist_id: artistId,
+          location_id: locationId || null,
+          start_time: startISO,
+          end_time: endDate.toISOString(),
+          type: 'termin',
+        });
+        await addAppointmentLineItems(created.id, lineItems);
+      }
+      onSaved();
+    } catch (e: any) {
+      setError(e.message);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  if (loading) return <div style={{ fontSize: 13, color: '#999' }}>Lädt…</div>;
+
+  return (
+    <>
+      <div style={{ marginBottom: 14 }}>
+        {formFieldLabel('Kunde')}
+        <select value={selectedCustomer} onChange={(e) => setSelectedCustomer(e.target.value)} style={formBoxStyle}>
+          <option value="">Laufkunde (kein Kunde)</option>
+          {customers.map((c) => (
+            <option key={c.id} value={c.id}>
+              {c.vorname} {c.name}
+              {c.phone ? ` · ${c.phone}` : ''}
+            </option>
+          ))}
+        </select>
+        <div onClick={() => setShowNewCustomer(true)} style={{ fontSize: 11, color: 'var(--color-accent)', fontWeight: 600, cursor: 'pointer', marginTop: 6 }}>
+          + Neuen Kunden erfassen
+        </div>
+      </div>
+
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 14 }}>
+        <div>
+          {formFieldLabel('Datum')}
+          <input type="date" value={date} onChange={(e) => setDate(e.target.value)} style={formBoxStyle} />
+        </div>
+        <div>
+          {formFieldLabel('Startzeit')}
+          <input type="time" value={time} onChange={(e) => setTime(e.target.value)} style={formBoxStyle} />
+        </div>
+      </div>
+
+      <div style={{ marginBottom: 10 }}>
+        {formFieldLabel('Services')}
+        <select value={categoryFilter} onChange={(e) => setCategoryFilter(e.target.value)} style={{ ...formBoxStyle, marginBottom: 8, color: categoryFilter ? '#111' : '#777' }}>
+          <option value="">Alle Kategorien</option>
+          {categories.map((c) => (
+            <option key={c.id} value={c.id}>
+              {c.name}
+            </option>
+          ))}
+        </select>
+        {selectedServices.map((id, index) => {
+          const filteredServices = categoryFilter ? services.filter((s) => s.category_id === categoryFilter) : services;
+          const selectedStillVisible = id && filteredServices.some((s) => s.id === id);
+          const optionsForRow = selectedStillVisible || !id ? filteredServices : [...filteredServices, services.find((s) => s.id === id)!].filter(Boolean);
+          return (
+            <div key={index} style={{ display: 'flex', gap: 8, marginBottom: 8, alignItems: 'center' }}>
+              <select
+                value={id}
+                onChange={(e) => setSelectedServices((prev) => prev.map((sid, i) => (i === index ? e.target.value : sid)))}
+                style={{ ...formBoxStyle, flex: 1, color: id ? '#111' : '#777' }}
+              >
+                <option value="">Service wählen…</option>
+                {optionsForRow.map((s) => (
+                  <option key={s.id} value={s.id}>
+                    {s.name}
+                  </option>
+                ))}
+              </select>
+              <button onClick={() => setSelectedServices((prev) => prev.filter((_, i) => i !== index))} style={{ background: 'none', border: 'none', fontSize: 14, color: '#999' }}>
+                ✕
+              </button>
+            </div>
+          );
+        })}
+        <div
+          onClick={() => {
+            setSelectedServices((prev) => ['', ...prev]);
+            setCategoryFilter('');
+          }}
+          style={{ fontSize: 12, color: 'var(--color-accent)', fontWeight: 600, cursor: 'pointer' }}
+        >
+          + Weiteren Service hinzufügen
+        </div>
+      </div>
+
+      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, color: '#777', marginBottom: 16, borderTop: '1px solid var(--color-border)', paddingTop: 10 }}>
+        <div>Gesamtdauer: {totalDuration} min</div>
+        <div style={{ fontWeight: 600, color: '#111' }}>Total: CHF {totalPrice}</div>
+      </div>
+
+      {error && <div style={{ fontSize: 12, color: 'var(--color-destructive)', marginBottom: 12 }}>{error}</div>}
+
+      <div style={{ display: 'flex', gap: 10 }}>
+        <button className="btn btn-secondary" style={{ flex: 1, justifyContent: 'center' }} onClick={onCancel}>
+          Abbrechen
+        </button>
+        <button className="btn btn-primary" style={{ flex: 1, justifyContent: 'center', opacity: saving ? 0.6 : 1 }} disabled={saving} onClick={handleSave}>
+          {saving ? 'Speichert…' : isEdit ? 'Speichern' : 'Termin buchen'}
+        </button>
+      </div>
+
+      {showNewCustomer && (
+        <NewCustomerModal
+          onClose={() => setShowNewCustomer(false)}
+          onCreated={async (id) => {
+            const updated = await fetchCustomers();
+            setCustomers(updated);
+            setSelectedCustomer(id);
+            setShowNewCustomer(false);
+          }}
+        />
+      )}
+    </>
+  );
+}
+
+// ============================================================
 // Termin-Detail: Notiz, Dokumente & Fotos
 // ============================================================
-function AppointmentDetail({ appt, onClose }: { appt: any; onClose: () => void }) {
+function AppointmentDetail({ appt, artistId, locationId, onClose }: { appt: any; artistId: string; locationId: string | null; onClose: () => void }) {
+  const [editing, setEditing] = useState(false);
   const [notes, setNotes] = useState(appt.notes || '');
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
@@ -286,6 +529,30 @@ function AppointmentDetail({ appt, onClose }: { appt: any; onClose: () => void }
       </div>
 
       <div style={{ flex: 1, overflowY: 'auto', padding: 20 }}>
+        {appt.status === 'gebucht' && (
+          <div style={{ border: '1px solid var(--color-border)', borderRadius: 6, padding: 14, marginBottom: 16, background: 'var(--color-surface)' }}>
+            {editing ? (
+              <TerminForm
+                artistId={artistId}
+                locationId={locationId}
+                editAppointment={appt}
+                onCancel={() => setEditing(false)}
+                onSaved={() => {
+                  setEditing(false);
+                  onClose();
+                }}
+              />
+            ) : (
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <div style={{ fontSize: 13, fontWeight: 700 }}>Termin</div>
+                <div onClick={() => setEditing(true)} style={{ fontSize: 12, color: 'var(--color-accent)', fontWeight: 600, cursor: 'pointer' }}>
+                  Bearbeiten
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
         <div style={{ border: '1px solid var(--color-border)', borderRadius: 6, padding: 14, marginBottom: 16, background: 'var(--color-surface)' }}>
           <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 10 }}>Notiz</div>
           <textarea
@@ -376,12 +643,13 @@ function AppointmentDetail({ appt, onClose }: { appt: any; onClose: () => void }
 // ============================================================
 // Termine-Tab: Tageskalender (Liste, keine Wochenansicht)
 // ============================================================
-function TermineTab({ artistId }: { artistId: string }) {
+function TermineTab({ artistId, locationId }: { artistId: string; locationId: string | null }) {
   const [date, setDate] = useState(todayISO());
   const [appointments, setAppointments] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [selected, setSelected] = useState<any | null>(null);
+  const [showNew, setShowNew] = useState(false);
 
   function reload() {
     setLoading(true);
@@ -407,6 +675,10 @@ function TermineTab({ artistId }: { artistId: string }) {
         </div>
         <button onClick={() => setDate(shiftISO(date, 1))} style={navBtnStyle}>›</button>
       </div>
+
+      <button className="btn btn-primary" style={{ width: '100%', justifyContent: 'center', marginBottom: 16 }} onClick={() => setShowNew(true)}>
+        + Neuer Termin
+      </button>
 
       {loading && <div style={{ fontSize: 13, color: '#999' }}>Lädt…</div>}
       {error && <div style={{ fontSize: 13, color: 'var(--color-destructive)' }}>{error}</div>}
@@ -438,7 +710,27 @@ function TermineTab({ artistId }: { artistId: string }) {
         })}
       </div>
 
-      {selected && <AppointmentDetail appt={selected} onClose={() => { setSelected(null); reload(); }} />}
+      {selected && <AppointmentDetail appt={selected} artistId={artistId} locationId={locationId} onClose={() => { setSelected(null); reload(); }} />}
+
+      {showNew && (
+        <div style={{ position: 'fixed', inset: 0, background: 'var(--color-bg)', zIndex: 200, display: 'flex', flexDirection: 'column' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '16px 20px', background: 'var(--color-surface)', borderBottom: '1px solid var(--color-border)', flexShrink: 0 }}>
+            <button onClick={() => setShowNew(false)} style={{ background: 'none', border: 'none', fontSize: 20, cursor: 'pointer', padding: 0 }}>‹</button>
+            <div style={{ fontSize: 15, fontWeight: 700 }}>Neuer Termin</div>
+          </div>
+          <div style={{ flex: 1, overflowY: 'auto', padding: 20 }}>
+            <TerminForm
+              artistId={artistId}
+              locationId={locationId}
+              onCancel={() => setShowNew(false)}
+              onSaved={() => {
+                setShowNew(false);
+                reload();
+              }}
+            />
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -530,7 +822,7 @@ function ArtistDashboard({ artist, onLogout }: { artist: Artist; onLogout: () =>
         </button>
       </div>
 
-      <div style={{ padding: 20 }}>{tab === 'termine' ? <TermineTab artistId={artist.id} /> : <UmsatzTab artist={artist} />}</div>
+      <div style={{ padding: 20 }}>{tab === 'termine' ? <TermineTab artistId={artist.id} locationId={artist.location_id} /> : <UmsatzTab artist={artist} />}</div>
     </div>
   );
 }

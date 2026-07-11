@@ -26,6 +26,7 @@ export default function Modal({
       <div
         style={{
           width,
+          maxWidth: '92vw',
           background: '#fff',
           borderRadius: 8,
           boxShadow: '0 16px 40px rgba(0,0,0,0.22)',
