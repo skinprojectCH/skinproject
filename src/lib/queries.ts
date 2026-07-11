@@ -746,37 +746,50 @@ export async function fetchAppointmentsForArtistRange(artistId: string, startDat
   return data;
 }
 
-// Grobe Umsatzstatistik für die Artist-PWA: Summe bezahlter Bestellungen zu eigenen
-// Terminen für heute / diese Woche / diesen Monat, plus geschätzter eigener Anteil
-// (Miet- & Serviceanteil in % auf den Gesamtbetrag — vereinfachte Näherung, da
-// Service-/Artikel-Split pro Position hier nicht aufgeschlüsselt wird).
-export async function fetchArtistRevenueStats(artistId: string) {
-  const now = new Date();
-  const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().slice(0, 10);
-  const dayOfWeek = (now.getDay() + 6) % 7; // Mo=0..So=6
-  const weekStartDate = new Date(now);
-  weekStartDate.setDate(now.getDate() - dayOfWeek);
-  const weekStart = weekStartDate.toISOString().slice(0, 10);
-  const todayStart = now.toISOString().slice(0, 10);
+// Eine einzelne "Ertragsposition" für die Umsatzstatistik der Artist-PWA:
+// bereits nach Miet-/Serviceanteil-% berechneter EIGENER Anteil des Artists
+// (nur auf Dienstleistungen, nicht auf Artikel — analog zum Feld "Miet- & Serviceanteil").
+export interface ArtistEarningEntry {
+  appointmentId: string;
+  date: string; // YYYY-MM-DD, lokales Datum des Termins
+  customerLabel: string;
+  services: string[];
+  amount: number;
+}
 
+export async function fetchArtistEarnings(artistId: string, startDateISO: string, endDateISO: string, sharePct: number) {
+  const start = `${startDateISO}T00:00:00`;
+  const end = `${endDateISO}T23:59:59`;
   const { data, error } = await supabase
     .from('appointments')
-    .select('start_time, orders(total, status)')
+    .select(
+      'id, start_time, customers(vorname, name), appointment_line_items(service_id, services(name)), orders(id, subtotal, total, status, order_line_items(service_id, product_id, line_total))'
+    )
     .eq('artist_id', artistId)
     .eq('type', 'termin')
-    .gte('start_time', `${monthStart}T00:00:00`);
+    .gte('start_time', start)
+    .lte('start_time', end)
+    .order('start_time');
   if (error) throw error;
 
-  let today = 0;
-  let week = 0;
-  let month = 0;
+  const entries: ArtistEarningEntry[] = [];
   for (const appt of (data as any[]) || []) {
     const order = appt.orders?.[0];
     if (!order || order.status !== 'bezahlt') continue;
-    const total = Number(order.total);
-    month += total;
-    if (appt.start_time >= `${weekStart}T00:00:00`) week += total;
-    if (appt.start_time >= `${todayStart}T00:00:00`) today += total;
+    const lineItems = order.order_line_items || [];
+    const serviceSubtotal = lineItems.filter((li: any) => li.service_id).reduce((s: number, li: any) => s + Number(li.line_total), 0);
+    if (serviceSubtotal <= 0) continue;
+    // Rabatte wirken auf die ganze Bestellung -> Anteil proportional runterskalieren.
+    const discountFactor = Number(order.subtotal) > 0 ? Number(order.total) / Number(order.subtotal) : 1;
+    const amount = serviceSubtotal * discountFactor * (sharePct / 100);
+    const services = (appt.appointment_line_items || []).map((li: any) => li.services?.name).filter(Boolean);
+    entries.push({
+      appointmentId: appt.id,
+      date: appt.start_time.slice(0, 10),
+      customerLabel: appt.customers ? `${appt.customers.vorname} ${appt.customers.name}` : 'Laufkunde',
+      services,
+      amount,
+    });
   }
-  return { today, week, month };
+  return entries;
 }

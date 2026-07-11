@@ -4,7 +4,7 @@ import { supabase } from '../../lib/supabaseClient';
 import {
   fetchArtistById,
   fetchAppointmentsForArtistRange,
-  fetchArtistRevenueStats,
+  fetchArtistEarnings,
   fetchDocumentsForAppointment,
   uploadCustomerFile,
   getCustomerFileUrl,
@@ -23,6 +23,7 @@ import {
   type Service,
   type ServiceCategory,
   type CustomerDocument,
+  type ArtistEarningEntry,
 } from '../../lib/queries';
 import { formatCHF } from '../../lib/format';
 import NewCustomerModal from '../../components/NewCustomerModal';
@@ -839,40 +840,303 @@ function TermineTab({ artistId, locationId }: { artistId: string; locationId: st
 // ============================================================
 // Umsatz-Tab
 // ============================================================
-function UmsatzTab({ artist }: { artist: Artist }) {
-  const [stats, setStats] = useState<{ today: number; week: number; month: number } | null>(null);
+const MONTH_NAMES = ['Januar', 'Februar', 'März', 'April', 'Mai', 'Juni', 'Juli', 'August', 'September', 'Oktober', 'November', 'Dezember'];
+
+function pad2(n: number) {
+  return String(n).padStart(2, '0');
+}
+
+async function downloadEarningsPdf(opts: { title: string; subtitle: string; artistName: string; rows: { label: string; amount: number }[]; total: number }) {
+  const { jsPDF } = await import('jspdf');
+  const doc = new jsPDF();
+  let y = 20;
+  doc.setFontSize(16);
+  doc.text(opts.title, 14, y);
+  y += 7;
+  doc.setFontSize(10);
+  doc.setTextColor(120);
+  doc.text(`${opts.artistName} · ${opts.subtitle}`, 14, y);
+  y += 12;
+  doc.setTextColor(0);
+  doc.setFontSize(11);
+  for (const row of opts.rows) {
+    if (y > 280) {
+      doc.addPage();
+      y = 20;
+    }
+    doc.text(row.label, 14, y);
+    doc.text(formatCHF(row.amount), 196, y, { align: 'right' });
+    y += 7;
+  }
+  if (opts.rows.length === 0) {
+    doc.setTextColor(150);
+    doc.text('Keine Einträge in diesem Zeitraum.', 14, y);
+    y += 7;
+    doc.setTextColor(0);
+  }
+  y += 4;
+  doc.setDrawColor(200);
+  doc.line(14, y, 196, y);
+  y += 9;
+  doc.setFontSize(13);
+  doc.setFont('helvetica', 'bold');
+  doc.text('Total (dein Anteil)', 14, y);
+  doc.text(formatCHF(opts.total), 196, y, { align: 'right' });
+  doc.save(`${opts.title.replace(/[^\w-]+/g, '_')}.pdf`);
+}
+
+function UmsatzTag({ artistId, sharePct }: { artistId: string; sharePct: number }) {
+  const [date, setDate] = useState(todayISO());
+  const [entries, setEntries] = useState<ArtistEarningEntry[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    fetchArtistRevenueStats(artist.id)
-      .then(setStats)
+    setLoading(true);
+    fetchArtistEarnings(artistId, date, date, sharePct)
+      .then(setEntries)
       .finally(() => setLoading(false));
-  }, [artist.id]);
+  }, [artistId, date, sharePct]);
 
-  if (loading) return <div style={{ fontSize: 13, color: '#999' }}>Lädt…</div>;
-  if (!stats) return null;
-
-  const share = artist.revenue_share_pct || 0;
-
-  const cards = [
-    { label: 'Heute', value: stats.today },
-    { label: 'Diese Woche', value: stats.week },
-    { label: 'Dieser Monat', value: stats.month },
-  ];
+  const total = entries.reduce((s, e) => s + e.amount, 0);
 
   return (
     <div>
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 20 }}>
-        {cards.map((c) => (
-          <div key={c.label} style={{ border: '1px solid var(--color-border)', borderRadius: 8, padding: '16px 18px', background: 'var(--color-surface)' }}>
-            <div style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: 0.5, color: '#999', marginBottom: 6 }}>{c.label}</div>
-            <div style={{ fontSize: 22, fontWeight: 700, fontFamily: 'var(--font-heading)' }}>{formatCHF(c.value)}</div>
-            {share > 0 && <div style={{ fontSize: 12, color: 'var(--color-accent)', marginTop: 4 }}>Dein Anteil (~{share}%): {formatCHF((c.value * share) / 100)}</div>}
-          </div>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
+        <button onClick={() => setDate(shiftISO(date, -1))} style={periodNavBtnStyle}>‹</button>
+        <div style={{ textAlign: 'center' }}>
+          <div style={{ fontSize: 14, fontWeight: 700 }}>{formatDateHeader(date)}</div>
+          {date !== todayISO() && (
+            <div onClick={() => setDate(todayISO())} style={{ fontSize: 11, color: 'var(--color-accent)', fontWeight: 600, cursor: 'pointer', marginTop: 2 }}>
+              Heute
+            </div>
+          )}
+        </div>
+        <button onClick={() => setDate(shiftISO(date, 1))} style={periodNavBtnStyle}>›</button>
+      </div>
+
+      <div style={{ border: '1px solid var(--color-border)', borderRadius: 8, padding: '16px 18px', background: 'var(--color-surface)', marginBottom: 16 }}>
+        <div style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: 0.5, color: '#999', marginBottom: 6 }}>Dein Anteil</div>
+        <div style={{ fontSize: 22, fontWeight: 700, fontFamily: 'var(--font-heading)' }}>{formatCHF(total)}</div>
+      </div>
+
+      {loading ? (
+        <div style={{ fontSize: 13, color: '#999' }}>Lädt…</div>
+      ) : entries.length === 0 ? (
+        <div style={{ fontSize: 13, color: '#999' }}>Keine Einträge an diesem Tag.</div>
+      ) : (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          {entries.map((e) => (
+            <div key={e.appointmentId} style={{ border: '1px solid var(--color-border)', borderRadius: 6, padding: '10px 14px', background: 'var(--color-surface)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 13 }}>
+              <div>
+                <div style={{ fontWeight: 600 }}>{e.customerLabel}</div>
+                <div style={{ fontSize: 11, color: '#777' }}>{e.services.join(', ') || '—'}</div>
+              </div>
+              <div style={{ fontWeight: 700 }}>{formatCHF(e.amount)}</div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function UmsatzMonat({ artistId, artistName, sharePct }: { artistId: string; artistName: string; sharePct: number }) {
+  const now = new Date();
+  const [year, setYear] = useState(now.getFullYear());
+  const [month, setMonth] = useState(now.getMonth()); // 0-11
+  const [entries, setEntries] = useState<ArtistEarningEntry[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  function shiftMonth(delta: number) {
+    let m = month + delta;
+    let y = year;
+    if (m < 0) { m = 11; y -= 1; }
+    if (m > 11) { m = 0; y += 1; }
+    setMonth(m);
+    setYear(y);
+  }
+
+  useEffect(() => {
+    setLoading(true);
+    const start = `${year}-${pad2(month + 1)}-01`;
+    const endDate = new Date(year, month + 1, 0).getDate();
+    const end = `${year}-${pad2(month + 1)}-${pad2(endDate)}`;
+    fetchArtistEarnings(artistId, start, end, sharePct)
+      .then(setEntries)
+      .finally(() => setLoading(false));
+  }, [artistId, year, month, sharePct]);
+
+  const total = entries.reduce((s, e) => s + e.amount, 0);
+
+  const byDay = (() => {
+    const map: Record<string, number> = {};
+    for (const e of entries) map[e.date] = (map[e.date] || 0) + e.amount;
+    return Object.entries(map).sort(([a], [b]) => a.localeCompare(b));
+  })();
+
+  const isCurrentMonth = year === now.getFullYear() && month === now.getMonth();
+
+  return (
+    <div>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
+        <button onClick={() => shiftMonth(-1)} style={periodNavBtnStyle}>‹</button>
+        <div style={{ textAlign: 'center' }}>
+          <div style={{ fontSize: 14, fontWeight: 700 }}>{MONTH_NAMES[month]} {year}</div>
+          {!isCurrentMonth && (
+            <div onClick={() => { setMonth(now.getMonth()); setYear(now.getFullYear()); }} style={{ fontSize: 11, color: 'var(--color-accent)', fontWeight: 600, cursor: 'pointer', marginTop: 2 }}>
+              Aktueller Monat
+            </div>
+          )}
+        </div>
+        <button onClick={() => shiftMonth(1)} style={periodNavBtnStyle}>›</button>
+      </div>
+
+      <div style={{ border: '1px solid var(--color-border)', borderRadius: 8, padding: '16px 18px', background: 'var(--color-surface)', marginBottom: 16 }}>
+        <div style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: 0.5, color: '#999', marginBottom: 6 }}>Dein Anteil diesen Monat</div>
+        <div style={{ fontSize: 22, fontWeight: 700, fontFamily: 'var(--font-heading)' }}>{formatCHF(total)}</div>
+      </div>
+
+      <button
+        className="btn btn-outline"
+        style={{ width: '100%', justifyContent: 'center', marginBottom: 16 }}
+        onClick={() =>
+          downloadEarningsPdf({
+            title: `Umsatz ${MONTH_NAMES[month]} ${year}`,
+            subtitle: `${MONTH_NAMES[month]} ${year}`,
+            artistName,
+            rows: byDay.map(([d, amt]) => ({ label: new Date(d).toLocaleDateString('de-CH', { weekday: 'short', day: '2-digit', month: '2-digit' }), amount: amt })),
+            total,
+          })
+        }
+      >
+        PDF herunterladen
+      </button>
+
+      {loading ? (
+        <div style={{ fontSize: 13, color: '#999' }}>Lädt…</div>
+      ) : byDay.length === 0 ? (
+        <div style={{ fontSize: 13, color: '#999' }}>Keine Einträge in diesem Monat.</div>
+      ) : (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+          {byDay.map(([d, amt]) => (
+            <div key={d} style={{ border: '1px solid var(--color-border)', borderRadius: 6, padding: '9px 14px', background: 'var(--color-surface)', display: 'flex', justifyContent: 'space-between', fontSize: 13 }}>
+              <div>{new Date(d).toLocaleDateString('de-CH', { weekday: 'short', day: '2-digit', month: '2-digit' })}</div>
+              <div style={{ fontWeight: 600 }}>{formatCHF(amt)}</div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function UmsatzJahr({ artistId, artistName, sharePct }: { artistId: string; artistName: string; sharePct: number }) {
+  const now = new Date();
+  const [year, setYear] = useState(now.getFullYear());
+  const [entries, setEntries] = useState<ArtistEarningEntry[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    setLoading(true);
+    fetchArtistEarnings(artistId, `${year}-01-01`, `${year}-12-31`, sharePct)
+      .then(setEntries)
+      .finally(() => setLoading(false));
+  }, [artistId, year, sharePct]);
+
+  const total = entries.reduce((s, e) => s + e.amount, 0);
+
+  const byMonth = (() => {
+    const map: Record<string, number> = {};
+    for (const e of entries) {
+      const key = e.date.slice(0, 7); // YYYY-MM
+      map[key] = (map[key] || 0) + e.amount;
+    }
+    return Object.entries(map).sort(([a], [b]) => a.localeCompare(b));
+  })();
+
+  return (
+    <div>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
+        <button onClick={() => setYear((y) => y - 1)} style={periodNavBtnStyle}>‹</button>
+        <div style={{ fontSize: 14, fontWeight: 700 }}>{year}</div>
+        <button onClick={() => setYear((y) => y + 1)} style={periodNavBtnStyle}>›</button>
+      </div>
+
+      <div style={{ border: '1px solid var(--color-border)', borderRadius: 8, padding: '16px 18px', background: 'var(--color-surface)', marginBottom: 16 }}>
+        <div style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: 0.5, color: '#999', marginBottom: 6 }}>Dein Anteil {year}</div>
+        <div style={{ fontSize: 22, fontWeight: 700, fontFamily: 'var(--font-heading)' }}>{formatCHF(total)}</div>
+      </div>
+
+      <button
+        className="btn btn-outline"
+        style={{ width: '100%', justifyContent: 'center', marginBottom: 16 }}
+        onClick={() =>
+          downloadEarningsPdf({
+            title: `Umsatz ${year}`,
+            subtitle: `Jahr ${year}`,
+            artistName,
+            rows: byMonth.map(([m, amt]) => ({ label: MONTH_NAMES[Number(m.slice(5, 7)) - 1], amount: amt })),
+            total,
+          })
+        }
+      >
+        PDF herunterladen
+      </button>
+
+      {loading ? (
+        <div style={{ fontSize: 13, color: '#999' }}>Lädt…</div>
+      ) : byMonth.length === 0 ? (
+        <div style={{ fontSize: 13, color: '#999' }}>Keine Einträge in diesem Jahr.</div>
+      ) : (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+          {byMonth.map(([m, amt]) => (
+            <div key={m} style={{ border: '1px solid var(--color-border)', borderRadius: 6, padding: '9px 14px', background: 'var(--color-surface)', display: 'flex', justifyContent: 'space-between', fontSize: 13 }}>
+              <div>{MONTH_NAMES[Number(m.slice(5, 7)) - 1]}</div>
+              <div style={{ fontWeight: 600 }}>{formatCHF(amt)}</div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+const periodNavBtnStyle: React.CSSProperties = {
+  width: 32,
+  height: 32,
+  borderRadius: 16,
+  border: '1px solid var(--color-border)',
+  background: 'var(--color-surface)',
+  fontSize: 16,
+  cursor: 'pointer',
+};
+
+function UmsatzTab({ artist }: { artist: Artist }) {
+  const [period, setPeriod] = useState<'tag' | 'monat' | 'jahr'>('tag');
+  const sharePct = artist.revenue_share_pct || 0;
+  const artistName = artist.kuenstlername || artist.name;
+
+  return (
+    <div>
+      <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
+        {(['tag', 'monat', 'jahr'] as const).map((p) => (
+          <button
+            key={p}
+            onClick={() => setPeriod(p)}
+            className={`payment-method-btn${period === p ? ' payment-method-btn--selected' : ''}`}
+            style={{ flex: 1 }}
+          >
+            {p === 'tag' ? 'Tag' : p === 'monat' ? 'Monat' : 'Jahr'}
+          </button>
         ))}
       </div>
-      <div style={{ fontSize: 11, color: '#999', lineHeight: 1.5 }}>
-        Werte basieren auf bezahlten Bestellungen zu deinen Terminen. Der Anteil ist eine Näherung auf den Gesamtbetrag (nicht nach Dienstleistung/Artikel aufgeschlüsselt).
+
+      {period === 'tag' && <UmsatzTag artistId={artist.id} sharePct={sharePct} />}
+      {period === 'monat' && <UmsatzMonat artistId={artist.id} artistName={artistName} sharePct={sharePct} />}
+      {period === 'jahr' && <UmsatzJahr artistId={artist.id} artistName={artistName} sharePct={sharePct} />}
+
+      <div style={{ fontSize: 11, color: '#999', lineHeight: 1.5, marginTop: 16 }}>
+        Zeigt deinen eigenen Anteil (Miet- & Serviceanteil {sharePct}%) auf bezahlte Dienstleistungen zu deinen Terminen. Artikelverkäufe sind nicht enthalten.
       </div>
     </div>
   );
