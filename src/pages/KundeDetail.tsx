@@ -347,21 +347,58 @@ export default function KundeDetail() {
           ) : appointmentHistory.length === 0 ? (
             <div style={{ fontSize: 12, color: '#999' }}>Noch keine Termine für diesen Kunden erfasst.</div>
           ) : (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            <div>
+              <div
+                style={{
+                  display: 'grid',
+                  gridTemplateColumns: '100px 90px 1fr 1fr 110px',
+                  padding: '8px 10px',
+                  fontSize: 11,
+                  textTransform: 'uppercase',
+                  letterSpacing: 0.5,
+                  color: '#999',
+                  borderBottom: '1px solid var(--color-border)',
+                  fontWeight: 600,
+                }}
+              >
+                <div>Datum</div>
+                <div>Zeit</div>
+                <div>Artist</div>
+                <div>Dienstleistungen</div>
+                <div>Status</div>
+              </div>
               {appointmentHistory.map((appt: any) => {
                 const statusInfo = STATUS_LABELS[appt.status] || STATUS_LABELS.gebucht;
                 const services = (appt.appointment_line_items || []).map((li: any) => li.services?.name).filter(Boolean);
                 return (
-                  <div key={appt.id} style={{ border: '1px solid #eee', borderRadius: 6, padding: 12, fontSize: 13 }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
-                      <div style={{ fontWeight: 600 }}>
-                        {new Date(appt.start_time).toLocaleDateString('de-CH', { day: '2-digit', month: '2-digit', year: 'numeric' })} · {new Date(appt.start_time).toLocaleTimeString('de-CH', { hour: '2-digit', minute: '2-digit' })}
-                      </div>
-                      <div style={{ color: statusInfo.color, fontWeight: 600, fontSize: 11, textTransform: 'uppercase' }}>{statusInfo.label}</div>
-                    </div>
-                    <div style={{ color: '#777' }}>
-                      {appt.artists?.name || '—'}
-                      {services.length > 0 ? ` · ${services.join(', ')}` : ''}
+                  <div
+                    key={appt.id}
+                    style={{
+                      display: 'grid',
+                      gridTemplateColumns: '100px 90px 1fr 1fr 110px',
+                      padding: '10px 10px',
+                      fontSize: 13,
+                      borderBottom: '1px solid #f0f0f0',
+                      alignItems: 'center',
+                    }}
+                  >
+                    <div>{new Date(appt.start_time).toLocaleDateString('de-CH', { day: '2-digit', month: '2-digit', year: '2-digit' })}</div>
+                    <div style={{ color: '#777' }}>{new Date(appt.start_time).toLocaleTimeString('de-CH', { hour: '2-digit', minute: '2-digit' })}</div>
+                    <div>{appt.artists?.name || '—'}</div>
+                    <div style={{ color: '#777', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{services.length > 0 ? services.join(', ') : '—'}</div>
+                    <div
+                      style={{
+                        border: `1px solid ${statusInfo.color}`,
+                        color: statusInfo.color,
+                        borderRadius: 10,
+                        padding: '2px 10px',
+                        fontSize: 10,
+                        fontWeight: 600,
+                        width: 'fit-content',
+                        textTransform: 'uppercase',
+                      }}
+                    >
+                      {statusInfo.label}
                     </div>
                   </div>
                 );
