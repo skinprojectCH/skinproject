@@ -80,7 +80,7 @@ export default function EditTerminModal({ appointmentId, onClose }: Props) {
         setSelectedArtist(appt.artist_id || '');
         setDate(toDateInput(appt.start_time));
         setTime(toTimeInput(appt.start_time));
-        setArtists(allArtists.filter((a) => a.status === 'active' && (!appt.location_id || a.location_id === appt.location_id)));
+        setArtists(allArtists.filter((a) => a.status === 'active'));
         setCustomers(allCustomers);
         setServices(allServices.filter((s) => s.active));
         setCategories(allCategories);

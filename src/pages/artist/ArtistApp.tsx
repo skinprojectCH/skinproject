@@ -542,6 +542,7 @@ function AppointmentDetail({ appt, artistId, locationId, onClose }: { appt: any;
           </div>
           <div style={{ fontSize: 12, color: '#777' }}>
             {new Date(appt.start_time).toLocaleTimeString('de-CH', { hour: '2-digit', minute: '2-digit' })} · {services.join(', ') || '—'}
+            {appt.locations?.name ? ` · ${appt.locations.name}` : ''}
           </div>
         </div>
       </div>
@@ -596,6 +597,10 @@ function AppointmentDetail({ appt, artistId, locationId, onClose }: { appt: any;
                     <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                       <div style={{ color: '#777' }}>Kunde</div>
                       <div style={{ fontWeight: 600 }}>{appt.customers ? `${appt.customers.vorname} ${appt.customers.name}` : 'Laufkunde'}</div>
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                      <div style={{ color: '#777' }}>Salon</div>
+                      <div style={{ fontWeight: 600 }}>{appt.locations?.name || '—'}</div>
                     </div>
                     <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                       <div style={{ color: '#777' }}>Datum</div>
@@ -843,7 +848,10 @@ function TermineTab({ artistId, locationId }: { artistId: string; locationId: st
                         <div style={{ fontSize: 13, fontWeight: 700 }}>
                           {new Date(appt.start_time).toLocaleTimeString('de-CH', { hour: '2-digit', minute: '2-digit' })} · {appt.customers ? `${appt.customers.vorname} ${appt.customers.name}` : 'Laufkunde'}
                         </div>
-                        <div style={{ fontSize: 12, color: '#777', marginTop: 2 }}>{services.join(', ') || '—'}</div>
+                        <div style={{ fontSize: 12, color: '#777', marginTop: 2 }}>
+                          {services.join(', ') || '—'}
+                          {appt.locations?.name ? ` · ${appt.locations.name}` : ''}
+                        </div>
                       </div>
                       <div style={{ border: `1px solid ${statusInfo.color}`, color: statusInfo.color, borderRadius: 10, padding: '2px 10px', fontSize: 10, fontWeight: 600, flexShrink: 0, textTransform: 'uppercase' }}>
                         {statusInfo.label}

@@ -44,25 +44,25 @@ export default function Schichtplan() {
       .finally(() => setLoading(false));
   }, []);
 
-  const artistsAtLocation = useMemo(() => artists.filter((a) => a.location_id === selectedLocationId), [artists, selectedLocationId]);
+  const activeArtists = useMemo(() => artists.filter((a) => a.status === 'active'), [artists]);
 
   useEffect(() => {
-    if (artistsAtLocation.length && !artistsAtLocation.some((a) => a.id === selectedArtistId)) {
-      setSelectedArtistId(artistsAtLocation[0].id);
-    } else if (artistsAtLocation.length === 0) {
+    if (activeArtists.length && !activeArtists.some((a) => a.id === selectedArtistId)) {
+      setSelectedArtistId(activeArtists[0].id);
+    } else if (activeArtists.length === 0) {
       setSelectedArtistId('');
       setSchedule(emptySchedule());
       setExistingShifts([]);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [artistsAtLocation]);
+  }, [activeArtists]);
 
   useEffect(() => {
-    if (!selectedArtistId) return;
+    if (!selectedArtistId || !selectedLocationId) return;
     setLoadingShifts(true);
     setSaved(false);
     setSaveError(null);
-    fetchShiftsForArtist(selectedArtistId)
+    fetchShiftsForArtist(selectedArtistId, selectedLocationId)
       .then((shifts) => {
         setExistingShifts(shifts);
         const next = emptySchedule();
@@ -82,7 +82,7 @@ export default function Schichtplan() {
       })
       .catch((e) => setError(e.message))
       .finally(() => setLoadingShifts(false));
-  }, [selectedArtistId]);
+  }, [selectedArtistId, selectedLocationId]);
 
   function addSlot(weekday: number) {
     setSchedule((prev) => ({ ...prev, [weekday]: [...prev[weekday], { id: crypto.randomUUID(), from: '09:00', to: '18:00' }] }));
@@ -129,19 +129,20 @@ export default function Schichtplan() {
             </option>
           ))}
         </select>
-        <select value={selectedArtistId} onChange={(e) => setSelectedArtistId(e.target.value)} style={selectStyle} disabled={artistsAtLocation.length === 0}>
-          {artistsAtLocation.length === 0 && <option value="">Kein Artist an dieser Location</option>}
-          {artistsAtLocation.map((a) => (
+        <select value={selectedArtistId} onChange={(e) => setSelectedArtistId(e.target.value)} style={selectStyle} disabled={activeArtists.length === 0}>
+          {activeArtists.length === 0 && <option value="">Kein aktiver Artist erfasst</option>}
+          {activeArtists.map((a) => (
             <option key={a.id} value={a.id}>
               {a.name}
+              {a.location_id && a.location_id !== selectedLocationId ? ` (Stamm: ${locations.find((l) => l.id === a.location_id)?.name || '—'})` : ''}
             </option>
           ))}
         </select>
       </div>
 
       {locations.length === 0 && <div style={{ fontSize: 12, color: '#999', marginBottom: 20 }}>Zuerst unter Admin → Locations eine Location anlegen.</div>}
-      {locations.length > 0 && artistsAtLocation.length === 0 && (
-        <div style={{ fontSize: 12, color: '#999', marginBottom: 20 }}>Dieser Location ist noch kein Artist zugewiesen (Admin → Artists → Standort setzen).</div>
+      {locations.length > 0 && activeArtists.length === 0 && (
+        <div style={{ fontSize: 12, color: '#999', marginBottom: 20 }}>Noch kein aktiver Artist erfasst (Admin → Artists).</div>
       )}
 
       {selectedArtistId && (
@@ -214,7 +215,7 @@ export default function Schichtplan() {
               </button>
               {existingShifts.length > 0 && (
                 <div style={{ fontSize: 11, color: '#999', marginTop: 10 }}>
-                  Ersetzt den kompletten bisherigen Wochenplan dieses Artists (an allen Locations) durch die obige Vorlage.
+                  Ersetzt den bisherigen Wochenplan dieses Artists an dieser Location. Schichten an anderen Locations bleiben unverändert.
                 </div>
               )}
             </>

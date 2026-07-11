@@ -660,14 +660,25 @@ export interface Shift {
   valid_to: string | null;
 }
 
-export async function fetchShiftsForArtist(artistId: string) {
-  const { data, error } = await supabase.from('shifts').select('*').eq('artist_id', artistId).order('weekday');
+export async function fetchShiftsForArtist(artistId: string, locationId: string) {
+  const { data, error } = await supabase.from('shifts').select('*').eq('artist_id', artistId).eq('location_id', locationId).order('weekday');
   if (error) throw error;
   return data as Shift[];
 }
 
-// Ersetzt den kompletten Wochenplan eines Artists (an dieser Location) durch die neuen
-// Zeitfenster + Gültigkeitszeitraum. Einfacher und robuster als ein Diff.
+// Alle Artist-IDs, die IRGENDWO (egal welche Location/Wochentag) einen Schichtplan-Eintrag
+// haben. Dient als Rückfallebene: Artists ohne jegliche Schichtplanung erscheinen weiterhin
+// an ihrer Stamm-Location (Abwärtskompatibilität), sobald ein Schichtplan gepflegt ist,
+// zählt nur noch dieser.
+export async function fetchArtistIdsWithAnyShifts() {
+  const { data, error } = await supabase.from('shifts').select('artist_id');
+  if (error) throw error;
+  return new Set((data as { artist_id: string }[]).map((r) => r.artist_id));
+}
+
+// Ersetzt den Wochenplan eines Artists AN DIESER LOCATION durch die neuen Zeitfenster +
+// Gültigkeitszeitraum. Schichten an anderen Locations desselben Artists bleiben unangetastet
+// (ein Artist kann z.B. Mo bei Salon A und Di bei Salon B eingeplant sein).
 export async function replaceArtistShifts(
   artistId: string,
   locationId: string,
@@ -675,7 +686,7 @@ export async function replaceArtistShifts(
   validTo: string | null,
   slots: { weekday: number; start_time: string; end_time: string }[]
 ) {
-  const { error: deleteError } = await supabase.from('shifts').delete().eq('artist_id', artistId);
+  const { error: deleteError } = await supabase.from('shifts').delete().eq('artist_id', artistId).eq('location_id', locationId);
   if (deleteError) throw deleteError;
   if (slots.length === 0) return;
   const { error: insertError } = await supabase.from('shifts').insert(
@@ -720,7 +731,7 @@ export async function fetchAppointmentsForArtistDay(artistId: string, dateISO: s
   const end = `${dateISO}T23:59:59`;
   const { data, error } = await supabase
     .from('appointments')
-    .select('*, customers(vorname, name, phone), appointment_line_items(quantity, unit_price, services(name)), orders(total, status)')
+    .select('*, customers(vorname, name, phone), appointment_line_items(quantity, unit_price, services(name)), orders(total, status), locations(name)')
     .eq('artist_id', artistId)
     .eq('type', 'termin')
     .gte('start_time', start)
@@ -736,7 +747,7 @@ export async function fetchAppointmentsForArtistRange(artistId: string, startDat
   const end = `${endDateISO}T23:59:59`;
   const { data, error } = await supabase
     .from('appointments')
-    .select('*, customers(vorname, name, phone), appointment_line_items(quantity, unit_price, services(name)), orders(total, status)')
+    .select('*, customers(vorname, name, phone), appointment_line_items(quantity, unit_price, services(name)), orders(total, status), locations(name)')
     .eq('artist_id', artistId)
     .eq('type', 'termin')
     .gte('start_time', start)

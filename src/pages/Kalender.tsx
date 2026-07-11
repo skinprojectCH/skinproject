@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import TerminModal from '../components/TerminModal';
 import EditTerminModal from '../components/EditTerminModal';
 import Modal from '../components/Modal';
-import { fetchAppointmentsForDay, fetchArtists, fetchShiftsForDate, fetchAbsencesForDate, fetchWalkInOrdersForDay, deleteAbsence, type Artist, type Shift, type Absence } from '../lib/queries';
+import { fetchAppointmentsForDay, fetchArtists, fetchShiftsForDate, fetchArtistIdsWithAnyShifts, fetchAbsencesForDate, fetchWalkInOrdersForDay, deleteAbsence, type Artist, type Shift, type Absence } from '../lib/queries';
 import { useLocationContext } from '../lib/locationContext';
 
 type ViewMode = 'tag' | 'woche' | 'liste';
@@ -628,7 +628,7 @@ function WeekView({
         const absenceMap: Record<string, Absence[]> = {};
         dayList.forEach((d, i) => {
           apptMap[d] = (apptResults[i] as any[]).filter((a) => a.artist_id === artistId).map((a) => mapAppointmentRow(a, d));
-          shiftMap[d] = shiftResults[i];
+          shiftMap[d] = shiftResults[i].filter((s) => s.location_id === locationId);
           absenceMap[d] = absenceResults[i];
         });
         setWeekAppointments(apptMap);
@@ -1031,11 +1031,20 @@ export default function Kalender() {
   async function reload() {
     if (!selectedLocationId) return;
     try {
-      const [rawAppointments, artistList] = await Promise.all([fetchAppointmentsForDay(date, selectedLocationId), fetchArtists()]);
-      const scopedArtists = artistList.filter((a) => a.location_id === selectedLocationId && a.status === 'active');
+      const [rawAppointments, artistList, idsWithShifts] = await Promise.all([
+        fetchAppointmentsForDay(date, selectedLocationId),
+        fetchArtists(),
+        fetchArtistIdsWithAnyShifts(),
+      ]);
+      const activeArtists = artistList.filter((a) => a.status === 'active');
+      const allDayShifts = await fetchShiftsForDate(activeArtists.map((a) => a.id), date);
+      const shiftsHere = allDayShifts.filter((s) => s.location_id === selectedLocationId);
+      const idsHere = new Set(shiftsHere.map((s) => s.artist_id));
+      // Artist erscheint hier, wenn er laut Schichtplan heute an dieser Location arbeitet —
+      // oder (Rückfallebene) noch gar keinen Schichtplan hat und diese seine Stamm-Location ist.
+      const scopedArtists = activeArtists.filter((a) => idsHere.has(a.id) || (!idsWithShifts.has(a.id) && a.location_id === selectedLocationId));
       setArtists(scopedArtists);
-      const dayShifts = await fetchShiftsForDate(scopedArtists.map((a) => a.id), date);
-      setShifts(dayShifts);
+      setShifts(shiftsHere);
       const dayAbsences = await fetchAbsencesForDate(scopedArtists.map((a) => a.id), date);
       setAbsences(dayAbsences);
       const dayWalkInOrders = await fetchWalkInOrdersForDay(date, selectedLocationId);
