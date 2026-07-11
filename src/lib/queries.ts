@@ -17,6 +17,7 @@ export interface Artist {
   mwst_aktiv: boolean;
   mwst_nummer: string | null;
   mwst_prozent: number | null;
+  pin_hash: string | null;
 }
 
 export interface Customer {
@@ -161,6 +162,12 @@ export async function fetchArtists() {
   const { data, error } = await supabase.from('artists').select('*').order('name');
   if (error) throw error;
   return data as Artist[];
+}
+
+export async function fetchArtistById(id: string) {
+  const { data, error } = await supabase.from('artists').select('*').eq('id', id).single();
+  if (error) throw error;
+  return data as Artist;
 }
 
 export async function createArtist(input: Partial<Omit<Artist, 'id'>> & { name: string }) {
@@ -703,4 +710,57 @@ export async function fetchShiftsForDate(artistIds: string[], dateISO: string) {
     .or(`valid_to.is.null,valid_to.gte.${dateISO}`);
   if (error) throw error;
   return data as Shift[];
+}
+
+// ---------- Artist-PWA ----------
+
+// Eigener Tageskalender eines Artists (nur seine Termine, unabhängig von Location-Auswahl).
+export async function fetchAppointmentsForArtistDay(artistId: string, dateISO: string) {
+  const start = `${dateISO}T00:00:00`;
+  const end = `${dateISO}T23:59:59`;
+  const { data, error } = await supabase
+    .from('appointments')
+    .select('*, customers(vorname, name, phone), appointment_line_items(quantity, unit_price, services(name)), orders(total, status)')
+    .eq('artist_id', artistId)
+    .eq('type', 'termin')
+    .gte('start_time', start)
+    .lte('start_time', end)
+    .order('start_time');
+  if (error) throw error;
+  return data;
+}
+
+// Grobe Umsatzstatistik für die Artist-PWA: Summe bezahlter Bestellungen zu eigenen
+// Terminen für heute / diese Woche / diesen Monat, plus geschätzter eigener Anteil
+// (Miet- & Serviceanteil in % auf den Gesamtbetrag — vereinfachte Näherung, da
+// Service-/Artikel-Split pro Position hier nicht aufgeschlüsselt wird).
+export async function fetchArtistRevenueStats(artistId: string) {
+  const now = new Date();
+  const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().slice(0, 10);
+  const dayOfWeek = (now.getDay() + 6) % 7; // Mo=0..So=6
+  const weekStartDate = new Date(now);
+  weekStartDate.setDate(now.getDate() - dayOfWeek);
+  const weekStart = weekStartDate.toISOString().slice(0, 10);
+  const todayStart = now.toISOString().slice(0, 10);
+
+  const { data, error } = await supabase
+    .from('appointments')
+    .select('start_time, orders(total, status)')
+    .eq('artist_id', artistId)
+    .eq('type', 'termin')
+    .gte('start_time', `${monthStart}T00:00:00`);
+  if (error) throw error;
+
+  let today = 0;
+  let week = 0;
+  let month = 0;
+  for (const appt of (data as any[]) || []) {
+    const order = appt.orders?.[0];
+    if (!order || order.status !== 'bezahlt') continue;
+    const total = Number(order.total);
+    month += total;
+    if (appt.start_time >= `${weekStart}T00:00:00`) week += total;
+    if (appt.start_time >= `${todayStart}T00:00:00`) today += total;
+  }
+  return { today, week, month };
 }

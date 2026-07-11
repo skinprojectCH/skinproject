@@ -66,6 +66,11 @@ export default function ArtistDetail() {
   const [saved, setSaved] = useState(false);
   const [attempted, setAttempted] = useState(false);
 
+  const [pinInput, setPinInput] = useState('');
+  const [pinSaving, setPinSaving] = useState(false);
+  const [pinError, setPinError] = useState<string | null>(null);
+  const [pinSuccess, setPinSuccess] = useState(false);
+
   useEffect(() => {
     if (!id) return;
 
@@ -165,6 +170,32 @@ export default function ArtistDetail() {
     }
   }
 
+  async function handleSetPin() {
+    if (!artist || !/^\d{4,6}$/.test(pinInput)) {
+      setPinError('PIN muss 4 bis 6 Ziffern haben.');
+      return;
+    }
+    setPinSaving(true);
+    setPinError(null);
+    setPinSuccess(false);
+    try {
+      const res = await fetch('/api/create-artist-pin', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ artistId: artist.id, pin: pinInput }),
+      });
+      const body = await res.json();
+      if (!res.ok) throw new Error(body.error || 'Unbekannter Fehler.');
+      setPinSuccess(true);
+      setPinInput('');
+      setArtist({ ...artist, pin_hash: 'set' } as Artist);
+    } catch (e: any) {
+      setPinError(e.message);
+    } finally {
+      setPinSaving(false);
+    }
+  }
+
   if (loading) return <div style={{ fontSize: 13, color: '#999' }}>Lädt…</div>;
   if (error) return <div style={{ fontSize: 13, color: 'var(--color-destructive)' }}>Fehler: {error}</div>;
   if (!isNew && !artist) return <div style={{ fontSize: 13, color: '#999' }}>Artist nicht gefunden.</div>;
@@ -240,13 +271,41 @@ export default function ArtistDetail() {
             </div>
           </div>
 
-          <div style={{ marginBottom: 14 }}>
-            <div className="label-uppercase" style={{ marginBottom: 4 }}>
-              PWA Passwort
+          {!isNew && (
+            <div style={{ border: '1px solid var(--color-border)', borderRadius: 6, padding: 14, marginBottom: 14, background: 'var(--color-surface)' }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+                <div style={{ fontSize: 13, fontWeight: 700 }}>PWA-Login (PIN)</div>
+                <div
+                  style={{
+                    fontSize: 10,
+                    fontWeight: 600,
+                    textTransform: 'uppercase',
+                    padding: '2px 10px',
+                    borderRadius: 10,
+                    border: `1px solid ${artist?.pin_hash ? 'var(--color-accent)' : 'var(--color-border)'}`,
+                    color: artist?.pin_hash ? 'var(--color-accent)' : '#999',
+                  }}
+                >
+                  {artist?.pin_hash ? 'Eingerichtet' : 'Nicht eingerichtet'}
+                </div>
+              </div>
+              <div style={{ display: 'flex', gap: 8, alignItems: 'flex-start' }}>
+                <input
+                  value={pinInput}
+                  onChange={(e) => setPinInput(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                  style={{ ...inputStyle, flex: 1 }}
+                  placeholder="4–6-stelliger PIN"
+                  inputMode="numeric"
+                />
+                <button className="btn btn-secondary" style={{ whiteSpace: 'nowrap', opacity: pinSaving ? 0.6 : 1 }} disabled={pinSaving} onClick={handleSetPin}>
+                  {pinSaving ? 'Speichert…' : artist?.pin_hash ? 'PIN ändern' : 'PIN setzen'}
+                </button>
+              </div>
+              {pinError && <div style={{ fontSize: 11, color: 'var(--color-destructive)', marginTop: 6 }}>{pinError}</div>}
+              {pinSuccess && <div style={{ fontSize: 11, color: '#1a7a3f', marginTop: 6 }}>✓ PIN gespeichert.</div>}
+              <div style={{ fontSize: 11, color: '#999', marginTop: 6 }}>Der Artist meldet sich damit über den PWA-Link (unten) an. Der PIN wird gehasht gespeichert, nie im Klartext.</div>
             </div>
-            <input disabled style={{ ...inputStyle, color: '#bbb', background: '#f7f7f5' }} placeholder="••••••••" />
-            <div style={{ fontSize: 11, color: '#999', marginTop: 4 }}>Wird aktiv, sobald die Artist-PWA mit echtem Login existiert (dann verschlüsselt über Supabase Auth, nie im Klartext).</div>
-          </div>
+          )}
 
           <div style={{ marginBottom: 14 }}>
             <div className="label-uppercase" style={{ marginBottom: 4 }}>
@@ -359,12 +418,20 @@ export default function ArtistDetail() {
                 Artist-PWA Link
               </div>
               <div style={{ display: 'flex', gap: 12, alignItems: 'flex-start' }}>
-                <div style={{ flex: 1, border: '1px solid var(--color-border)', borderRadius: 4, padding: '9px 10px', fontSize: 12, color: '#555', display: 'flex', justifyContent: 'space-between' }}>
-                  <div>app.skinproject.ch/artist/{artist!.id.slice(0, 8)}</div>
+                <div style={{ flex: 1, border: '1px solid var(--color-border)', borderRadius: 4, padding: '9px 10px', fontSize: 12, color: '#555', display: 'flex', justifyContent: 'space-between', overflow: 'hidden' }}>
+                  <div style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{`${window.location.origin}/artist/${artist!.id}`}</div>
                 </div>
-                <div style={{ width: 64, height: 64, flexShrink: 0, border: '1px solid var(--color-border)', borderRadius: 4, background: 'repeating-conic-gradient(#111 0% 25%, #fff 0% 50%) 0 0/8px 8px' }} />
+                <button
+                  className="btn btn-secondary"
+                  style={{ flexShrink: 0 }}
+                  onClick={() => navigator.clipboard.writeText(`${window.location.origin}/artist/${artist!.id}`)}
+                >
+                  Kopieren
+                </button>
               </div>
-              <div style={{ fontSize: 11, color: '#999', marginTop: 4 }}>Artist-PWA ist noch nicht gebaut — Link ist ein Platzhalter.</div>
+              <div style={{ fontSize: 11, color: '#999', marginTop: 4 }}>
+                {artist?.pin_hash ? 'Link öffnen und mit dem PIN oben anmelden.' : 'Erst PIN oben setzen, dann funktioniert der Login über diesen Link.'}
+              </div>
             </div>
           )}
 

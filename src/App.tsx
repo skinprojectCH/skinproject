@@ -17,11 +17,13 @@ import Statistiken from './pages/admin/Statistiken';
 import Abrechnung from './pages/admin/Abrechnung';
 import Locations from './pages/admin/Locations';
 import Gutscheine from './pages/admin/Gutscheine';
+import ArtistApp from './pages/artist/ArtistApp';
 
 export default function App() {
   return (
     <Routes>
       <Route path="/login" element={<Login />} />
+      <Route path="/artist/:artistId" element={<ArtistApp />} />
 
       <Route element={<RequireAuth />}>
         <Route element={<AppLayout />}>
