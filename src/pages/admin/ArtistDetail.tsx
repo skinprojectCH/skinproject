@@ -20,6 +20,8 @@ const ARTIST_COLORS = [
   '#A65B6B', '#5B4A6B',
 ];
 
+const ARTIST_PWA_ORIGIN = 'https://skinproject-nine.vercel.app';
+
 const inputStyle: React.CSSProperties = { border: '1px solid #ddd', borderRadius: 4, padding: '9px 10px', fontSize: 13, width: '100%', fontFamily: 'var(--font-body)' };
 
 function StatusToggle({ value, onChange }: { value: boolean; onChange: (v: boolean) => void }) {
@@ -419,12 +421,12 @@ export default function ArtistDetail() {
               </div>
               <div style={{ display: 'flex', gap: 12, alignItems: 'flex-start' }}>
                 <div style={{ flex: 1, border: '1px solid var(--color-border)', borderRadius: 4, padding: '9px 10px', fontSize: 12, color: '#555', display: 'flex', justifyContent: 'space-between', overflow: 'hidden' }}>
-                  <div style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{`${window.location.origin}/artist/${artist!.id}`}</div>
+                  <div style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{`${ARTIST_PWA_ORIGIN}/artist/${artist!.id}`}</div>
                 </div>
                 <button
                   className="btn btn-secondary"
                   style={{ flexShrink: 0 }}
-                  onClick={() => navigator.clipboard.writeText(`${window.location.origin}/artist/${artist!.id}`)}
+                  onClick={() => navigator.clipboard.writeText(`${ARTIST_PWA_ORIGIN}/artist/${artist!.id}`)}
                 >
                   Kopieren
                 </button>
