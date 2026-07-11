@@ -292,7 +292,7 @@ export default function Locations() {
             role="button"
             tabIndex={0}
             onKeyDown={(e) => e.key === 'Enter' && setSelectedId(l.id)}
-            style={{ border: l.id === selectedId ? '1.5px solid var(--color-accent)' : '1px solid #eee', borderRadius: 6, padding: 12, marginBottom: 8, cursor: 'pointer' }}
+            style={{ border: l.id === selectedId ? '1.5px solid var(--color-accent)' : '1px solid var(--color-border)', borderRadius: 6, padding: 12, marginBottom: 8, cursor: 'pointer', background: 'var(--color-surface)' }}
           >
             <div style={{ fontWeight: 700, fontSize: 13 }}>{l.name}</div>
             <div style={{ fontSize: 12, color: '#777' }}>
@@ -353,7 +353,7 @@ export default function Locations() {
             </div>
           </div>
 
-          <div style={{ borderTop: '1px solid #eee', paddingTop: 16, marginBottom: 24 }}>
+          <div style={{ border: '1px solid var(--color-border)', borderRadius: 6, padding: 14, marginBottom: 24, background: 'var(--color-surface)' }}>
             <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 12 }}>MWST</div>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 140px', gap: 14 }}>
               <div>
@@ -388,11 +388,11 @@ export default function Locations() {
           {managers
             .filter((m) => !m.deleted)
             .map((m) => (
-              <div key={m.key} style={{ borderTop: '1px solid #eee', paddingTop: 16, marginBottom: 16, position: 'relative' }}>
+              <div key={m.key} style={{ border: '1px solid var(--color-border)', borderRadius: 8, padding: '16px', marginBottom: 12, background: 'var(--color-surface)', position: 'relative' }}>
                 <button
                   onClick={() => removeManager(m.key)}
                   title="Manager entfernen"
-                  style={{ position: 'absolute', top: 16, right: 0, color: '#999', cursor: 'pointer', background: 'none', border: 'none', padding: 0 }}
+                  style={{ position: 'absolute', top: 16, right: 16, color: '#999', cursor: 'pointer', background: 'none', border: 'none', padding: 0 }}
                 >
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                     <polyline points="3 6 5 6 21 6" />
@@ -430,7 +430,7 @@ export default function Locations() {
                   </div>
                 </div>
 
-                <div style={{ borderTop: '1px solid #eee', marginTop: 14, paddingTop: 14 }}>
+                <div style={{ borderTop: '1px solid var(--color-border)', marginTop: 14, paddingTop: 14 }}>
                   <div className="label-uppercase" style={{ marginBottom: 6 }}>
                     Login-Zugang (lädt automatisch den Kalender dieser Location)
                   </div>
