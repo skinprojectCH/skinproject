@@ -24,7 +24,7 @@ const inputStyle: React.CSSProperties = { border: '1px solid #ddd', borderRadius
 
 function StatusToggle({ value, onChange }: { value: boolean; onChange: (v: boolean) => void }) {
   return (
-    <div style={{ display: 'flex', border: '1px solid #ddd', borderRadius: 12, overflow: 'hidden', fontSize: 11 }}>
+    <div style={{ display: 'flex', border: '1px solid var(--color-border)', borderRadius: 12, overflow: 'hidden', fontSize: 11 }}>
       <button onClick={() => onChange(true)} style={{ padding: '4px 10px', background: value ? '#111' : 'transparent', color: value ? '#fff' : '#999', border: 'none' }}>
         Aktiv
       </button>
@@ -51,7 +51,6 @@ export default function ArtistDetail() {
   const [strasse, setStrasse] = useState('');
   const [plzOrt, setPlzOrt] = useState('');
   const [ahvNummer, setAhvNummer] = useState('');
-  const [mwstAktiv, setMwstAktiv] = useState(true);
   const [mwstNummer, setMwstNummer] = useState('');
   const [mwstProzent, setMwstProzent] = useState('');
   const [revenueShare, setRevenueShare] = useState('');
@@ -98,7 +97,6 @@ export default function ArtistDetail() {
         setStrasse(found.strasse || '');
         setPlzOrt(found.plz_ort || '');
         setAhvNummer(found.ahv_nummer || '');
-        setMwstAktiv(found.mwst_aktiv ?? true);
         setMwstNummer(found.mwst_nummer || '');
         setMwstProzent(found.mwst_prozent != null ? String(found.mwst_prozent) : '');
         setRevenueShare(String(found.revenue_share_pct));
@@ -114,6 +112,7 @@ export default function ArtistDetail() {
 
   const nameValid = name.trim().length > 0;
   const allSelected = services.length > 0 && selectedServiceIds.length === services.length;
+  const mwstAktiv = mwstNummer.trim().length > 0 && mwstProzent.trim().length > 0;
 
   function toggleService(serviceId: string) {
     setSelectedServiceIds((prev) => (prev.includes(serviceId) ? prev.filter((s) => s !== serviceId) : [...prev, serviceId]));
@@ -256,23 +255,40 @@ export default function ArtistDetail() {
             <input value={ahvNummer} onChange={(e) => setAhvNummer(e.target.value)} style={inputStyle} placeholder="756.xxxx.xxxx.xx" />
           </div>
 
-          <div style={{ marginBottom: 10, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-            <div style={{ fontSize: 12 }}>MwSt.</div>
-            <StatusToggle value={mwstAktiv} onChange={setMwstAktiv} />
-          </div>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 90px', gap: 14, marginBottom: 6 }}>
-            <div>
-              <div className="label-uppercase" style={{ marginBottom: 4 }}>
-                MwSt.-Nummer
+          <div style={{ border: '1px solid var(--color-border)', borderRadius: 6, padding: 14, marginBottom: 14, background: 'var(--color-surface)' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+              <div style={{ fontSize: 13, fontWeight: 700 }}>MwSt.</div>
+              <div
+                style={{
+                  fontSize: 10,
+                  fontWeight: 600,
+                  textTransform: 'uppercase',
+                  padding: '2px 10px',
+                  borderRadius: 10,
+                  border: `1px solid ${mwstAktiv ? 'var(--color-accent)' : 'var(--color-border)'}`,
+                  color: mwstAktiv ? 'var(--color-accent)' : '#999',
+                }}
+              >
+                {mwstAktiv ? 'Aktiv' : 'Inaktiv'}
               </div>
-              <input value={mwstNummer} onChange={(e) => setMwstNummer(e.target.value)} style={inputStyle} placeholder="CHE-xxx.xxx.xxx" />
             </div>
-            <div>
-              <div className="label-uppercase" style={{ marginBottom: 4 }}>
-                MwSt. %
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 90px', gap: 14 }}>
+              <div>
+                <div className="label-uppercase" style={{ marginBottom: 4 }}>
+                  MwSt.-Nummer
+                </div>
+                <input value={mwstNummer} onChange={(e) => setMwstNummer(e.target.value)} style={inputStyle} placeholder="CHE-xxx.xxx.xxx" />
               </div>
-              <input value={mwstProzent} onChange={(e) => setMwstProzent(e.target.value)} style={inputStyle} placeholder="8.1" inputMode="decimal" />
+              <div>
+                <div className="label-uppercase" style={{ marginBottom: 4 }}>
+                  MwSt. %
+                </div>
+                <input value={mwstProzent} onChange={(e) => setMwstProzent(e.target.value)} style={inputStyle} placeholder="8.1" inputMode="decimal" />
+              </div>
             </div>
+            {(mwstNummer.trim().length > 0) !== (mwstProzent.trim().length > 0) && (
+              <div style={{ fontSize: 11, color: 'var(--color-destructive)', marginTop: 6 }}>Nummer und Satz müssen beide ausgefüllt sein, damit MwSt. aktiv ist.</div>
+            )}
           </div>
         </div>
 
@@ -285,7 +301,7 @@ export default function ArtistDetail() {
             <div style={{ fontSize: 11, color: '#999', marginTop: 4 }}>z.B. 60% Artist / 40% SkinProject (nur auf Dienstleistungen)</div>
           </div>
 
-          <div style={{ marginBottom: 20 }}>
+          <div style={{ border: '1px solid var(--color-border)', borderRadius: 6, padding: 14, marginBottom: 20, background: 'var(--color-surface)' }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
               <div style={{ fontSize: 12, fontWeight: 700 }}>Dienstleistungen zuweisen</div>
               {services.length > 0 && (
@@ -338,21 +354,21 @@ export default function ArtistDetail() {
           </div>
 
           {!isNew && (
-            <div style={{ marginBottom: 20 }}>
+            <div style={{ border: '1px solid var(--color-border)', borderRadius: 6, padding: 14, marginBottom: 20, background: 'var(--color-surface)' }}>
               <div className="label-uppercase" style={{ marginBottom: 4 }}>
                 Artist-PWA Link
               </div>
               <div style={{ display: 'flex', gap: 12, alignItems: 'flex-start' }}>
-                <div style={{ flex: 1, border: '1px solid #ddd', borderRadius: 4, padding: '9px 10px', fontSize: 12, color: '#555', display: 'flex', justifyContent: 'space-between' }}>
+                <div style={{ flex: 1, border: '1px solid var(--color-border)', borderRadius: 4, padding: '9px 10px', fontSize: 12, color: '#555', display: 'flex', justifyContent: 'space-between' }}>
                   <div>app.skinproject.ch/artist/{artist!.id.slice(0, 8)}</div>
                 </div>
-                <div style={{ width: 64, height: 64, flexShrink: 0, border: '1px solid #ddd', borderRadius: 4, background: 'repeating-conic-gradient(#111 0% 25%, #fff 0% 50%) 0 0/8px 8px' }} />
+                <div style={{ width: 64, height: 64, flexShrink: 0, border: '1px solid var(--color-border)', borderRadius: 4, background: 'repeating-conic-gradient(#111 0% 25%, #fff 0% 50%) 0 0/8px 8px' }} />
               </div>
               <div style={{ fontSize: 11, color: '#999', marginTop: 4 }}>Artist-PWA ist noch nicht gebaut — Link ist ein Platzhalter.</div>
             </div>
           )}
 
-          <div style={{ marginBottom: 24 }}>
+          <div style={{ border: '1px solid var(--color-border)', borderRadius: 6, padding: 14, marginBottom: 24, background: 'var(--color-surface)' }}>
             <div className="label-uppercase" style={{ marginBottom: 4 }}>
               Farbe auswählen für Termine im Kalender
             </div>
