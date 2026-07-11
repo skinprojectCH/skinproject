@@ -227,6 +227,7 @@ export async function deleteCustomer(id: string) {
 export interface CustomerDocument {
   id: string;
   customer_id: string;
+  appointment_id: string | null;
   type: 'id_photo' | 'signature' | 'photo' | 'document';
   storage_path: string;
   created_at: string;
@@ -238,12 +239,17 @@ export async function fetchCustomerDocuments(customerId: string) {
   return data as CustomerDocument[];
 }
 
-export async function uploadCustomerFile(customerId: string, file: File, type: 'document' | 'photo') {
+// appointmentId optional: ordnet die Datei einem bestimmten Termin zu (statt nur dem Kunden allgemein)
+export async function uploadCustomerFile(customerId: string, file: File, type: 'document' | 'photo', appointmentId?: string | null) {
   const ext = file.name.split('.').pop();
   const path = `${customerId}/${type}/${crypto.randomUUID()}.${ext}`;
   const { error: uploadError } = await supabase.storage.from('customer-files').upload(path, file);
   if (uploadError) throw uploadError;
-  const { data, error } = await supabase.from('customer_documents').insert({ customer_id: customerId, type, storage_path: path }).select().single();
+  const { data, error } = await supabase
+    .from('customer_documents')
+    .insert({ customer_id: customerId, type, storage_path: path, appointment_id: appointmentId || null })
+    .select()
+    .single();
   if (error) throw error;
   return data as CustomerDocument;
 }
@@ -442,7 +448,7 @@ export async function replaceAppointmentLineItems(appointmentId: string, items: 
 export async function fetchAppointmentsForCustomer(customerId: string) {
   const { data, error } = await supabase
     .from('appointments')
-    .select('*, artists(name), appointment_line_items(quantity, unit_price, services(name))')
+    .select('*, artists(name), appointment_line_items(quantity, unit_price, services(name)), orders(total, status)')
     .eq('customer_id', customerId)
     .order('start_time', { ascending: false });
   if (error) throw error;

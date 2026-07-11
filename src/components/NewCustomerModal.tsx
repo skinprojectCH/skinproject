@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { createCustomer } from '../lib/queries';
+import { normalizePhone } from '../lib/format';
 import Modal from './Modal';
 
 const inputStyle: React.CSSProperties = { border: '1px solid #ddd', borderRadius: 4, padding: '9px 10px', fontSize: 13, width: '100%', fontFamily: 'var(--font-body)' };
@@ -29,7 +30,7 @@ export default function NewCustomerModal({ onClose, onCreated }: { onClose: () =
         vorname: vorname.trim(),
         name: name.trim(),
         email: email.trim() || null,
-        phone: phone.trim() || null,
+        phone: phone.trim() ? normalizePhone(phone) : null,
         birthdate: birthdate || null,
         strasse: strasse.trim() || null,
         plz_ort: plzOrt.trim() || null,
@@ -69,7 +70,7 @@ export default function NewCustomerModal({ onClose, onCreated }: { onClose: () =
           <div className="label-uppercase" style={{ marginBottom: 4 }}>
             Mobile
           </div>
-          <input value={phone} onChange={(e) => setPhone(e.target.value)} style={inputStyle} placeholder="optional" />
+          <input value={phone} onChange={(e) => setPhone(e.target.value)} onBlur={() => phone.trim() && setPhone(normalizePhone(phone))} style={inputStyle} placeholder="+41791234567" />
         </div>
         <div>
           <div className="label-uppercase" style={{ marginBottom: 4 }}>

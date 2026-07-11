@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import {
   fetchCustomer,
@@ -12,6 +12,7 @@ import {
   type Customer,
   type CustomerDocument,
 } from '../lib/queries';
+import { normalizePhone, formatCHF } from '../lib/format';
 
 const inputStyle: React.CSSProperties = { border: '1px solid #ddd', borderRadius: 4, padding: '9px 10px', fontSize: 13, width: '100%', fontFamily: 'var(--font-body)' };
 
@@ -42,12 +43,17 @@ export default function KundeDetail() {
 
   const [documents, setDocuments] = useState<CustomerDocument[]>([]);
   const [photos, setPhotos] = useState<CustomerDocument[]>([]);
+  const [appointmentDocs, setAppointmentDocs] = useState<CustomerDocument[]>([]);
   const [docsLoading, setDocsLoading] = useState(true);
   const [uploadingDoc, setUploadingDoc] = useState(false);
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
   const [fileError, setFileError] = useState<string | null>(null);
   const docInputRef = useRef<HTMLInputElement>(null);
   const photoInputRef = useRef<HTMLInputElement>(null);
+  const apptDocInputRef = useRef<HTMLInputElement>(null);
+  const apptPhotoInputRef = useRef<HTMLInputElement>(null);
+  const [activeApptId, setActiveApptId] = useState<string | null>(null);
+  const [expandedApptId, setExpandedApptId] = useState<string | null>(null);
 
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
@@ -61,8 +67,9 @@ export default function KundeDetail() {
     setDocsLoading(true);
     fetchCustomerDocuments(id)
       .then((docs) => {
-        setDocuments(docs.filter((d) => d.type === 'document'));
-        setPhotos(docs.filter((d) => d.type === 'photo'));
+        setDocuments(docs.filter((d) => d.type === 'document' && !d.appointment_id));
+        setPhotos(docs.filter((d) => d.type === 'photo' && !d.appointment_id));
+        setAppointmentDocs(docs.filter((d) => !!d.appointment_id));
       })
       .catch((e) => setFileError(e.message))
       .finally(() => setDocsLoading(false));
@@ -97,6 +104,26 @@ export default function KundeDetail() {
   const nameValid = name.trim().length > 0;
   const canSave = vornameValid && nameValid;
 
+  const docsByAppointment = useMemo(() => {
+    const map: Record<string, CustomerDocument[]> = {};
+    for (const doc of appointmentDocs) {
+      if (!doc.appointment_id) continue;
+      (map[doc.appointment_id] ||= []).push(doc);
+    }
+    return map;
+  }, [appointmentDocs]);
+
+  const totalRevenue = useMemo(() => {
+    return appointmentHistory.reduce((sum, appt: any) => {
+      const order = appt.orders?.[0];
+      return order && order.status === 'bezahlt' ? sum + Number(order.total) : sum;
+    }, 0);
+  }, [appointmentHistory]);
+
+  function handlePhoneBlur() {
+    if (phone.trim()) setPhone(normalizePhone(phone));
+  }
+
   async function handleSave() {
     setAttempted(true);
     if (!canSave || !id) return;
@@ -108,7 +135,7 @@ export default function KundeDetail() {
         vorname: vorname.trim(),
         name: name.trim(),
         birthdate: birthdate || null,
-        phone: phone.trim() || null,
+        phone: phone.trim() ? normalizePhone(phone) : null,
         email: email.trim() || null,
         strasse: strasse.trim() || null,
         plz_ort: plzOrt.trim() || null,
@@ -140,12 +167,12 @@ export default function KundeDetail() {
     }
   }
 
-  async function handleFileSelected(file: File | undefined, type: 'document' | 'photo') {
+  async function handleFileSelected(file: File | undefined, type: 'document' | 'photo', appointmentId?: string | null) {
     if (!file || !id) return;
     setFileError(null);
     type === 'document' ? setUploadingDoc(true) : setUploadingPhoto(true);
     try {
-      await uploadCustomerFile(id, file, type);
+      await uploadCustomerFile(id, file, type, appointmentId ?? null);
       reloadDocs();
     } catch (e: any) {
       setFileError(e.message);
@@ -153,6 +180,12 @@ export default function KundeDetail() {
       setUploadingDoc(false);
       setUploadingPhoto(false);
     }
+  }
+
+  function triggerApptUpload(appointmentId: string, type: 'document' | 'photo') {
+    setActiveApptId(appointmentId);
+    if (type === 'document') apptDocInputRef.current?.click();
+    else apptPhotoInputRef.current?.click();
   }
 
   async function handleOpenFile(doc: CustomerDocument) {
@@ -210,7 +243,7 @@ export default function KundeDetail() {
             <div className="label-uppercase" style={{ marginBottom: 4 }}>
               Mobile
             </div>
-            <input value={phone} onChange={(e) => setPhone(e.target.value)} style={inputStyle} placeholder="—" />
+            <input value={phone} onChange={(e) => setPhone(e.target.value)} onBlur={handlePhoneBlur} style={inputStyle} placeholder="+41791234567" />
           </div>
 
           <div style={{ margin: '14px 0 20px' }}>
@@ -341,70 +374,127 @@ export default function KundeDetail() {
             </div>
           )}
 
-          <h3 style={{ fontSize: 16, marginBottom: 10 }}>Vergangene Termine</h3>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 4 }}>
+            <h3 style={{ fontSize: 16 }}>Vergangene Termine</h3>
+            {appointmentHistory.length > 0 && (
+              <div style={{ fontSize: 12, color: '#999' }}>
+                Gesamtumsatz Kunde: <strong style={{ color: 'var(--color-primary)' }}>{formatCHF(totalRevenue)}</strong>
+              </div>
+            )}
+          </div>
           {historyLoading ? (
             <div style={{ fontSize: 12, color: '#999' }}>Lädt…</div>
           ) : appointmentHistory.length === 0 ? (
             <div style={{ fontSize: 12, color: '#999' }}>Noch keine Termine für diesen Kunden erfasst.</div>
           ) : (
-            <div>
-              <div
-                style={{
-                  display: 'grid',
-                  gridTemplateColumns: '100px 90px 1fr 1fr 110px',
-                  padding: '8px 10px',
-                  fontSize: 11,
-                  textTransform: 'uppercase',
-                  letterSpacing: 0.5,
-                  color: '#999',
-                  borderBottom: '1px solid var(--color-border)',
-                  fontWeight: 600,
-                }}
-              >
-                <div>Datum</div>
-                <div>Zeit</div>
-                <div>Artist</div>
-                <div>Dienstleistungen</div>
-                <div>Status</div>
-              </div>
+            <div style={{ marginTop: 10 }}>
               {appointmentHistory.map((appt: any) => {
                 const statusInfo = STATUS_LABELS[appt.status] || STATUS_LABELS.gebucht;
                 const services = (appt.appointment_line_items || []).map((li: any) => li.services?.name).filter(Boolean);
+                const order = appt.orders?.[0];
+                const showStatusBadge = appt.status === 'storniert' || appt.status === 'nicht_erschienen';
+                const apptFiles = docsByAppointment[appt.id] || [];
+                const apptDocs = apptFiles.filter((d) => d.type === 'document');
+                const apptPhotos = apptFiles.filter((d) => d.type === 'photo');
+                const isExpanded = expandedApptId === appt.id;
                 return (
-                  <div
-                    key={appt.id}
-                    style={{
-                      display: 'grid',
-                      gridTemplateColumns: '100px 90px 1fr 1fr 110px',
-                      padding: '10px 10px',
-                      fontSize: 13,
-                      borderBottom: '1px solid #f0f0f0',
-                      alignItems: 'center',
-                    }}
-                  >
-                    <div>{new Date(appt.start_time).toLocaleDateString('de-CH', { day: '2-digit', month: '2-digit', year: '2-digit' })}</div>
-                    <div style={{ color: '#777' }}>{new Date(appt.start_time).toLocaleTimeString('de-CH', { hour: '2-digit', minute: '2-digit' })}</div>
-                    <div>{appt.artists?.name || '—'}</div>
-                    <div style={{ color: '#777', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{services.length > 0 ? services.join(', ') : '—'}</div>
-                    <div
-                      style={{
-                        border: `1px solid ${statusInfo.color}`,
-                        color: statusInfo.color,
-                        borderRadius: 10,
-                        padding: '2px 10px',
-                        fontSize: 10,
-                        fontWeight: 600,
-                        width: 'fit-content',
-                        textTransform: 'uppercase',
-                      }}
-                    >
-                      {statusInfo.label}
+                  <div key={appt.id} style={{ border: '1px solid var(--color-border-subtle)', borderRadius: 8, padding: '14px 16px', marginBottom: 12 }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12 }}>
+                      <div style={{ fontSize: 13, fontWeight: 700 }}>
+                        {new Date(appt.start_time).toLocaleDateString('de-CH', { day: '2-digit', month: '2-digit', year: 'numeric' })}
+                        {' · '}
+                        {services.length > 0 ? services.join(', ') : appt.type === 'absenz' ? 'Absenz' : 'Termin'}
+                        {' · '}
+                        {appt.artists?.name || '—'}
+                      </div>
+                      {showStatusBadge ? (
+                        <div
+                          style={{
+                            border: `1px solid ${statusInfo.color}`,
+                            color: statusInfo.color,
+                            borderRadius: 10,
+                            padding: '2px 10px',
+                            fontSize: 10,
+                            fontWeight: 600,
+                            flexShrink: 0,
+                            textTransform: 'uppercase',
+                          }}
+                        >
+                          {appt.status === 'storniert' ? 'Absage' : statusInfo.label}
+                        </div>
+                      ) : (
+                        <div style={{ fontSize: 13, fontWeight: 700, flexShrink: 0 }}>{order ? formatCHF(order.total) : '—'}</div>
+                      )}
                     </div>
+
+                    {appt.notes && <div style={{ fontSize: 12, color: '#777', marginTop: 4 }}>Notiz: {appt.notes}</div>}
+
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 10, flexWrap: 'wrap' }}>
+                      {apptDocs.length > 0 && (
+                        <div
+                          onClick={() => setExpandedApptId(isExpanded ? null : appt.id)}
+                          style={{ border: '1px solid var(--color-border-subtle)', borderRadius: 10, padding: '3px 10px', fontSize: 11, color: '#777', cursor: 'pointer' }}
+                        >
+                          {apptDocs.length} {apptDocs.length === 1 ? 'Dokument' : 'Dokumente'}
+                        </div>
+                      )}
+                      {apptPhotos.length > 0 && (
+                        <div
+                          onClick={() => setExpandedApptId(isExpanded ? null : appt.id)}
+                          style={{ border: '1px solid var(--color-border-subtle)', borderRadius: 10, padding: '3px 10px', fontSize: 11, color: '#777', cursor: 'pointer' }}
+                        >
+                          {apptPhotos.length} {apptPhotos.length === 1 ? 'Foto' : 'Fotos'}
+                        </div>
+                      )}
+                      <div onClick={() => triggerApptUpload(appt.id, 'document')} style={{ fontSize: 11, color: 'var(--color-accent)', fontWeight: 600, cursor: 'pointer' }}>
+                        + Dokument
+                      </div>
+                      <div onClick={() => triggerApptUpload(appt.id, 'photo')} style={{ fontSize: 11, color: 'var(--color-accent)', fontWeight: 600, cursor: 'pointer' }}>
+                        + Foto
+                      </div>
+                    </div>
+
+                    {isExpanded && apptFiles.length > 0 && (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginTop: 10, paddingTop: 10, borderTop: '1px solid var(--color-border-subtle)' }}>
+                        {apptFiles.map((doc) => (
+                          <div key={doc.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 12, border: '1px solid var(--color-border-subtle)', borderRadius: 4, padding: '6px 10px' }}>
+                            <div style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{doc.storage_path.split('/').pop()}</div>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
+                              <div onClick={() => handleOpenFile(doc)} style={{ color: 'var(--color-accent)', fontWeight: 600, cursor: 'pointer' }}>
+                                Öffnen
+                              </div>
+                              <div onClick={() => handleDeleteFile(doc)} style={{ color: '#999', cursor: 'pointer' }}>
+                                ✕
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 );
               })}
             </div>
           )}
+          <input
+            ref={apptDocInputRef}
+            type="file"
+            style={{ display: 'none' }}
+            onChange={(e) => {
+              handleFileSelected(e.target.files?.[0], 'document', activeApptId);
+              e.target.value = '';
+            }}
+          />
+          <input
+            ref={apptPhotoInputRef}
+            type="file"
+            accept="image/*"
+            style={{ display: 'none' }}
+            onChange={(e) => {
+              handleFileSelected(e.target.files?.[0], 'photo', activeApptId);
+              e.target.value = '';
+            }}
+          />
         </div>
       </div>
     </div>
