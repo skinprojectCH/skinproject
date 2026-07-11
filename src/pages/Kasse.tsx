@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import Modal from '../components/Modal';
 import {
@@ -16,12 +16,17 @@ import {
   fetchArtists,
   updateAppointment,
   deleteAppointment,
+  fetchDocumentsForAppointment,
+  uploadCustomerFile,
+  getCustomerFileUrl,
+  deleteCustomerDocument,
   type Service,
   type Product,
   type ServiceCategory,
   type ProductCategory,
   type Customer,
   type Location,
+  type CustomerDocument,
 } from '../lib/queries';
 
 const PAYMENT_METHODS = ['Karte', 'Bar', 'Rechnung', 'Gutschein'];
@@ -691,6 +696,20 @@ export default function Kasse() {
   const [confirmDeleteAppointment, setConfirmDeleteAppointment] = useState(false);
   const [deletingAppointment, setDeletingAppointment] = useState(false);
 
+  const [apptNotes, setApptNotes] = useState('');
+  const [notesSaving, setNotesSaving] = useState(false);
+  const [notesSaved, setNotesSaved] = useState(false);
+  const [apptDocuments, setApptDocuments] = useState<CustomerDocument[]>([]);
+  const [apptPhotos, setApptPhotos] = useState<CustomerDocument[]>([]);
+  const [apptFilesLoading, setApptFilesLoading] = useState(false);
+  const [uploadingApptDoc, setUploadingApptDoc] = useState(false);
+  const [uploadingApptPhoto, setUploadingApptPhoto] = useState(false);
+  const [apptFileError, setApptFileError] = useState<string | null>(null);
+  const [apptPhotoUrls, setApptPhotoUrls] = useState<Record<string, string>>({});
+  const [apptLightboxUrl, setApptLightboxUrl] = useState<string | null>(null);
+  const apptDocInputRef = useRef<HTMLInputElement>(null);
+  const apptPhotoInputRef = useRef<HTMLInputElement>(null);
+
   useEffect(() => {
     Promise.all([fetchServices(), fetchProducts(), fetchServiceCategories(), fetchProductCategories(), fetchCustomers(), fetchLocations(), fetchCurrentUserLocationId()])
       .then(([s, p, sc, pc, c, locs, accountLocationId]) => {
@@ -725,6 +744,7 @@ export default function Kasse() {
           setLocationLocked(true);
         }
         setContextLabel(`Termin: ${artist?.name || '—'} · ${new Date(appt.start_time).toLocaleString('de-CH', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}`);
+        setApptNotes(appt.notes || '');
         setItems(
           (lineItems as any[]).map((li) => ({
             id: crypto.randomUUID(),
@@ -740,6 +760,108 @@ export default function Kasse() {
       }
     })();
   }, [appointmentId]);
+
+  function reloadApptFiles() {
+    if (!appointmentId) return;
+    setApptFilesLoading(true);
+    fetchDocumentsForAppointment(appointmentId)
+      .then((docs) => {
+        setApptDocuments(docs.filter((d) => d.type === 'document'));
+        setApptPhotos(docs.filter((d) => d.type === 'photo'));
+      })
+      .catch((e) => setApptFileError(e.message))
+      .finally(() => setApptFilesLoading(false));
+  }
+
+  useEffect(() => {
+    if (!appointmentId) return;
+    reloadApptFiles();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [appointmentId]);
+
+  useEffect(() => {
+    const missing = apptPhotos.filter((p) => !apptPhotoUrls[p.id]);
+    if (missing.length === 0) return;
+    let cancelled = false;
+    Promise.all(
+      missing.map(async (p) => {
+        try {
+          const url = await getCustomerFileUrl(p.storage_path);
+          return [p.id, url] as const;
+        } catch {
+          return null;
+        }
+      })
+    ).then((results) => {
+      if (cancelled) return;
+      setApptPhotoUrls((prev) => {
+        const next = { ...prev };
+        for (const r of results) if (r) next[r[0]] = r[1];
+        return next;
+      });
+    });
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [apptPhotos]);
+
+  async function handleNotesBlur() {
+    if (!appointmentId) return;
+    setNotesSaving(true);
+    setNotesSaved(false);
+    try {
+      await updateAppointment(appointmentId, { notes: apptNotes.trim() || null });
+      setNotesSaved(true);
+      setTimeout(() => setNotesSaved(false), 2000);
+    } catch (e: any) {
+      setApptFileError(e.message);
+    } finally {
+      setNotesSaving(false);
+    }
+  }
+
+  async function handleApptFileSelected(file: File | undefined, type: 'document' | 'photo') {
+    if (!file || !appointmentId || !selectedCustomerId) return;
+    setApptFileError(null);
+    type === 'document' ? setUploadingApptDoc(true) : setUploadingApptPhoto(true);
+    try {
+      await uploadCustomerFile(selectedCustomerId, file, type, appointmentId);
+      reloadApptFiles();
+    } catch (e: any) {
+      setApptFileError(e.message);
+    } finally {
+      setUploadingApptDoc(false);
+      setUploadingApptPhoto(false);
+    }
+  }
+
+  async function handleOpenApptFile(doc: CustomerDocument) {
+    try {
+      const url = await getCustomerFileUrl(doc.storage_path);
+      window.open(url, '_blank');
+    } catch (e: any) {
+      setApptFileError(e.message);
+    }
+  }
+
+  async function openApptLightbox(doc: CustomerDocument) {
+    try {
+      const url = apptPhotoUrls[doc.id] || (await getCustomerFileUrl(doc.storage_path));
+      setApptLightboxUrl(url);
+    } catch (e: any) {
+      setApptFileError(e.message);
+    }
+  }
+
+  async function handleDeleteApptFile(doc: CustomerDocument) {
+    try {
+      await deleteCustomerDocument(doc);
+      reloadApptFiles();
+    } catch (e: any) {
+      setApptFileError(e.message);
+    }
+  }
 
   const subtotal = useMemo(() => items.reduce((sum, i) => sum + i.qty * i.unitPrice, 0), [items]);
 
@@ -942,6 +1064,100 @@ export default function Kasse() {
               + Gutschein verkaufen
             </button>
           </div>
+
+          {appointmentId && selectedCustomerId && (
+            <div style={{ border: '1px solid var(--color-border)', borderRadius: 6, padding: 14, marginBottom: 20, background: 'var(--color-surface)' }}>
+              <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 10 }}>Termin-Notiz, Dokumente &amp; Fotos</div>
+
+              <textarea
+                value={apptNotes}
+                onChange={(e) => setApptNotes(e.target.value)}
+                onBlur={handleNotesBlur}
+                style={{ border: '1px solid var(--color-border)', borderRadius: 4, padding: '9px 10px', fontSize: 13, width: '100%', minHeight: 60, fontFamily: 'var(--font-body)', marginBottom: 6 }}
+                placeholder="z.B. Beobachtungen, Nachbehandlung, nächste Session…"
+              />
+              {notesSaving && <div style={{ fontSize: 11, color: '#999', marginBottom: 10 }}>Speichert…</div>}
+              {notesSaved && <div style={{ fontSize: 11, color: '#1a7a3f', marginBottom: 10 }}>✓ Gespeichert.</div>}
+
+              {apptFilesLoading ? (
+                <div style={{ fontSize: 12, color: '#999', marginBottom: 10 }}>Lädt…</div>
+              ) : (
+                <>
+                  {apptDocuments.length > 0 && (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 10 }}>
+                      {apptDocuments.map((doc) => (
+                        <div key={doc.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 12, border: '1px solid var(--color-border)', borderRadius: 4, padding: '8px 10px' }}>
+                          <div style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{doc.storage_path.split('/').pop()}</div>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
+                            <div onClick={() => handleOpenApptFile(doc)} style={{ color: 'var(--color-accent)', fontWeight: 600, cursor: 'pointer' }}>
+                              Öffnen
+                            </div>
+                            <div onClick={() => handleDeleteApptFile(doc)} style={{ color: '#999', cursor: 'pointer' }}>
+                              ✕
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {apptPhotos.length > 0 && (
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(6, 1fr)', gap: 6, marginBottom: 10 }}>
+                      {apptPhotos.map((p) => (
+                        <div key={p.id} style={{ position: 'relative', cursor: 'pointer' }}>
+                          <div
+                            onClick={() => openApptLightbox(p)}
+                            style={{ aspectRatio: '1', background: 'var(--color-bg)', borderRadius: 4, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 9, color: '#999', overflow: 'hidden' }}
+                          >
+                            {apptPhotoUrls[p.id] ? <img src={apptPhotoUrls[p.id]} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} /> : 'Foto'}
+                          </div>
+                          <div
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleDeleteApptFile(p);
+                            }}
+                            style={{ position: 'absolute', top: 2, right: 2, background: 'rgba(0,0,0,0.5)', color: '#fff', borderRadius: '50%', width: 16, height: 16, fontSize: 10, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                          >
+                            ✕
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </>
+              )}
+
+              {apptFileError && <div style={{ fontSize: 12, color: 'var(--color-destructive)', marginBottom: 10 }}>{apptFileError}</div>}
+
+              <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+                <button className="btn btn-outline" onClick={() => apptDocInputRef.current?.click()} disabled={uploadingApptDoc}>
+                  {uploadingApptDoc ? 'Lädt hoch…' : 'Dokument hinzufügen'}
+                </button>
+                <button className="btn btn-outline" onClick={() => apptPhotoInputRef.current?.click()} disabled={uploadingApptPhoto}>
+                  {uploadingApptPhoto ? 'Lädt hoch…' : 'Foto hinzufügen'}
+                </button>
+              </div>
+              <input
+                ref={apptDocInputRef}
+                type="file"
+                style={{ display: 'none' }}
+                onChange={(e) => {
+                  handleApptFileSelected(e.target.files?.[0], 'document');
+                  e.target.value = '';
+                }}
+              />
+              <input
+                ref={apptPhotoInputRef}
+                type="file"
+                accept="image/*"
+                style={{ display: 'none' }}
+                onChange={(e) => {
+                  handleApptFileSelected(e.target.files?.[0], 'photo');
+                  e.target.value = '';
+                }}
+              />
+            </div>
+          )}
         </div>
 
         <div style={{ width: 320, flexShrink: 0, background: '#fff', borderRadius: 6, boxShadow: '0 1px 3px rgba(0,0,0,0.06)', padding: 24 }}>
@@ -1040,6 +1256,18 @@ export default function Kasse() {
             await handleCheckoutComplete(payments, total, discountType, discountValue);
           }}
         />
+      )}
+
+      {apptLightboxUrl && (
+        <div
+          onClick={() => setApptLightboxUrl(null)}
+          style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.75)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, cursor: 'zoom-out' }}
+        >
+          <img src={apptLightboxUrl} onClick={(e) => e.stopPropagation()} style={{ maxWidth: '90vw', maxHeight: '90vh', borderRadius: 6, boxShadow: '0 10px 40px rgba(0,0,0,0.4)' }} />
+          <div onClick={() => setApptLightboxUrl(null)} style={{ position: 'fixed', top: 20, right: 24, color: '#fff', fontSize: 28, cursor: 'pointer', lineHeight: 1 }}>
+            ✕
+          </div>
+        </div>
       )}
     </div>
   );

@@ -73,6 +73,7 @@ export interface Appointment {
   end_time: string;
   type: 'termin' | 'absenz';
   status: 'gebucht' | 'kassiert' | 'storniert' | 'nicht_erschienen';
+  notes: string | null;
 }
 
 export interface Location {
@@ -443,6 +444,12 @@ export async function replaceAppointmentLineItems(appointmentId: string, items: 
   const { error: deleteError } = await supabase.from('appointment_line_items').delete().eq('appointment_id', appointmentId);
   if (deleteError) throw deleteError;
   await addAppointmentLineItems(appointmentId, items);
+}
+
+export async function fetchDocumentsForAppointment(appointmentId: string) {
+  const { data, error } = await supabase.from('customer_documents').select('*').eq('appointment_id', appointmentId).order('created_at', { ascending: false });
+  if (error) throw error;
+  return data as CustomerDocument[];
 }
 
 export async function fetchAppointmentsForCustomer(customerId: string) {
