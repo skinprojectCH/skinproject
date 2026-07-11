@@ -10,6 +10,7 @@ import {
   getCustomerFileUrl,
   deleteCustomerDocument,
   updateAppointment,
+  deleteAppointment,
   fetchCustomers,
   fetchServices,
   fetchServiceCategories,
@@ -435,6 +436,9 @@ function TerminForm({
 // ============================================================
 function AppointmentDetail({ appt, artistId, locationId, onClose }: { appt: any; artistId: string; locationId: string | null; onClose: () => void }) {
   const [editing, setEditing] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
   const [notes, setNotes] = useState(appt.notes || '');
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
@@ -474,6 +478,18 @@ function AppointmentDetail({ appt, artistId, locationId, onClose }: { appt: any;
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [photos]);
+
+  async function handleDeleteAppointment() {
+    setDeleting(true);
+    setDeleteError(null);
+    try {
+      await deleteAppointment(appt.id);
+      onClose();
+    } catch (e: any) {
+      setDeleteError(e.message);
+      setDeleting(false);
+    }
+  }
 
   async function handleNotesBlur() {
     setSaving(true);
@@ -543,11 +559,39 @@ function AppointmentDetail({ appt, artistId, locationId, onClose }: { appt: any;
                 }}
               />
             ) : (
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                <div style={{ fontSize: 13, fontWeight: 700 }}>Termin</div>
-                <div onClick={() => setEditing(true)} style={{ fontSize: 12, color: 'var(--color-accent)', fontWeight: 600, cursor: 'pointer' }}>
-                  Bearbeiten
+              <div>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <div style={{ fontSize: 13, fontWeight: 700 }}>Termin</div>
+                  <div style={{ display: 'flex', gap: 14 }}>
+                    <div onClick={() => setEditing(true)} style={{ fontSize: 12, color: 'var(--color-accent)', fontWeight: 600, cursor: 'pointer' }}>
+                      Bearbeiten
+                    </div>
+                    {!confirmDelete && (
+                      <div onClick={() => setConfirmDelete(true)} style={{ fontSize: 12, color: 'var(--color-destructive)', fontWeight: 600, cursor: 'pointer' }}>
+                        Löschen
+                      </div>
+                    )}
+                  </div>
                 </div>
+                {confirmDelete && (
+                  <div style={{ marginTop: 12, paddingTop: 12, borderTop: '1px solid var(--color-border)' }}>
+                    <div style={{ fontSize: 12, color: '#555', marginBottom: 10 }}>Termin wirklich löschen? Das kann nicht rückgängig gemacht werden.</div>
+                    <div style={{ display: 'flex', gap: 10 }}>
+                      <button className="btn btn-secondary" style={{ flex: 1, justifyContent: 'center' }} onClick={() => setConfirmDelete(false)}>
+                        Doch nicht
+                      </button>
+                      <button
+                        className="btn btn-destructive"
+                        style={{ flex: 1, justifyContent: 'center', background: 'var(--color-destructive)', color: '#fff', opacity: deleting ? 0.6 : 1 }}
+                        disabled={deleting}
+                        onClick={handleDeleteAppointment}
+                      >
+                        {deleting ? 'Löscht…' : 'Wirklich löschen'}
+                      </button>
+                    </div>
+                    {deleteError && <div style={{ fontSize: 11, color: 'var(--color-destructive)', marginTop: 8 }}>{deleteError}</div>}
+                  </div>
+                )}
               </div>
             )}
           </div>
