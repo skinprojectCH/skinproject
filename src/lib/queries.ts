@@ -730,6 +730,22 @@ export async function fetchAppointmentsForArtistDay(artistId: string, dateISO: s
   return data;
 }
 
+// Für den Endlos-Scroll in der Artist-PWA: Termine über einen Datumsbereich (mehrere Tage) laden.
+export async function fetchAppointmentsForArtistRange(artistId: string, startDateISO: string, endDateISO: string) {
+  const start = `${startDateISO}T00:00:00`;
+  const end = `${endDateISO}T23:59:59`;
+  const { data, error } = await supabase
+    .from('appointments')
+    .select('*, customers(vorname, name, phone), appointment_line_items(quantity, unit_price, services(name)), orders(total, status)')
+    .eq('artist_id', artistId)
+    .eq('type', 'termin')
+    .gte('start_time', start)
+    .lte('start_time', end)
+    .order('start_time');
+  if (error) throw error;
+  return data;
+}
+
 // Grobe Umsatzstatistik für die Artist-PWA: Summe bezahlter Bestellungen zu eigenen
 // Terminen für heute / diese Woche / diesen Monat, plus geschätzter eigener Anteil
 // (Miet- & Serviceanteil in % auf den Gesamtbetrag — vereinfachte Näherung, da

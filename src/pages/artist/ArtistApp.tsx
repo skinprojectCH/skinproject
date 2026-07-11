@@ -3,7 +3,7 @@ import { useParams } from 'react-router-dom';
 import { supabase } from '../../lib/supabaseClient';
 import {
   fetchArtistById,
-  fetchAppointmentsForArtistDay,
+  fetchAppointmentsForArtistRange,
   fetchArtistRevenueStats,
   fetchDocumentsForAppointment,
   uploadCustomerFile,
@@ -643,72 +643,120 @@ function AppointmentDetail({ appt, artistId, locationId, onClose }: { appt: any;
 // ============================================================
 // Termine-Tab: Tageskalender (Liste, keine Wochenansicht)
 // ============================================================
+const CHUNK_DAYS = 14;
+
+function formatDateHeader(dateISO: string) {
+  const today = todayISO();
+  if (dateISO === today) return 'Heute';
+  if (dateISO === shiftISO(today, 1)) return 'Morgen';
+  return new Date(dateISO).toLocaleDateString('de-CH', { weekday: 'long', day: 'numeric', month: 'long' });
+}
+
 function TermineTab({ artistId, locationId }: { artistId: string; locationId: string | null }) {
-  const [date, setDate] = useState(todayISO());
   const [appointments, setAppointments] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [rangeEndOffset, setRangeEndOffset] = useState(0);
   const [selected, setSelected] = useState<any | null>(null);
   const [showNew, setShowNew] = useState(false);
+  const sentinelRef = useRef<HTMLDivElement>(null);
+
+  async function loadChunk(fromOffset: number, toOffset: number, append: boolean) {
+    const start = shiftISO(todayISO(), fromOffset);
+    const end = shiftISO(todayISO(), toOffset);
+    const data = await fetchAppointmentsForArtistRange(artistId, start, end);
+    setAppointments((prev) => (append ? [...prev, ...data] : data));
+  }
 
   function reload() {
     setLoading(true);
-    fetchAppointmentsForArtistDay(artistId, date)
-      .then(setAppointments)
+    setError(null);
+    loadChunk(0, CHUNK_DAYS, false)
+      .then(() => setRangeEndOffset(CHUNK_DAYS))
       .catch((e) => setError(e.message))
       .finally(() => setLoading(false));
   }
 
-  useEffect(reload, [artistId, date]);
+  useEffect(reload, [artistId]);
+
+  function loadMore() {
+    if (loadingMore || loading) return;
+    setLoadingMore(true);
+    const newEnd = rangeEndOffset + CHUNK_DAYS;
+    loadChunk(rangeEndOffset + 1, newEnd, true)
+      .then(() => setRangeEndOffset(newEnd))
+      .catch((e) => setError(e.message))
+      .finally(() => setLoadingMore(false));
+  }
+
+  useEffect(() => {
+    const el = sentinelRef.current;
+    if (!el) return;
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting) loadMore();
+      },
+      { rootMargin: '200px' }
+    );
+    observer.observe(el);
+    return () => observer.disconnect();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [rangeEndOffset, loading, loadingMore]);
+
+  const grouped = (() => {
+    const map: Record<string, any[]> = {};
+    for (const appt of appointments) {
+      const d = appt.start_time.slice(0, 10);
+      (map[d] ||= []).push(appt);
+    }
+    return Object.entries(map).sort(([a], [b]) => a.localeCompare(b));
+  })();
 
   return (
     <div>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
-        <button onClick={() => setDate(shiftISO(date, -1))} style={navBtnStyle}>‹</button>
-        <div style={{ textAlign: 'center' }}>
-          <div style={{ fontSize: 14, fontWeight: 700 }}>{new Date(date).toLocaleDateString('de-CH', { weekday: 'long', day: 'numeric', month: 'long' })}</div>
-          {date !== todayISO() && (
-            <div onClick={() => setDate(todayISO())} style={{ fontSize: 11, color: 'var(--color-accent)', fontWeight: 600, cursor: 'pointer', marginTop: 2 }}>
-              Heute
-            </div>
-          )}
-        </div>
-        <button onClick={() => setDate(shiftISO(date, 1))} style={navBtnStyle}>›</button>
-      </div>
-
       <button className="btn btn-primary" style={{ width: '100%', justifyContent: 'center', marginBottom: 16 }} onClick={() => setShowNew(true)}>
         + Neuer Termin
       </button>
 
       {loading && <div style={{ fontSize: 13, color: '#999' }}>Lädt…</div>}
       {error && <div style={{ fontSize: 13, color: 'var(--color-destructive)' }}>{error}</div>}
-      {!loading && !error && appointments.length === 0 && <div style={{ fontSize: 13, color: '#999' }}>Keine Termine an diesem Tag.</div>}
+      {!loading && !error && appointments.length === 0 && <div style={{ fontSize: 13, color: '#999' }}>Keine kommenden Termine.</div>}
 
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-        {appointments.map((appt) => {
-          const statusInfo = STATUS_LABELS[appt.status] || STATUS_LABELS.gebucht;
-          const services = (appt.appointment_line_items || []).map((li: any) => li.services?.name).filter(Boolean);
-          return (
-            <div
-              key={appt.id}
-              onClick={() => setSelected(appt)}
-              style={{ border: '1px solid var(--color-border)', borderRadius: 8, padding: '14px 16px', background: 'var(--color-surface)', cursor: 'pointer' }}
-            >
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 10 }}>
-                <div>
-                  <div style={{ fontSize: 13, fontWeight: 700 }}>
-                    {new Date(appt.start_time).toLocaleTimeString('de-CH', { hour: '2-digit', minute: '2-digit' })} · {appt.customers ? `${appt.customers.vorname} ${appt.customers.name}` : 'Laufkunde'}
+      {!loading &&
+        grouped.map(([dateKey, appts]) => (
+          <div key={dateKey} style={{ marginBottom: 20 }}>
+            <div style={{ fontSize: 12, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.5, color: '#999', marginBottom: 8 }}>{formatDateHeader(dateKey)}</div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+              {appts.map((appt) => {
+                const statusInfo = STATUS_LABELS[appt.status] || STATUS_LABELS.gebucht;
+                const services = (appt.appointment_line_items || []).map((li: any) => li.services?.name).filter(Boolean);
+                return (
+                  <div
+                    key={appt.id}
+                    onClick={() => setSelected(appt)}
+                    style={{ border: '1px solid var(--color-border)', borderRadius: 8, padding: '14px 16px', background: 'var(--color-surface)', cursor: 'pointer' }}
+                  >
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 10 }}>
+                      <div>
+                        <div style={{ fontSize: 13, fontWeight: 700 }}>
+                          {new Date(appt.start_time).toLocaleTimeString('de-CH', { hour: '2-digit', minute: '2-digit' })} · {appt.customers ? `${appt.customers.vorname} ${appt.customers.name}` : 'Laufkunde'}
+                        </div>
+                        <div style={{ fontSize: 12, color: '#777', marginTop: 2 }}>{services.join(', ') || '—'}</div>
+                      </div>
+                      <div style={{ border: `1px solid ${statusInfo.color}`, color: statusInfo.color, borderRadius: 10, padding: '2px 10px', fontSize: 10, fontWeight: 600, flexShrink: 0, textTransform: 'uppercase' }}>
+                        {statusInfo.label}
+                      </div>
+                    </div>
                   </div>
-                  <div style={{ fontSize: 12, color: '#777', marginTop: 2 }}>{services.join(', ') || '—'}</div>
-                </div>
-                <div style={{ border: `1px solid ${statusInfo.color}`, color: statusInfo.color, borderRadius: 10, padding: '2px 10px', fontSize: 10, fontWeight: 600, flexShrink: 0, textTransform: 'uppercase' }}>
-                  {statusInfo.label}
-                </div>
-              </div>
+                );
+              })}
             </div>
-          );
-        })}
-      </div>
+          </div>
+        ))}
+
+      <div ref={sentinelRef} style={{ height: 1 }} />
+      {loadingMore && <div style={{ fontSize: 12, color: '#999', textAlign: 'center', padding: '10px 0' }}>Lädt weitere Termine…</div>}
 
       {selected && <AppointmentDetail appt={selected} artistId={artistId} locationId={locationId} onClose={() => { setSelected(null); reload(); }} />}
 
@@ -734,16 +782,6 @@ function TermineTab({ artistId, locationId }: { artistId: string; locationId: st
     </div>
   );
 }
-
-const navBtnStyle: React.CSSProperties = {
-  width: 32,
-  height: 32,
-  borderRadius: 16,
-  border: '1px solid var(--color-border)',
-  background: 'var(--color-surface)',
-  fontSize: 16,
-  cursor: 'pointer',
-};
 
 // ============================================================
 // Umsatz-Tab
