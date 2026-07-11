@@ -1,4 +1,5 @@
 import { NavLink, useLocation } from 'react-router-dom';
+import { useLocationContext } from '../lib/locationContext';
 
 const ADMIN_SUB_ITEMS: { key: string; label: string; path: string }[] = [
   { key: 'artists', label: 'Artists', path: '/admin/artists' },
@@ -29,6 +30,56 @@ function itemStyle(isActive: boolean): React.CSSProperties {
   };
 }
 
+function StarIcon({ filled }: { filled: boolean }) {
+  return (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill={filled ? 'var(--color-accent)' : 'none'} stroke="var(--color-accent)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
+    </svg>
+  );
+}
+
+function LocationSwitcher() {
+  const { locations, locationsLoaded, selectedLocationId, setSelectedLocationId, favoriteLocationId, toggleFavorite } = useLocationContext();
+
+  if (!locationsLoaded || locations.length === 0) return null;
+
+  return (
+    <div style={{ padding: '0 20px 18px' }}>
+      <div style={{ fontSize: 10, textTransform: 'uppercase', letterSpacing: 0.5, color: '#888', marginBottom: 6 }}>Standort</div>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+        <select
+          value={selectedLocationId}
+          onChange={(e) => setSelectedLocationId(e.target.value)}
+          style={{
+            flex: 1,
+            minWidth: 0,
+            background: 'rgba(255,255,255,0.07)',
+            border: '1px solid rgba(255,255,255,0.18)',
+            color: '#eee',
+            padding: '7px 8px',
+            fontSize: 12,
+            borderRadius: 4,
+            fontFamily: 'var(--font-body)',
+          }}
+        >
+          {locations.map((l) => (
+            <option key={l.id} value={l.id} style={{ color: '#111' }}>
+              {l.name}
+            </option>
+          ))}
+        </select>
+        <button
+          onClick={toggleFavorite}
+          title={favoriteLocationId === selectedLocationId ? 'Als Favorit entfernen' : 'Als Favorit markieren'}
+          style={{ background: 'none', border: 'none', cursor: 'pointer', display: 'flex', padding: 4, flexShrink: 0 }}
+        >
+          <StarIcon filled={favoriteLocationId === selectedLocationId} />
+        </button>
+      </div>
+    </div>
+  );
+}
+
 export default function Sidebar() {
   const location = useLocation();
   const isAdminSection = location.pathname.startsWith('/admin');
@@ -45,6 +96,8 @@ export default function Sidebar() {
       }}
     >
       <nav style={{ display: 'flex', flexDirection: 'column' }}>
+        <LocationSwitcher />
+
         {TOP_ITEMS.map((item) => (
           <NavLink key={item.key} to={item.path} style={({ isActive }) => itemStyle(isActive)}>
             {item.label}

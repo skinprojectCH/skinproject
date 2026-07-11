@@ -2,9 +2,8 @@ import { useEffect, useState } from 'react';
 import TerminModal from '../components/TerminModal';
 import EditTerminModal from '../components/EditTerminModal';
 import Modal from '../components/Modal';
-import { fetchAppointmentsForDay, fetchArtists, fetchLocations, fetchCurrentUserLocationId, fetchShiftsForDate, fetchAbsencesForDate, fetchWalkInOrdersForDay, deleteAbsence, type Artist, type Location, type Shift, type Absence } from '../lib/queries';
-
-const FAVORITE_LOCATION_KEY = 'skinproject:favoriteLocationId';
+import { fetchAppointmentsForDay, fetchArtists, fetchShiftsForDate, fetchAbsencesForDate, fetchWalkInOrdersForDay, deleteAbsence, type Artist, type Shift, type Absence } from '../lib/queries';
+import { useLocationContext } from '../lib/locationContext';
 
 type ViewMode = 'tag' | 'woche' | 'liste';
 
@@ -161,14 +160,6 @@ function XIcon() {
     <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
       <line x1="18" y1="6" x2="6" y2="18" />
       <line x1="6" y1="6" x2="18" y2="18" />
-    </svg>
-  );
-}
-
-function StarIcon({ filled }: { filled: boolean }) {
-  return (
-    <svg width="16" height="16" viewBox="0 0 24 24" fill={filled ? 'var(--color-accent)' : 'none'} stroke="var(--color-accent)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
     </svg>
   );
 }
@@ -1021,6 +1012,7 @@ function ListView({
 }
 
 export default function Kalender() {
+  const { locations, locationsLoaded, selectedLocationId } = useLocationContext();
   const [view, setView] = useState<ViewMode>('tag');
   const [showNewTermin, setShowNewTermin] = useState(false);
   const [newTerminPrefill, setNewTerminPrefill] = useState<{ artistId?: string; time?: string; date?: string }>({});
@@ -1031,32 +1023,10 @@ export default function Kalender() {
   const [shifts, setShifts] = useState<Shift[]>([]);
   const [absences, setAbsences] = useState<Absence[]>([]);
   const [walkInOrders, setWalkInOrders] = useState<any[]>([]);
-  const [locations, setLocations] = useState<Location[]>([]);
-  const [selectedLocationId, setSelectedLocationId] = useState<string>('');
-  const [favoriteLocationId, setFavoriteLocationId] = useState<string | null>(() => localStorage.getItem(FAVORITE_LOCATION_KEY));
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [date, setDate] = useState(todayISO());
-  const [locationsLoaded, setLocationsLoaded] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0);
-
-  // Locations einmalig laden, danach Standort vorauswählen:
-  // 1. Standort, der dem eingeloggten Account zugewiesen ist (app_users.location_id) — hat Vorrang
-  // 2. sonst lokaler Browser-Favorit
-  // 3. sonst die erste Location
-  useEffect(() => {
-    Promise.all([fetchLocations(), fetchCurrentUserLocationId()])
-      .then(([data, accountLocationId]) => {
-        setLocations(data);
-        const fav = localStorage.getItem(FAVORITE_LOCATION_KEY);
-        const accountValid = accountLocationId && data.some((l) => l.id === accountLocationId);
-        const favValid = fav && data.some((l) => l.id === fav);
-        const initial = accountValid ? accountLocationId! : favValid ? fav! : data[0]?.id || '';
-        setSelectedLocationId(initial);
-      })
-      .catch((e) => setError(e.message))
-      .finally(() => setLocationsLoaded(true));
-  }, []);
 
   async function reload() {
     if (!selectedLocationId) return;
@@ -1086,16 +1056,6 @@ export default function Kalender() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [date, selectedLocationId]);
 
-  function toggleFavorite() {
-    if (favoriteLocationId === selectedLocationId) {
-      localStorage.removeItem(FAVORITE_LOCATION_KEY);
-      setFavoriteLocationId(null);
-    } else {
-      localStorage.setItem(FAVORITE_LOCATION_KEY, selectedLocationId);
-      setFavoriteLocationId(selectedLocationId);
-    }
-  }
-
   function shiftDate(days: number) {
     const d = new Date(date);
     d.setDate(d.getDate() + days);
@@ -1118,26 +1078,6 @@ export default function Kalender() {
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 22, flexWrap: 'wrap', gap: 10, flexShrink: 0 }}>
         <h1 style={{ fontSize: 26 }}>Kalender</h1>
         <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-            <select
-              value={selectedLocationId}
-              onChange={(e) => setSelectedLocationId(e.target.value)}
-              style={{ border: '1px solid var(--color-border)', padding: '7px 10px', fontSize: 12, borderRadius: 4, fontFamily: 'var(--font-body)' }}
-            >
-              {locations.map((l) => (
-                <option key={l.id} value={l.id}>
-                  {l.name}
-                </option>
-              ))}
-            </select>
-            <button
-              onClick={toggleFavorite}
-              title={favoriteLocationId === selectedLocationId ? 'Als Favorit entfernen' : 'Als Favorit markieren'}
-              style={{ background: 'none', border: 'none', cursor: 'pointer', display: 'flex', padding: 4 }}
-            >
-              <StarIcon filled={favoriteLocationId === selectedLocationId} />
-            </button>
-          </div>
           <ViewToggle view={view} onChange={setView} />
           <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
             <button
