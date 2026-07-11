@@ -267,8 +267,7 @@ export default function KundeDetail() {
             <input value={plzOrt} onChange={(e) => setPlzOrt(e.target.value)} style={inputStyle} placeholder="—" />
           </div>
 
-          <div style={{ border: '1px solid #eee', borderRadius: 6, padding: 14, marginBottom: 20 }}>
-            <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 10 }}>Notizen</div>
+          <div style={{ border: '1px solid var(--color-border)', borderRadius: 6, padding: 14, marginBottom: 20, background: 'var(--color-surface)' }}>
             <textarea
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
@@ -277,7 +276,7 @@ export default function KundeDetail() {
             />
           </div>
 
-          <div style={{ border: '1px solid #eee', borderRadius: 6, padding: 14, marginBottom: 20 }}>
+          <div style={{ border: '1px solid var(--color-border)', borderRadius: 6, padding: 14, marginBottom: 20, background: 'var(--color-surface)' }}>
             <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 10 }}>Dokumente</div>
             {docsLoading ? (
               <div style={{ fontSize: 12, color: '#999' }}>Lädt…</div>
@@ -286,7 +285,7 @@ export default function KundeDetail() {
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 10 }}>
                 {documents.map((doc) => (
-                  <div key={doc.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 12, border: '1px solid #eee', borderRadius: 4, padding: '8px 10px' }}>
+                  <div key={doc.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 12, border: '1px solid var(--color-border)', borderRadius: 4, padding: '8px 10px' }}>
                     <div style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{doc.storage_path.split('/').pop()}</div>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
                       <div onClick={() => handleOpenFile(doc)} style={{ color: 'var(--color-accent)', fontWeight: 600, cursor: 'pointer' }}>
@@ -306,7 +305,7 @@ export default function KundeDetail() {
             </div>
           </div>
 
-          <div style={{ border: '1px solid #eee', borderRadius: 6, padding: 14, marginBottom: 20 }}>
+          <div style={{ border: '1px solid var(--color-border)', borderRadius: 6, padding: 14, marginBottom: 20, background: 'var(--color-surface)' }}>
             <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 10 }}>Fotos</div>
             {photos.length > 0 && (
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 6, marginBottom: 10 }}>
@@ -398,7 +397,7 @@ export default function KundeDetail() {
                 const apptPhotos = apptFiles.filter((d) => d.type === 'photo');
                 const isExpanded = expandedApptId === appt.id;
                 return (
-                  <div key={appt.id} style={{ border: '1px solid var(--color-border-subtle)', borderRadius: 8, padding: '14px 16px', marginBottom: 12 }}>
+                  <div key={appt.id} style={{ border: '1px solid var(--color-border)', borderRadius: 8, padding: '14px 16px', marginBottom: 12, background: 'var(--color-surface)' }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12 }}>
                       <div style={{ fontSize: 13, fontWeight: 700 }}>
                         {new Date(appt.start_time).toLocaleDateString('de-CH', { day: '2-digit', month: '2-digit', year: 'numeric' })}
@@ -433,7 +432,7 @@ export default function KundeDetail() {
                       {apptDocs.length > 0 && (
                         <div
                           onClick={() => setExpandedApptId(isExpanded ? null : appt.id)}
-                          style={{ border: '1px solid var(--color-border-subtle)', borderRadius: 10, padding: '3px 10px', fontSize: 11, color: '#777', cursor: 'pointer' }}
+                          style={{ border: '1px solid var(--color-border)', borderRadius: 10, padding: '3px 10px', fontSize: 11, color: '#777', cursor: 'pointer' }}
                         >
                           {apptDocs.length} {apptDocs.length === 1 ? 'Dokument' : 'Dokumente'}
                         </div>
@@ -441,7 +440,7 @@ export default function KundeDetail() {
                       {apptPhotos.length > 0 && (
                         <div
                           onClick={() => setExpandedApptId(isExpanded ? null : appt.id)}
-                          style={{ border: '1px solid var(--color-border-subtle)', borderRadius: 10, padding: '3px 10px', fontSize: 11, color: '#777', cursor: 'pointer' }}
+                          style={{ border: '1px solid var(--color-border)', borderRadius: 10, padding: '3px 10px', fontSize: 11, color: '#777', cursor: 'pointer' }}
                         >
                           {apptPhotos.length} {apptPhotos.length === 1 ? 'Foto' : 'Fotos'}
                         </div>
@@ -455,9 +454,9 @@ export default function KundeDetail() {
                     </div>
 
                     {isExpanded && apptFiles.length > 0 && (
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginTop: 10, paddingTop: 10, borderTop: '1px solid var(--color-border-subtle)' }}>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginTop: 10, paddingTop: 10, borderTop: '1px solid var(--color-border)' }}>
                         {apptFiles.map((doc) => (
-                          <div key={doc.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 12, border: '1px solid var(--color-border-subtle)', borderRadius: 4, padding: '6px 10px' }}>
+                          <div key={doc.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 12, border: '1px solid var(--color-border)', borderRadius: 4, padding: '6px 10px' }}>
                             <div style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{doc.storage_path.split('/').pop()}</div>
                             <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
                               <div onClick={() => handleOpenFile(doc)} style={{ color: 'var(--color-accent)', fontWeight: 600, cursor: 'pointer' }}>
