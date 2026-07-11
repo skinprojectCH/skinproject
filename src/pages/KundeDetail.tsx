@@ -54,6 +54,8 @@ export default function KundeDetail() {
   const apptPhotoInputRef = useRef<HTMLInputElement>(null);
   const [activeApptId, setActiveApptId] = useState<string | null>(null);
   const [expandedApptId, setExpandedApptId] = useState<string | null>(null);
+  const [photoUrls, setPhotoUrls] = useState<Record<string, string>>({});
+  const [lightboxUrl, setLightboxUrl] = useState<string | null>(null);
 
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
@@ -119,6 +121,34 @@ export default function KundeDetail() {
       return order && order.status === 'bezahlt' ? sum + Number(order.total) : sum;
     }, 0);
   }, [appointmentHistory]);
+
+  useEffect(() => {
+    const allPhotoDocs = [...photos, ...appointmentDocs.filter((d) => d.type === 'photo')];
+    const missing = allPhotoDocs.filter((p) => !photoUrls[p.id]);
+    if (missing.length === 0) return;
+    let cancelled = false;
+    Promise.all(
+      missing.map(async (p) => {
+        try {
+          const url = await getCustomerFileUrl(p.storage_path);
+          return [p.id, url] as const;
+        } catch {
+          return null;
+        }
+      })
+    ).then((results) => {
+      if (cancelled) return;
+      setPhotoUrls((prev) => {
+        const next = { ...prev };
+        for (const r of results) if (r) next[r[0]] = r[1];
+        return next;
+      });
+    });
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [photos, appointmentDocs]);
 
   function handlePhoneBlur() {
     if (phone.trim()) setPhone(normalizePhone(phone));
@@ -192,6 +222,15 @@ export default function KundeDetail() {
     try {
       const url = await getCustomerFileUrl(doc.storage_path);
       window.open(url, '_blank');
+    } catch (e: any) {
+      setFileError(e.message);
+    }
+  }
+
+  async function openLightbox(doc: CustomerDocument) {
+    try {
+      const url = photoUrls[doc.id] || (await getCustomerFileUrl(doc.storage_path));
+      setLightboxUrl(url);
     } catch (e: any) {
       setFileError(e.message);
     }
@@ -310,9 +349,13 @@ export default function KundeDetail() {
             {photos.length > 0 && (
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 6, marginBottom: 10 }}>
                 {photos.map((p) => (
-                  <div key={p.id} onClick={() => handleOpenFile(p)} style={{ position: 'relative', cursor: 'pointer' }}>
+                  <div key={p.id} onClick={() => openLightbox(p)} style={{ position: 'relative', cursor: 'pointer' }}>
                     <div style={{ aspectRatio: '1', background: '#EFEEEA', borderRadius: 4, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 9, color: '#999', overflow: 'hidden' }}>
-                      Foto
+                      {photoUrls[p.id] ? (
+                        <img src={photoUrls[p.id]} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
+                      ) : (
+                        'Foto'
+                      )}
                     </div>
                     <div
                       onClick={(e) => {
@@ -454,20 +497,47 @@ export default function KundeDetail() {
                     </div>
 
                     {isExpanded && apptFiles.length > 0 && (
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginTop: 10, paddingTop: 10, borderTop: '1px solid var(--color-border)' }}>
-                        {apptFiles.map((doc) => (
-                          <div key={doc.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 12, border: '1px solid var(--color-border)', borderRadius: 4, padding: '6px 10px' }}>
-                            <div style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{doc.storage_path.split('/').pop()}</div>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
-                              <div onClick={() => handleOpenFile(doc)} style={{ color: 'var(--color-accent)', fontWeight: 600, cursor: 'pointer' }}>
-                                Öffnen
+                      <div style={{ marginTop: 10, paddingTop: 10, borderTop: '1px solid var(--color-border)' }}>
+                        {apptDocs.length > 0 && (
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: apptPhotos.length > 0 ? 10 : 0 }}>
+                            {apptDocs.map((doc) => (
+                              <div key={doc.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 12, border: '1px solid var(--color-border)', borderRadius: 4, padding: '6px 10px' }}>
+                                <div style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{doc.storage_path.split('/').pop()}</div>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
+                                  <div onClick={() => handleOpenFile(doc)} style={{ color: 'var(--color-accent)', fontWeight: 600, cursor: 'pointer' }}>
+                                    Öffnen
+                                  </div>
+                                  <div onClick={() => handleDeleteFile(doc)} style={{ color: '#999', cursor: 'pointer' }}>
+                                    ✕
+                                  </div>
+                                </div>
                               </div>
-                              <div onClick={() => handleDeleteFile(doc)} style={{ color: '#999', cursor: 'pointer' }}>
-                                ✕
-                              </div>
-                            </div>
+                            ))}
                           </div>
-                        ))}
+                        )}
+                        {apptPhotos.length > 0 && (
+                          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 6 }}>
+                            {apptPhotos.map((p) => (
+                              <div key={p.id} style={{ position: 'relative', cursor: 'pointer' }}>
+                                <div
+                                  onClick={() => openLightbox(p)}
+                                  style={{ aspectRatio: '1', background: '#EFEEEA', borderRadius: 4, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 9, color: '#999', overflow: 'hidden' }}
+                                >
+                                  {photoUrls[p.id] ? <img src={photoUrls[p.id]} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} /> : 'Foto'}
+                                </div>
+                                <div
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleDeleteFile(p);
+                                  }}
+                                  style={{ position: 'absolute', top: 2, right: 2, background: 'rgba(0,0,0,0.5)', color: '#fff', borderRadius: '50%', width: 16, height: 16, fontSize: 10, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                                >
+                                  ✕
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        )}
                       </div>
                     )}
                   </div>
@@ -496,6 +566,21 @@ export default function KundeDetail() {
           />
         </div>
       </div>
+
+      {lightboxUrl && (
+        <div
+          onClick={() => setLightboxUrl(null)}
+          style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.75)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, cursor: 'zoom-out' }}
+        >
+          <img src={lightboxUrl} onClick={(e) => e.stopPropagation()} style={{ maxWidth: '90vw', maxHeight: '90vh', borderRadius: 6, boxShadow: '0 10px 40px rgba(0,0,0,0.4)' }} />
+          <div
+            onClick={() => setLightboxUrl(null)}
+            style={{ position: 'fixed', top: 20, right: 24, color: '#fff', fontSize: 28, cursor: 'pointer', lineHeight: 1 }}
+          >
+            ✕
+          </div>
+        </div>
+      )}
     </div>
   );
 }
