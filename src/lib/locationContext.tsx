@@ -10,6 +10,7 @@ interface LocationContextValue {
   setSelectedLocationId: (id: string) => void;
   favoriteLocationId: string | null;
   toggleFavorite: () => void;
+  isLocationLocked: boolean;
 }
 
 const LocationContext = createContext<LocationContextValue | null>(null);
@@ -19,10 +20,12 @@ export function LocationProvider({ children }: { children: ReactNode }) {
   const [locationsLoaded, setLocationsLoaded] = useState(false);
   const [selectedLocationId, setSelectedLocationId] = useState('');
   const [favoriteLocationId, setFavoriteLocationId] = useState<string | null>(() => localStorage.getItem(FAVORITE_LOCATION_KEY));
+  const [isLocationLocked, setIsLocationLocked] = useState(false);
 
   // Locations einmalig laden, danach Standort vorauswählen:
-  // 1. Standort, der dem eingeloggten Account zugewiesen ist (app_users.location_id) — hat Vorrang
-  // 2. sonst lokaler Browser-Favorit
+  // 1. Standort, der dem eingeloggten Account fest zugewiesen ist (app_users.location_id)
+  //    -> Salon-Manager-Login ist an eine Location geknüpft, Dropdown wird gesperrt
+  // 2. sonst lokaler Browser-Favorit (nur Hauptadmin ohne feste Location)
   // 3. sonst die erste Location
   useEffect(() => {
     Promise.all([fetchLocations(), fetchCurrentUserLocationId()])
@@ -33,6 +36,7 @@ export function LocationProvider({ children }: { children: ReactNode }) {
         const favValid = fav && data.some((l) => l.id === fav);
         const initial = accountValid ? accountLocationId! : favValid ? fav! : data[0]?.id || '';
         setSelectedLocationId(initial);
+        setIsLocationLocked(!!accountValid);
       })
       .finally(() => setLocationsLoaded(true));
   }, []);
@@ -48,7 +52,7 @@ export function LocationProvider({ children }: { children: ReactNode }) {
   }
 
   return (
-    <LocationContext.Provider value={{ locations, locationsLoaded, selectedLocationId, setSelectedLocationId, favoriteLocationId, toggleFavorite }}>
+    <LocationContext.Provider value={{ locations, locationsLoaded, selectedLocationId, setSelectedLocationId, favoriteLocationId, toggleFavorite, isLocationLocked }}>
       {children}
     </LocationContext.Provider>
   );
