@@ -437,6 +437,7 @@ function TerminForm({
 // ============================================================
 function AppointmentDetail({ appt, artistId, locationId, onClose }: { appt: any; artistId: string; locationId: string | null; onClose: () => void }) {
   const [editing, setEditing] = useState(false);
+  const [showingDetails, setShowingDetails] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
@@ -564,7 +565,22 @@ function AppointmentDetail({ appt, artistId, locationId, onClose }: { appt: any;
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                   <div style={{ fontSize: 13, fontWeight: 700 }}>Termin</div>
                   <div style={{ display: 'flex', gap: 14 }}>
-                    <div onClick={() => setEditing(true)} style={{ fontSize: 12, color: 'var(--color-accent)', fontWeight: 600, cursor: 'pointer' }}>
+                    <div
+                      onClick={() => {
+                        setShowingDetails((v) => !v);
+                        setConfirmDelete(false);
+                      }}
+                      style={{ fontSize: 12, color: showingDetails ? '#111' : 'var(--color-accent)', fontWeight: 600, cursor: 'pointer' }}
+                    >
+                      Anzeigen
+                    </div>
+                    <div
+                      onClick={() => {
+                        setEditing(true);
+                        setShowingDetails(false);
+                      }}
+                      style={{ fontSize: 12, color: 'var(--color-accent)', fontWeight: 600, cursor: 'pointer' }}
+                    >
                       Bearbeiten
                     </div>
                     {!confirmDelete && (
@@ -574,6 +590,40 @@ function AppointmentDetail({ appt, artistId, locationId, onClose }: { appt: any;
                     )}
                   </div>
                 </div>
+
+                {showingDetails && (
+                  <div style={{ marginTop: 12, paddingTop: 12, borderTop: '1px solid var(--color-border)', fontSize: 13, display: 'flex', flexDirection: 'column', gap: 6 }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                      <div style={{ color: '#777' }}>Kunde</div>
+                      <div style={{ fontWeight: 600 }}>{appt.customers ? `${appt.customers.vorname} ${appt.customers.name}` : 'Laufkunde'}</div>
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                      <div style={{ color: '#777' }}>Datum</div>
+                      <div style={{ fontWeight: 600 }}>{new Date(appt.start_time).toLocaleDateString('de-CH', { weekday: 'short', day: '2-digit', month: '2-digit', year: 'numeric' })}</div>
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                      <div style={{ color: '#777' }}>Zeit</div>
+                      <div style={{ fontWeight: 600 }}>
+                        {new Date(appt.start_time).toLocaleTimeString('de-CH', { hour: '2-digit', minute: '2-digit' })}
+                        {appt.end_time ? ` – ${new Date(appt.end_time).toLocaleTimeString('de-CH', { hour: '2-digit', minute: '2-digit' })}` : ''}
+                      </div>
+                    </div>
+                    <div style={{ borderTop: '1px solid var(--color-border)', marginTop: 4, paddingTop: 8 }}>
+                      <div style={{ color: '#777', marginBottom: 4 }}>Services</div>
+                      {(appt.appointment_line_items || []).length === 0 ? (
+                        <div style={{ color: '#999' }}>—</div>
+                      ) : (
+                        (appt.appointment_line_items || []).map((li: any, i: number) => (
+                          <div key={i} style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 2 }}>
+                            <div>{li.services?.name || '—'}</div>
+                            <div style={{ color: '#777' }}>CHF {li.unit_price}</div>
+                          </div>
+                        ))
+                      )}
+                    </div>
+                  </div>
+                )}
+
                 {confirmDelete && (
                   <div style={{ marginTop: 12, paddingTop: 12, borderTop: '1px solid var(--color-border)' }}>
                     <div style={{ fontSize: 12, color: '#555', marginBottom: 10 }}>Termin wirklich löschen? Das kann nicht rückgängig gemacht werden.</div>
