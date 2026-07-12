@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useLocationContext } from '../../lib/locationContext';
-import { fetchLocationBilling, fetchLocationArtistBillingDetail, type LocationBilling, type LocationBillingArtistRow, type LocationArtistBillingEntry } from '../../lib/queries';
+import { fetchLocationBilling, fetchLocationArtistBillingDetail, fetchLocations, type LocationBilling, type LocationBillingArtistRow, type LocationArtistBillingEntry } from '../../lib/queries';
 import { formatCHF } from '../../lib/format';
 import Modal from '../../components/Modal';
 
@@ -180,7 +180,7 @@ function ArtistDetailModal({
   );
 }
 
-function MwstBerechnung({ locationId, locationName, saldosteuersatz }: { locationId: string; locationName: string; saldosteuersatz: number | null }) {
+function MwstBerechnung({ locationId, locationName }: { locationId: string; locationName: string }) {
   const [von, setVon] = useState(() => {
     const d = new Date();
     return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-01`;
@@ -190,6 +190,16 @@ function MwstBerechnung({ locationId, locationName, saldosteuersatz }: { locatio
   const [billing, setBilling] = useState<LocationBilling | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [saldosteuersatz, setSaldosteuersatz] = useState<number | null>(null);
+
+  // Immer frisch laden statt aus dem geteilten LocationContext (der nur beim App-Start
+  // einmal geladen wird und nach einer Änderung unter Locations veraltet sein kann).
+  useEffect(() => {
+    if (!locationId) return;
+    fetchLocations()
+      .then((locs) => setSaldosteuersatz(locs.find((l) => l.id === locationId)?.saldosteuersatz ?? null))
+      .catch(() => setSaldosteuersatz(null));
+  }, [locationId]);
 
   useEffect(() => {
     if (!locationId || !von || !bis) return;
@@ -355,7 +365,7 @@ export default function Abrechnung() {
       </div>
 
       {period === 'mwst' ? (
-        <MwstBerechnung locationId={locationId} locationName={currentLocationName} saldosteuersatz={locations.find((l) => l.id === locationId)?.saldosteuersatz ?? null} />
+        <MwstBerechnung locationId={locationId} locationName={currentLocationName} />
       ) : (
         <>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 14, marginBottom: 20 }}>

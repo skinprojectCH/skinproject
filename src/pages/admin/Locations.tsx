@@ -382,7 +382,7 @@ export default function Locations() {
 
           <div style={{ border: '1px solid var(--color-border)', borderRadius: 6, padding: 14, marginBottom: 24, background: 'var(--color-surface)' }}>
             <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 12 }}>MWST</div>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 140px', gap: 14 }}>
+            <div style={{ display: 'grid', gridTemplateColumns: '1.4fr 110px 130px', gap: 14 }}>
               <div>
                 <div className="label-uppercase" style={{ marginBottom: 4, whiteSpace: 'nowrap' }}>
                   MWST-Nummer
@@ -402,14 +402,14 @@ export default function Locations() {
                 />
                 {attempted && mwstProzentMissing && <div style={{ fontSize: 11, color: 'var(--color-destructive)', marginTop: 4 }}>Satz fehlt, wenn eine MWST-Nummer eingetragen ist.</div>}
               </div>
-            </div>
-            <div style={{ marginTop: 14 }}>
-              <div className="label-uppercase" style={{ marginBottom: 4, whiteSpace: 'nowrap' }}>
-                Saldosteuersatz %
+              <div>
+                <div className="label-uppercase" style={{ marginBottom: 4, whiteSpace: 'nowrap' }}>
+                  Saldosteuersatz %
+                </div>
+                <input value={saldosteuersatz} onChange={(e) => setSaldosteuersatz(e.target.value)} style={inputStyle} inputMode="decimal" placeholder="5.3" />
               </div>
-              <input value={saldosteuersatz} onChange={(e) => setSaldosteuersatz(e.target.value)} style={{ ...inputStyle, maxWidth: 140 }} inputMode="decimal" placeholder="z.B. 5.3" />
-              <div style={{ fontSize: 11, color: '#999', marginTop: 4 }}>Für die MWST-Berechnung in der Abrechnung (vereinfachte Abrechnungsmethode, auf Salon-Umsatz ohne Artisten-Anteil).</div>
             </div>
+            <div style={{ fontSize: 11, color: '#999', marginTop: 10 }}>Saldosteuersatz: für die MWST-Berechnung in der Abrechnung (vereinfachte Abrechnungsmethode, auf Salon-Umsatz ohne Artisten-Anteil).</div>
           </div>
 
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
