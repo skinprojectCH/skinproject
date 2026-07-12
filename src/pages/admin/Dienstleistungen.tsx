@@ -338,6 +338,7 @@ export default function Dienstleistungen() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [hoveredRow, setHoveredRow] = useState<string | null>(null);
+  const [hoveredCategory, setHoveredCategory] = useState<string | null>(null);
 
   function reload() {
     setLoading(true);
@@ -376,9 +377,11 @@ export default function Dienstleistungen() {
         <div style={{ display: 'flex', flexDirection: 'column', fontSize: 13 }}>
           <button
             onClick={() => setCategoryId('Alle')}
+            onMouseEnter={() => setHoveredCategory('Alle')}
+            onMouseLeave={() => setHoveredCategory(null)}
             style={{
               padding: '8px 10px',
-              background: categoryId === 'Alle' ? '#111' : 'transparent',
+              background: categoryId === 'Alle' ? '#111' : hoveredCategory === 'Alle' ? '#fbfaf8' : 'transparent',
               color: categoryId === 'Alle' ? '#fff' : '#555',
               borderRadius: 4,
               marginBottom: 4,
@@ -390,7 +393,12 @@ export default function Dienstleistungen() {
             Alle
           </button>
           {categories.map((c) => (
-            <div key={c.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderRadius: 4, background: categoryId === c.id ? '#f4f2ed' : 'transparent' }}>
+            <div
+              key={c.id}
+              onMouseEnter={() => setHoveredCategory(c.id)}
+              onMouseLeave={() => setHoveredCategory(null)}
+              style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderRadius: 4, background: categoryId === c.id ? '#f4f2ed' : hoveredCategory === c.id ? '#fbfaf8' : 'transparent' }}
+            >
               <button
                 onClick={() => setCategoryId(c.id)}
                 style={{
@@ -411,7 +419,7 @@ export default function Dienstleistungen() {
               <button
                 onClick={() => setEditingCategory(c)}
                 title="Kategorie bearbeiten"
-                style={{ background: 'none', border: 'none', color: '#999', cursor: 'pointer', padding: '4px 8px', display: 'flex' }}
+                style={{ background: 'none', border: 'none', color: hoveredCategory === c.id ? 'var(--color-accent)' : '#999', cursor: 'pointer', padding: '4px 8px', display: 'flex' }}
               >
                 <EditIcon />
               </button>
