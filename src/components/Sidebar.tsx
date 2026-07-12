@@ -54,12 +54,14 @@ function PeopleIcon() {
   );
 }
 
-function MarketingIcon() {
+function GutscheinIcon() {
   return (
     <svg {...ICON_PROPS}>
-      <path d="M3 10v4a1 1 0 0 0 1 1h2l4.5 3.2a.6.6 0 0 0 .95-.5V6.3a.6.6 0 0 0-.95-.5L6 9H4a1 1 0 0 0-1 1z" />
-      <path d="M16 9.5a3.2 3.2 0 0 1 0 5" />
-      <path d="M18.5 7a6.3 6.3 0 0 1 0 10" />
+      <rect x="3.5" y="9.5" width="17" height="11" rx="1.5" />
+      <path d="M3.5 13.5h17" />
+      <path d="M12 9.5v11" />
+      <path d="M12 9.5c-1.4-3-6-3.2-6 0" />
+      <path d="M12 9.5c1.4-3 6-3.2 6 0" />
     </svg>
   );
 }
@@ -111,7 +113,7 @@ const NAV_ITEMS: NavItem[] = [
     key: 'gutscheine',
     label: 'Gutscheine',
     path: '/admin/gutscheine',
-    icon: () => <MarketingIcon />,
+    icon: () => <GutscheinIcon />,
   },
   {
     key: 'inventar',
