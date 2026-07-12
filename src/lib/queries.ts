@@ -87,6 +87,7 @@ export interface Location {
   telefon: string | null;
   email: string | null;
   mwst_prozent: number | null;
+  saldosteuersatz: number | null;
 }
 
 export interface LocationManager {
@@ -113,7 +114,7 @@ export async function fetchLocations() {
   return data as Location[];
 }
 
-export async function createLocation(input: { name: string; strasse: string | null; plz_ort: string | null; telefon: string | null; email: string | null; vat_number: string | null; mwst_prozent: number | null }) {
+export async function createLocation(input: { name: string; strasse: string | null; plz_ort: string | null; telefon: string | null; email: string | null; vat_number: string | null; mwst_prozent: number | null; saldosteuersatz?: number | null }) {
   const { data, error } = await supabase.from('locations').insert(input).select().single();
   if (error) throw error;
   return data as Location;

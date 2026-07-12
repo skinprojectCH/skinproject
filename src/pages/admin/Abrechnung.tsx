@@ -4,7 +4,7 @@ import { fetchLocationBilling, fetchLocationArtistBillingDetail, type LocationBi
 import { formatCHF } from '../../lib/format';
 import Modal from '../../components/Modal';
 
-type Period = 'tag' | 'monat' | 'jahr';
+type Period = 'tag' | 'monat' | 'jahr' | 'mwst';
 
 const MONTH_NAMES = ['Januar', 'Februar', 'März', 'April', 'Mai', 'Juni', 'Juli', 'August', 'September', 'Oktober', 'November', 'Dezember'];
 
@@ -180,6 +180,87 @@ function ArtistDetailModal({
   );
 }
 
+function MwstBerechnung({ locationId, locationName, saldosteuersatz }: { locationId: string; locationName: string; saldosteuersatz: number | null }) {
+  const [von, setVon] = useState(() => {
+    const d = new Date();
+    return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-01`;
+  });
+  const [bis, setBis] = useState(todayISO());
+
+  const [billing, setBilling] = useState<LocationBilling | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!locationId || !von || !bis) return;
+    setLoading(true);
+    setError(null);
+    fetchLocationBilling(locationId, von, bis)
+      .then(setBilling)
+      .catch((e) => setError(e.message))
+      .finally(() => setLoading(false));
+  }, [locationId, von, bis]);
+
+  const totalPayout = billing?.artistRows.reduce((s, r) => s + r.payout, 0) || 0;
+  const salonNetto = (billing?.salonRevenue || 0) - totalPayout;
+  const rate = saldosteuersatz || 0;
+  const saldosteuer = salonNetto * (rate / 100);
+
+  return (
+    <div>
+      <div style={{ display: 'flex', alignItems: 'flex-end', gap: 14, marginBottom: 24, flexWrap: 'wrap' }}>
+        <div>
+          <div className="label-uppercase" style={{ marginBottom: 4 }}>
+            Von
+          </div>
+          <input type="date" value={von} onChange={(e) => setVon(e.target.value)} style={{ border: '1px solid var(--color-border)', borderRadius: 4, padding: '8px 10px', fontSize: 13, fontFamily: 'var(--font-body)' }} />
+        </div>
+        <div>
+          <div className="label-uppercase" style={{ marginBottom: 4 }}>
+            Bis
+          </div>
+          <input type="date" value={bis} onChange={(e) => setBis(e.target.value)} style={{ border: '1px solid var(--color-border)', borderRadius: 4, padding: '8px 10px', fontSize: 13, fontFamily: 'var(--font-body)' }} />
+        </div>
+      </div>
+
+      {!saldosteuersatz && (
+        <div style={{ border: '1px solid var(--color-warn-border)', background: 'var(--color-warn-bg)', borderRadius: 6, padding: '12px 14px', marginBottom: 20, fontSize: 12, color: '#5a4a20' }}>
+          Für {locationName} ist noch kein Saldosteuersatz hinterlegt (Admin → Locations → MWST).
+        </div>
+      )}
+
+      {loading ? (
+        <div style={{ fontSize: 13, color: '#999' }}>Lädt…</div>
+      ) : error ? (
+        <div style={{ fontSize: 13, color: 'var(--color-destructive)' }}>Fehler: {error}</div>
+      ) : billing ? (
+        <div style={{ border: '1px solid var(--color-border)', borderRadius: 6, background: 'var(--color-surface)', overflow: 'hidden', maxWidth: 480 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', padding: '14px 16px', fontSize: 13, borderBottom: '1px solid var(--color-border)' }}>
+            <div style={{ color: '#777' }}>Umsatz Salon (gesamt)</div>
+            <div style={{ fontWeight: 600 }}>{formatCHF(billing.salonRevenue)}</div>
+          </div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', padding: '14px 16px', fontSize: 13, borderBottom: '1px solid var(--color-border)' }}>
+            <div style={{ color: '#777' }}>abzüglich Auszahlungen Artists</div>
+            <div style={{ fontWeight: 600 }}>– {formatCHF(totalPayout)}</div>
+          </div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', padding: '14px 16px', fontSize: 13, borderBottom: '1px solid var(--color-border)', background: 'var(--color-bg)' }}>
+            <div style={{ fontWeight: 700 }}>Salon-Umsatz ohne Artisten</div>
+            <div style={{ fontWeight: 700 }}>{formatCHF(salonNetto)}</div>
+          </div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', padding: '14px 16px', fontSize: 13, borderBottom: '1px solid var(--color-border)' }}>
+            <div style={{ color: '#777' }}>Saldosteuersatz</div>
+            <div style={{ fontWeight: 600 }}>{rate ? `${rate}%` : '—'}</div>
+          </div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', padding: '16px', fontSize: 15 }}>
+            <div style={{ fontWeight: 700 }}>Abzurechnende MWST</div>
+            <div style={{ fontWeight: 700, color: 'var(--color-accent)' }}>{formatCHF(saldosteuer)}</div>
+          </div>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
 export default function Abrechnung() {
   const { locations, locationsLoaded, isLocationLocked, accountLocationId } = useLocationContext();
   const [period, setPeriod] = useState<Period>('tag');
@@ -256,7 +337,7 @@ export default function Abrechnung() {
       </div>
 
       <div style={{ display: 'flex', borderBottom: '1px solid var(--color-border)', marginBottom: 20, fontSize: 13 }}>
-        {(['tag', 'monat', 'jahr'] as const).map((p) => (
+        {(['tag', 'monat', 'jahr', 'mwst'] as const).map((p) => (
           <div
             key={p}
             onClick={() => setPeriod(p)}
@@ -268,11 +349,15 @@ export default function Abrechnung() {
               cursor: 'pointer',
             }}
           >
-            {p === 'tag' ? 'Tagesumsatz' : p === 'monat' ? 'Monatsumsatz' : 'Jahresabschluss'}
+            {p === 'tag' ? 'Tagesumsatz' : p === 'monat' ? 'Monatsumsatz' : p === 'jahr' ? 'Jahresabschluss' : 'MWST-Berechnung'}
           </div>
         ))}
       </div>
 
+      {period === 'mwst' ? (
+        <MwstBerechnung locationId={locationId} locationName={currentLocationName} saldosteuersatz={locations.find((l) => l.id === locationId)?.saldosteuersatz ?? null} />
+      ) : (
+        <>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 14, marginBottom: 20 }}>
         {period === 'tag' && (
           <>
@@ -405,6 +490,8 @@ export default function Abrechnung() {
           year={year}
           onClose={() => setDetailRow(null)}
         />
+      )}
+      </>
       )}
     </div>
   );

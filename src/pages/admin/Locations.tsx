@@ -38,6 +38,7 @@ function NewLocationModal({ onClose, onCreated }: { onClose: () => void; onCreat
   const [email, setEmail] = useState('');
   const [vatNumber, setVatNumber] = useState('');
   const [mwstProzent, setMwstProzent] = useState('8.1');
+  const [saldosteuersatz, setSaldosteuersatz] = useState('');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [attempted, setAttempted] = useState(false);
@@ -58,6 +59,7 @@ function NewLocationModal({ onClose, onCreated }: { onClose: () => void; onCreat
         email: email.trim() || null,
         vat_number: vatNumber.trim() || null,
         mwst_prozent: mwstProzent ? parseFloat(mwstProzent) : null,
+        saldosteuersatz: saldosteuersatz ? parseFloat(saldosteuersatz) : null,
       });
       onCreated();
     } catch (e: any) {
@@ -107,7 +109,7 @@ function NewLocationModal({ onClose, onCreated }: { onClose: () => void; onCreat
         </div>
         <input value={email} onChange={(e) => setEmail(e.target.value)} style={inputStyle} />
       </div>
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 90px', gap: 12, marginBottom: 22 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 90px', gap: 12, marginBottom: 14 }}>
         <div>
           <div className="label-uppercase" style={{ marginBottom: 4 }}>
             MWST-Nummer
@@ -120,6 +122,13 @@ function NewLocationModal({ onClose, onCreated }: { onClose: () => void; onCreat
           </div>
           <input value={mwstProzent} onChange={(e) => setMwstProzent(e.target.value)} style={inputStyle} inputMode="decimal" />
         </div>
+      </div>
+      <div style={{ marginBottom: 22 }}>
+        <div className="label-uppercase" style={{ marginBottom: 4 }}>
+          Saldosteuersatz %
+        </div>
+        <input value={saldosteuersatz} onChange={(e) => setSaldosteuersatz(e.target.value)} style={inputStyle} inputMode="decimal" placeholder="z.B. 5.3" />
+        <div style={{ fontSize: 11, color: '#999', marginTop: 4 }}>Für die MWST-Berechnung in der Abrechnung (vereinfachte Abrechnungsmethode).</div>
       </div>
       {error && <div style={{ fontSize: 12, color: 'var(--color-destructive)', marginBottom: 12 }}>{error}</div>}
       <div style={{ display: 'flex', gap: 10 }}>
@@ -148,6 +157,7 @@ export default function Locations() {
   const [email, setEmail] = useState('');
   const [vatNumber, setVatNumber] = useState('');
   const [mwstProzent, setMwstProzent] = useState('');
+  const [saldosteuersatz, setSaldosteuersatz] = useState('');
   const [managers, setManagers] = useState<ManagerDraft[]>([]);
   const [loginStates, setLoginStates] = useState<Record<string, LoginState>>({});
 
@@ -180,6 +190,7 @@ export default function Locations() {
     setEmail(selected.email || '');
     setVatNumber(selected.vat_number || '');
     setMwstProzent(selected.mwst_prozent != null ? String(selected.mwst_prozent) : '');
+    setSaldosteuersatz(selected.saldosteuersatz != null ? String(selected.saldosteuersatz) : '');
     setSaveError(null);
     setSaved(false);
     setAttempted(false);
@@ -251,6 +262,7 @@ export default function Locations() {
         email: email.trim() || null,
         vat_number: vatNumber.trim() || null,
         mwst_prozent: mwstProzent ? parseFloat(mwstProzent) : null,
+        saldosteuersatz: saldosteuersatz ? parseFloat(saldosteuersatz) : null,
       });
 
       for (const m of managers) {
@@ -390,6 +402,13 @@ export default function Locations() {
                 />
                 {attempted && mwstProzentMissing && <div style={{ fontSize: 11, color: 'var(--color-destructive)', marginTop: 4 }}>Satz fehlt, wenn eine MWST-Nummer eingetragen ist.</div>}
               </div>
+            </div>
+            <div style={{ marginTop: 14 }}>
+              <div className="label-uppercase" style={{ marginBottom: 4, whiteSpace: 'nowrap' }}>
+                Saldosteuersatz %
+              </div>
+              <input value={saldosteuersatz} onChange={(e) => setSaldosteuersatz(e.target.value)} style={{ ...inputStyle, maxWidth: 140 }} inputMode="decimal" placeholder="z.B. 5.3" />
+              <div style={{ fontSize: 11, color: '#999', marginTop: 4 }}>Für die MWST-Berechnung in der Abrechnung (vereinfachte Abrechnungsmethode, auf Salon-Umsatz ohne Artisten-Anteil).</div>
             </div>
           </div>
 
