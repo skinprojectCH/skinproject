@@ -108,15 +108,14 @@ const NAV_ITEMS: NavItem[] = [
     ],
   },
   {
-    key: 'marketing',
-    label: 'Marketing',
+    key: 'gutscheine',
+    label: 'Gutscheine',
     path: '/admin/gutscheine',
     icon: () => <MarketingIcon />,
-    children: [{ key: 'gutscheine', label: 'Gutscheine', path: '/admin/gutscheine' }],
   },
   {
     key: 'inventar',
-    label: 'Inventar',
+    label: 'Service & Artikel',
     path: '/admin/produkte',
     icon: () => <InventarIcon />,
     children: [
