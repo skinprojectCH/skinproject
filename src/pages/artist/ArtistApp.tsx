@@ -752,6 +752,20 @@ function TermineTab({ artistId, locationId }: { artistId: string; locationId: st
   const [showNew, setShowNew] = useState(false);
   const sentinelRef = useRef<HTMLDivElement>(null);
 
+  const [pickedDate, setPickedDate] = useState('');
+  const [pickedDateAppointments, setPickedDateAppointments] = useState<any[]>([]);
+  const [pickedDateLoading, setPickedDateLoading] = useState(false);
+  const [pickedDateError, setPickedDateError] = useState<string | null>(null);
+
+  function loadPickedDate(dateISO: string) {
+    setPickedDateLoading(true);
+    setPickedDateError(null);
+    fetchAppointmentsForArtistRange(artistId, dateISO, dateISO)
+      .then(setPickedDateAppointments)
+      .catch((e) => setPickedDateError(e.message))
+      .finally(() => setPickedDateLoading(false));
+  }
+
   async function loadChunk(fromOffset: number, toOffset: number, append: boolean) {
     const start = shiftISO(todayISO(), fromOffset);
     const end = shiftISO(todayISO(), toOffset);
@@ -813,52 +827,109 @@ function TermineTab({ artistId, locationId }: { artistId: string; locationId: st
         + Neuer Termin
       </button>
 
-      {loading && <div style={{ fontSize: 13, color: '#999' }}>Lädt…</div>}
-      {error && <div style={{ fontSize: 13, color: 'var(--color-destructive)' }}>{error}</div>}
-      {!loading && !error && appointments.length === 0 && <div style={{ fontSize: 13, color: '#999' }}>Keine kommenden Termine.</div>}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16 }}>
+        <input
+          type="date"
+          value={pickedDate}
+          onChange={(e) => {
+            const v = e.target.value;
+            setPickedDate(v);
+            if (v) loadPickedDate(v);
+          }}
+          style={{ flex: 1, border: '1px solid var(--color-border)', borderRadius: 6, padding: '9px 10px', fontSize: 13, fontFamily: 'var(--font-body)' }}
+        />
+        {pickedDate && (
+          <div onClick={() => setPickedDate('')} style={{ fontSize: 12, color: 'var(--color-accent)', fontWeight: 600, cursor: 'pointer', whiteSpace: 'nowrap' }}>
+            Zurück zu heute
+          </div>
+        )}
+      </div>
 
-      {!loading &&
-        grouped.map(([dateKey, appts]) => (
-          <div key={dateKey} style={{ marginBottom: 20 }}>
-            <div style={{ fontSize: 12, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.5, color: '#999', marginBottom: 8 }}>{formatDateHeader(dateKey)}</div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-              {appts.map((appt) => {
-                const statusInfo = STATUS_LABELS[appt.status] || STATUS_LABELS.gebucht;
-                const services = (appt.appointment_line_items || []).map((li: any) => li.services?.name).filter(Boolean);
-                return (
-                  <div
-                    key={appt.id}
-                    onClick={() => setSelected(appt)}
-                    style={{ border: '1px solid var(--color-border)', borderRadius: 8, padding: '14px 16px', background: 'var(--color-surface)', cursor: 'pointer' }}
-                  >
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 10 }}>
-                      <div>
-                        <div style={{ fontSize: 13, fontWeight: 700 }}>
-                          {new Date(appt.start_time).toLocaleTimeString('de-CH', { hour: '2-digit', minute: '2-digit' })} · {appt.customers ? `${appt.customers.vorname} ${appt.customers.name}` : 'Laufkunde'}
-                        </div>
-                        <div style={{ fontSize: 12, color: '#777', marginTop: 2 }}>
-                          {services.join(', ') || '—'}
-                          {appt.locations?.name ? ` · ${appt.locations.name}` : ''}
-                        </div>
+      {pickedDate ? (
+        <>
+          <div style={{ fontSize: 12, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.5, color: '#999', marginBottom: 8 }}>{formatDateHeader(pickedDate)}</div>
+          {pickedDateLoading && <div style={{ fontSize: 13, color: '#999' }}>Lädt…</div>}
+          {pickedDateError && <div style={{ fontSize: 13, color: 'var(--color-destructive)' }}>{pickedDateError}</div>}
+          {!pickedDateLoading && !pickedDateError && pickedDateAppointments.length === 0 && <div style={{ fontSize: 13, color: '#999' }}>Keine Termine an diesem Tag.</div>}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+            {pickedDateAppointments.map((appt) => {
+              const statusInfo = STATUS_LABELS[appt.status] || STATUS_LABELS.gebucht;
+              const services = (appt.appointment_line_items || []).map((li: any) => li.services?.name).filter(Boolean);
+              return (
+                <div
+                  key={appt.id}
+                  onClick={() => setSelected(appt)}
+                  style={{ border: '1px solid var(--color-border)', borderRadius: 8, padding: '14px 16px', background: 'var(--color-surface)', cursor: 'pointer' }}
+                >
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 10 }}>
+                    <div>
+                      <div style={{ fontSize: 13, fontWeight: 700 }}>
+                        {new Date(appt.start_time).toLocaleTimeString('de-CH', { hour: '2-digit', minute: '2-digit' })} · {appt.customers ? `${appt.customers.vorname} ${appt.customers.name}` : 'Laufkunde'}
                       </div>
-                      <div style={{ border: `1px solid ${statusInfo.color}`, color: statusInfo.color, borderRadius: 10, padding: '2px 10px', fontSize: 10, fontWeight: 600, flexShrink: 0, textTransform: 'uppercase' }}>
-                        {statusInfo.label}
+                      <div style={{ fontSize: 12, color: '#777', marginTop: 2 }}>
+                        {services.join(', ') || '—'}
+                        {appt.locations?.name ? ` · ${appt.locations.name}` : ''}
                       </div>
                     </div>
+                    <div style={{ border: `1px solid ${statusInfo.color}`, color: statusInfo.color, borderRadius: 10, padding: '2px 10px', fontSize: 10, fontWeight: 600, flexShrink: 0, textTransform: 'uppercase' }}>
+                      {statusInfo.label}
+                    </div>
                   </div>
-                );
-              })}
-            </div>
+                </div>
+              );
+            })}
           </div>
-        ))}
+        </>
+      ) : (
+        <>
+          {loading && <div style={{ fontSize: 13, color: '#999' }}>Lädt…</div>}
+          {error && <div style={{ fontSize: 13, color: 'var(--color-destructive)' }}>{error}</div>}
+          {!loading && !error && appointments.length === 0 && <div style={{ fontSize: 13, color: '#999' }}>Keine kommenden Termine.</div>}
 
-      {hasMore && <div ref={sentinelRef} style={{ height: 1 }} />}
-      {loadingMore && <div style={{ fontSize: 12, color: '#999', textAlign: 'center', padding: '10px 0' }}>Lädt weitere Termine…</div>}
-      {!loading && !hasMore && appointments.length > 0 && (
-        <div style={{ fontSize: 12, color: '#999', textAlign: 'center', padding: '10px 0' }}>Keine weiteren Termine in den nächsten 6 Monaten.</div>
+          {!loading &&
+            grouped.map(([dateKey, appts]) => (
+              <div key={dateKey} style={{ marginBottom: 20 }}>
+                <div style={{ fontSize: 12, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.5, color: '#999', marginBottom: 8 }}>{formatDateHeader(dateKey)}</div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                  {appts.map((appt) => {
+                    const statusInfo = STATUS_LABELS[appt.status] || STATUS_LABELS.gebucht;
+                    const services = (appt.appointment_line_items || []).map((li: any) => li.services?.name).filter(Boolean);
+                    return (
+                      <div
+                        key={appt.id}
+                        onClick={() => setSelected(appt)}
+                        style={{ border: '1px solid var(--color-border)', borderRadius: 8, padding: '14px 16px', background: 'var(--color-surface)', cursor: 'pointer' }}
+                      >
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 10 }}>
+                          <div>
+                            <div style={{ fontSize: 13, fontWeight: 700 }}>
+                              {new Date(appt.start_time).toLocaleTimeString('de-CH', { hour: '2-digit', minute: '2-digit' })} · {appt.customers ? `${appt.customers.vorname} ${appt.customers.name}` : 'Laufkunde'}
+                            </div>
+                            <div style={{ fontSize: 12, color: '#777', marginTop: 2 }}>
+                              {services.join(', ') || '—'}
+                              {appt.locations?.name ? ` · ${appt.locations.name}` : ''}
+                            </div>
+                          </div>
+                          <div style={{ border: `1px solid ${statusInfo.color}`, color: statusInfo.color, borderRadius: 10, padding: '2px 10px', fontSize: 10, fontWeight: 600, flexShrink: 0, textTransform: 'uppercase' }}>
+                            {statusInfo.label}
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            ))}
+
+          {hasMore && <div ref={sentinelRef} style={{ height: 1 }} />}
+          {loadingMore && <div style={{ fontSize: 12, color: '#999', textAlign: 'center', padding: '10px 0' }}>Lädt weitere Termine…</div>}
+          {!loading && !hasMore && appointments.length > 0 && (
+            <div style={{ fontSize: 12, color: '#999', textAlign: 'center', padding: '10px 0' }}>Keine weiteren Termine in den nächsten 6 Monaten.</div>
+          )}
+        </>
       )}
 
-      {selected && <AppointmentDetail appt={selected} artistId={artistId} locationId={locationId} onClose={() => { setSelected(null); reload(); }} />}
+      {selected && <AppointmentDetail appt={selected} artistId={artistId} locationId={locationId} onClose={() => { setSelected(null); reload(); if (pickedDate) loadPickedDate(pickedDate); }} />}
 
       {showNew && (
         <div style={{ position: 'fixed', inset: 0, background: 'var(--color-bg)', zIndex: 200, display: 'flex', flexDirection: 'column' }}>
