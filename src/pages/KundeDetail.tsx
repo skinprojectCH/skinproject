@@ -69,7 +69,7 @@ export default function KundeDetail() {
     setDocsLoading(true);
     fetchCustomerDocuments(id)
       .then((docs) => {
-        setDocuments(docs.filter((d) => d.type === 'document' && !d.appointment_id));
+        setDocuments(docs.filter((d) => (d.type === 'document' || d.type === 'id_photo' || d.type === 'signature') && !d.appointment_id));
         setPhotos(docs.filter((d) => d.type === 'photo' && !d.appointment_id));
         setAppointmentDocs(docs.filter((d) => !!d.appointment_id));
       })
