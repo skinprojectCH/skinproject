@@ -11,6 +11,7 @@ interface LocationContextValue {
   favoriteLocationId: string | null;
   toggleFavorite: () => void;
   isLocationLocked: boolean;
+  accountLocationId: string | null;
 }
 
 const LocationContext = createContext<LocationContextValue | null>(null);
@@ -21,6 +22,7 @@ export function LocationProvider({ children }: { children: ReactNode }) {
   const [selectedLocationId, setSelectedLocationId] = useState('');
   const [favoriteLocationId, setFavoriteLocationId] = useState<string | null>(() => localStorage.getItem(FAVORITE_LOCATION_KEY));
   const [isLocationLocked, setIsLocationLocked] = useState(false);
+  const [accountLocationId, setAccountLocationId] = useState<string | null>(null);
 
   // Locations einmalig laden, danach Standort vorauswählen:
   // 1. Standort, der dem eingeloggten Account fest zugewiesen ist (app_users.location_id)
@@ -37,6 +39,7 @@ export function LocationProvider({ children }: { children: ReactNode }) {
         const initial = accountValid ? accountLocationId! : favValid ? fav! : data[0]?.id || '';
         setSelectedLocationId(initial);
         setIsLocationLocked(!!accountValid);
+        setAccountLocationId(accountValid ? accountLocationId! : null);
       })
       .finally(() => setLocationsLoaded(true));
   }, []);
@@ -52,7 +55,9 @@ export function LocationProvider({ children }: { children: ReactNode }) {
   }
 
   return (
-    <LocationContext.Provider value={{ locations, locationsLoaded, selectedLocationId, setSelectedLocationId, favoriteLocationId, toggleFavorite, isLocationLocked }}>
+    <LocationContext.Provider
+      value={{ locations, locationsLoaded, selectedLocationId, setSelectedLocationId, favoriteLocationId, toggleFavorite, isLocationLocked, accountLocationId }}
+    >
       {children}
     </LocationContext.Provider>
   );

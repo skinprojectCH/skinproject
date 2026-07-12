@@ -804,3 +804,61 @@ export async function fetchArtistEarnings(artistId: string, startDateISO: string
   }
   return entries;
 }
+
+// ---------- Abrechnung (D4) ----------
+export interface LocationBillingArtistRow {
+  artistId: string;
+  artistName: string;
+  calendarColor: string;
+  revenue: number; // eigener Dienstleistungsanteil (vor Beteiligung)
+  sharePct: number;
+  payout: number; // revenue * sharePct/100
+}
+
+export interface LocationBilling {
+  salonRevenue: number; // Summe aller bezahlten Bestellungen an dieser Location
+  artistRevenue: number; // Summe der Dienstleistungsanteile aller Artists (Tabellen-Summe)
+  orderCount: number;
+  avgOrderValue: number;
+  artistRows: LocationBillingArtistRow[];
+}
+
+export async function fetchLocationBilling(locationId: string, startDateISO: string, endDateISO: string): Promise<LocationBilling> {
+  const start = `${startDateISO}T00:00:00`;
+  const end = `${endDateISO}T23:59:59`;
+
+  const { data: orders, error } = await supabase
+    .from('orders')
+    .select('id, total, subtotal, status, appointments(artist_id, artists(id, name, calendar_color, revenue_share_pct)), order_line_items(service_id, product_id, line_total)')
+    .eq('location_id', locationId)
+    .eq('status', 'bezahlt')
+    .gte('created_at', start)
+    .lte('created_at', end);
+  if (error) throw error;
+
+  const rows = (orders as any[]) || [];
+  const salonRevenue = rows.reduce((sum, o) => sum + Number(o.total), 0);
+  const orderCount = rows.length;
+  const avgOrderValue = orderCount > 0 ? salonRevenue / orderCount : 0;
+
+  const byArtist: Record<string, LocationBillingArtistRow> = {};
+  for (const o of rows) {
+    const artist = o.appointments?.artists;
+    if (!artist) continue;
+    const lineItems = o.order_line_items || [];
+    const serviceSubtotal = lineItems.filter((li: any) => li.service_id).reduce((s: number, li: any) => s + Number(li.line_total), 0);
+    if (serviceSubtotal <= 0) continue;
+    const discountFactor = Number(o.subtotal) > 0 ? Number(o.total) / Number(o.subtotal) : 1;
+    const revenue = serviceSubtotal * discountFactor;
+    if (!byArtist[artist.id]) {
+      byArtist[artist.id] = { artistId: artist.id, artistName: artist.name, calendarColor: artist.calendar_color, revenue: 0, sharePct: artist.revenue_share_pct || 0, payout: 0 };
+    }
+    byArtist[artist.id].revenue += revenue;
+  }
+  const artistRows = Object.values(byArtist)
+    .map((r) => ({ ...r, payout: r.revenue * (r.sharePct / 100) }))
+    .sort((a, b) => b.revenue - a.revenue);
+  const artistRevenue = artistRows.reduce((s, r) => s + r.revenue, 0);
+
+  return { salonRevenue, artistRevenue, orderCount, avgOrderValue, artistRows };
+}
