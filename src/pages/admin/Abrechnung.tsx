@@ -217,7 +217,7 @@ export default function Abrechnung() {
             <div style={{ display: 'grid', gridTemplateColumns: '1.4fr 1fr 1fr 1fr', padding: '10px 14px', fontSize: 11, textTransform: 'uppercase', letterSpacing: 0.5, color: '#999', borderBottom: '1px solid var(--color-border)', fontWeight: 600 }}>
               <div>Artist</div>
               <div>Umsatz</div>
-              <div>Beteiligung</div>
+              <div>Miet- &amp; Serviceanteil</div>
               <div>Auszahlung</div>
             </div>
             {billing.artistRows.length === 0 ? (
