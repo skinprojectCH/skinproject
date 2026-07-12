@@ -120,24 +120,34 @@ export default function Schichtplan() {
     <div>
       <h1 style={{ fontSize: 24, marginBottom: 20 }}>Schichtplan · Arbeitszeiten</h1>
 
-      <div style={{ display: 'flex', gap: 14, marginBottom: 8, flexWrap: 'wrap', alignItems: 'center' }}>
-        <select value={selectedLocationId} onChange={(e) => setSelectedLocationId(e.target.value)} style={selectStyle}>
-          {locations.length === 0 && <option value="">Keine Location</option>}
-          {locations.map((l) => (
-            <option key={l.id} value={l.id}>
-              {l.name}
-            </option>
-          ))}
-        </select>
-        <select value={selectedArtistId} onChange={(e) => setSelectedArtistId(e.target.value)} style={selectStyle} disabled={activeArtists.length === 0}>
-          {activeArtists.length === 0 && <option value="">Kein aktiver Artist erfasst</option>}
-          {activeArtists.map((a) => (
-            <option key={a.id} value={a.id}>
-              {a.name}
-              {a.location_id && a.location_id !== selectedLocationId ? ` (Stamm: ${locations.find((l) => l.id === a.location_id)?.name || '—'})` : ''}
-            </option>
-          ))}
-        </select>
+      <div style={{ border: '1px solid var(--color-border)', borderRadius: 6, padding: 14, marginBottom: 20, background: 'var(--color-surface)', display: 'flex', gap: 14, flexWrap: 'wrap', alignItems: 'flex-end' }}>
+        <div>
+          <div className="label-uppercase" style={{ marginBottom: 4 }}>
+            Location
+          </div>
+          <select value={selectedLocationId} onChange={(e) => setSelectedLocationId(e.target.value)} style={selectStyle}>
+            {locations.length === 0 && <option value="">Keine Location</option>}
+            {locations.map((l) => (
+              <option key={l.id} value={l.id}>
+                {l.name}
+              </option>
+            ))}
+          </select>
+        </div>
+        <div>
+          <div className="label-uppercase" style={{ marginBottom: 4 }}>
+            Artist
+          </div>
+          <select value={selectedArtistId} onChange={(e) => setSelectedArtistId(e.target.value)} style={selectStyle} disabled={activeArtists.length === 0}>
+            {activeArtists.length === 0 && <option value="">Kein aktiver Artist erfasst</option>}
+            {activeArtists.map((a) => (
+              <option key={a.id} value={a.id}>
+                {a.name}
+                {a.location_id && a.location_id !== selectedLocationId ? ` (Stamm: ${locations.find((l) => l.id === a.location_id)?.name || '—'})` : ''}
+              </option>
+            ))}
+          </select>
+        </div>
       </div>
 
       {locations.length === 0 && <div style={{ fontSize: 12, color: '#999', marginBottom: 20 }}>Zuerst unter Admin → Locations eine Location anlegen.</div>}
@@ -147,7 +157,7 @@ export default function Schichtplan() {
 
       {selectedArtistId && (
         <>
-          <div style={{ display: 'flex', gap: 14, marginBottom: 20, flexWrap: 'wrap', alignItems: 'flex-end' }}>
+          <div style={{ border: '1px solid var(--color-border)', borderRadius: 6, padding: 14, marginBottom: 20, background: 'var(--color-surface)', display: 'flex', gap: 14, flexWrap: 'wrap', alignItems: 'flex-end' }}>
             <div>
               <div className="label-uppercase" style={{ marginBottom: 4 }}>
                 Gültig von
@@ -170,41 +180,54 @@ export default function Schichtplan() {
             <div style={{ fontSize: 13, color: '#999' }}>Lädt bestehenden Plan…</div>
           ) : (
             <>
-              <div style={{ fontSize: 12, fontWeight: 700, marginBottom: 4 }}>Wochenplan</div>
+              <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 4 }}>Wochenplan</div>
               <div style={{ fontSize: 11, color: '#999', marginBottom: 12 }}>Pro Tag können mehrere Zeitfenster erfasst werden. Gilt für den oben gewählten Artist an dieser Location.</div>
 
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 24 }}>
-                {WEEKDAYS.map((day, weekday) => (
-                  <div key={day} style={{ display: 'grid', gridTemplateColumns: '60px 1fr', gap: 12, alignItems: 'center' }}>
-                    <div style={{ fontSize: 12, fontWeight: 600, color: schedule[weekday].length === 0 ? '#999' : '#111' }}>{day}</div>
-                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center' }}>
-                      {schedule[weekday].length === 0 && <div style={{ fontSize: 12, color: '#ccc' }}>frei</div>}
-                      {schedule[weekday].map((slot) => (
-                        <div key={slot.id} style={{ display: 'flex', alignItems: 'center', gap: 4, border: '1px solid #ddd', borderRadius: 4, padding: '4px 8px', fontSize: 12 }}>
-                          <input
-                            type="time"
-                            value={slot.from}
-                            onChange={(e) => updateSlot(weekday, slot.id, 'from', e.target.value)}
-                            style={{ border: 'none', fontSize: 12, width: 72, fontFamily: 'var(--font-body)' }}
-                          />
-                          <div>–</div>
-                          <input
-                            type="time"
-                            value={slot.to}
-                            onChange={(e) => updateSlot(weekday, slot.id, 'to', e.target.value)}
-                            style={{ border: 'none', fontSize: 12, width: 72, fontFamily: 'var(--font-body)' }}
-                          />
-                          <div onClick={() => removeSlot(weekday, slot.id)} style={{ color: '#999', marginLeft: 4, cursor: 'pointer' }}>
-                            ✕
+              <div style={{ border: '1px solid var(--color-border)', borderRadius: 6, padding: 14, marginBottom: 24, background: 'var(--color-surface)' }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  {WEEKDAYS.map((day, weekday) => (
+                    <div
+                      key={day}
+                      style={{
+                        display: 'grid',
+                        gridTemplateColumns: '60px 1fr',
+                        gap: 12,
+                        alignItems: 'center',
+                        border: '1px solid var(--color-border)',
+                        borderRadius: 6,
+                        padding: '10px 12px',
+                      }}
+                    >
+                      <div style={{ fontSize: 12, fontWeight: 600, color: schedule[weekday].length === 0 ? '#999' : '#111' }}>{day}</div>
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center' }}>
+                        {schedule[weekday].length === 0 && <div style={{ fontSize: 12, color: '#ccc' }}>frei</div>}
+                        {schedule[weekday].map((slot) => (
+                          <div key={slot.id} style={{ display: 'flex', alignItems: 'center', gap: 4, border: '1px solid var(--color-border)', borderRadius: 4, padding: '4px 8px', fontSize: 12, background: '#fff' }}>
+                            <input
+                              type="time"
+                              value={slot.from}
+                              onChange={(e) => updateSlot(weekday, slot.id, 'from', e.target.value)}
+                              style={{ border: 'none', fontSize: 12, width: 72, fontFamily: 'var(--font-body)' }}
+                            />
+                            <div>–</div>
+                            <input
+                              type="time"
+                              value={slot.to}
+                              onChange={(e) => updateSlot(weekday, slot.id, 'to', e.target.value)}
+                              style={{ border: 'none', fontSize: 12, width: 72, fontFamily: 'var(--font-body)' }}
+                            />
+                            <div onClick={() => removeSlot(weekday, slot.id)} style={{ color: '#999', marginLeft: 4, cursor: 'pointer' }}>
+                              ✕
+                            </div>
                           </div>
+                        ))}
+                        <div onClick={() => addSlot(weekday)} style={{ fontSize: 11, color: 'var(--color-accent)', fontWeight: 600, cursor: 'pointer' }}>
+                          + Zeitfenster
                         </div>
-                      ))}
-                      <div onClick={() => addSlot(weekday)} style={{ fontSize: 11, color: 'var(--color-accent)', fontWeight: 600, cursor: 'pointer' }}>
-                        + Zeitfenster
                       </div>
                     </div>
-                  </div>
-                ))}
+                  ))}
+                </div>
               </div>
 
               {saveError && <div style={{ fontSize: 12, color: 'var(--color-destructive)', marginBottom: 12 }}>{saveError}</div>}
