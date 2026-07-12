@@ -878,3 +878,58 @@ export async function fetchLocationBilling(locationId: string, startDateISO: str
 
   return { salonRevenue, artistRevenue, orderCount, avgOrderValue, artistRows };
 }
+
+export interface LocationArtistBillingEntry {
+  appointmentId: string;
+  date: string; // YYYY-MM-DD
+  time: string;
+  customerLabel: string;
+  services: string[];
+  revenue: number; // eigener Dienstleistungsanteil vor Beteiligung
+  payout: number; // revenue * sharePct/100
+}
+
+// Einzelaufschlüsselung für den "Detail"-Popup in der Abrechnung: alle Termine eines
+// Artists an dieser Location im Zeitraum, mit Umsatz und Auszahlung pro Termin.
+export async function fetchLocationArtistBillingDetail(
+  locationId: string,
+  artistId: string,
+  startDateISO: string,
+  endDateISO: string,
+  sharePct: number
+): Promise<LocationArtistBillingEntry[]> {
+  const start = `${startDateISO}T00:00:00`;
+  const end = `${endDateISO}T23:59:59`;
+  const { data, error } = await supabase
+    .from('appointments')
+    .select('id, start_time, customers(vorname, name), appointment_line_items(service_id, services(name)), orders(subtotal, total, status, order_line_items(service_id, product_id, line_total))')
+    .eq('location_id', locationId)
+    .eq('artist_id', artistId)
+    .eq('type', 'termin')
+    .gte('start_time', start)
+    .lte('start_time', end)
+    .order('start_time');
+  if (error) throw error;
+
+  const entries: LocationArtistBillingEntry[] = [];
+  for (const appt of (data as any[]) || []) {
+    const order = appt.orders?.[0];
+    if (!order || order.status !== 'bezahlt') continue;
+    const lineItems = order.order_line_items || [];
+    const serviceSubtotal = lineItems.filter((li: any) => li.service_id).reduce((s: number, li: any) => s + Number(li.line_total), 0);
+    if (serviceSubtotal <= 0) continue;
+    const discountFactor = Number(order.subtotal) > 0 ? Number(order.total) / Number(order.subtotal) : 1;
+    const revenue = serviceSubtotal * discountFactor;
+    const services = (appt.appointment_line_items || []).map((li: any) => li.services?.name).filter(Boolean);
+    entries.push({
+      appointmentId: appt.id,
+      date: appt.start_time.slice(0, 10),
+      time: new Date(appt.start_time).toLocaleTimeString('de-CH', { hour: '2-digit', minute: '2-digit' }),
+      customerLabel: appt.customers ? `${appt.customers.vorname} ${appt.customers.name}` : 'Laufkunde',
+      services,
+      revenue,
+      payout: revenue * (sharePct / 100),
+    });
+  }
+  return entries;
+}

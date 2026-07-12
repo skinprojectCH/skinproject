@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
 import { useLocationContext } from '../../lib/locationContext';
-import { fetchLocationBilling, type LocationBilling } from '../../lib/queries';
+import { fetchLocationBilling, fetchLocationArtistBillingDetail, type LocationBilling, type LocationBillingArtistRow, type LocationArtistBillingEntry } from '../../lib/queries';
 import { formatCHF } from '../../lib/format';
+import Modal from '../../components/Modal';
 
 type Period = 'tag' | 'monat' | 'jahr';
 
@@ -33,6 +34,152 @@ const navBtnStyle: React.CSSProperties = {
 
 const summaryCardStyle: React.CSSProperties = { border: '1px solid var(--color-border)', background: 'var(--color-surface)', borderRadius: 6, padding: 16 };
 
+function periodLabel(period: Period, day: string, month: number, year: number) {
+  if (period === 'tag') return new Date(day).toLocaleDateString('de-CH', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+  if (period === 'monat') return `${MONTH_NAMES[month]} ${year}`;
+  return `${year}`;
+}
+
+async function downloadBillingPdf(opts: { title: string; subtitle: string; artistName: string; locationName: string; rows: { label: string; amount: number }[]; total: number }) {
+  const { jsPDF } = await import('jspdf');
+  const doc = new jsPDF();
+  let y = 20;
+  doc.setFontSize(16);
+  doc.text(opts.title, 14, y);
+  y += 7;
+  doc.setFontSize(10);
+  doc.setTextColor(120);
+  doc.text(`${opts.artistName} · ${opts.locationName} · ${opts.subtitle}`, 14, y);
+  y += 12;
+  doc.setTextColor(0);
+  doc.setFontSize(10);
+  for (const row of opts.rows) {
+    if (y > 280) {
+      doc.addPage();
+      y = 20;
+    }
+    const wrapped = doc.splitTextToSize(row.label, 150);
+    doc.text(wrapped, 14, y);
+    doc.text(formatCHF(row.amount), 196, y, { align: 'right' });
+    y += 6 * wrapped.length;
+  }
+  y += 4;
+  doc.setDrawColor(200);
+  doc.line(14, y, 196, y);
+  y += 9;
+  doc.setFontSize(13);
+  doc.setFont('helvetica', 'bold');
+  doc.text('Total Auszahlung', 14, y);
+  doc.text(formatCHF(opts.total), 196, y, { align: 'right' });
+  doc.save(`${opts.title.replace(/[^\w-]+/g, '_')}.pdf`);
+}
+
+function ArtistDetailModal({
+  row,
+  locationId,
+  locationName,
+  period,
+  day,
+  month,
+  year,
+  onClose,
+}: {
+  row: LocationBillingArtistRow;
+  locationId: string;
+  locationName: string;
+  period: Period;
+  day: string;
+  month: number;
+  year: number;
+  onClose: () => void;
+}) {
+  const [entries, setEntries] = useState<LocationArtistBillingEntry[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  const range = (() => {
+    if (period === 'tag') return { start: day, end: day };
+    if (period === 'monat') {
+      const start = `${year}-${pad2(month + 1)}-01`;
+      const lastDay = new Date(year, month + 1, 0).getDate();
+      return { start, end: `${year}-${pad2(month + 1)}-${pad2(lastDay)}` };
+    }
+    return { start: `${year}-01-01`, end: `${year}-12-31` };
+  })();
+
+  useEffect(() => {
+    setLoading(true);
+    setError(null);
+    fetchLocationArtistBillingDetail(locationId, row.artistId, range.start, range.end, row.sharePct)
+      .then(setEntries)
+      .catch((e) => setError(e.message))
+      .finally(() => setLoading(false));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [locationId, row.artistId, range.start, range.end]);
+
+  const total = entries.reduce((s, e) => s + e.payout, 0);
+  const label = periodLabel(period, day, month, year);
+
+  return (
+    <Modal title={`${row.artistName} · Detail`} onClose={onClose} width={560}>
+      <div style={{ fontSize: 12, color: '#999', marginBottom: 16 }}>
+        {locationName} · {label}
+      </div>
+
+      {loading ? (
+        <div style={{ fontSize: 13, color: '#999' }}>Lädt…</div>
+      ) : error ? (
+        <div style={{ fontSize: 13, color: 'var(--color-destructive)' }}>{error}</div>
+      ) : entries.length === 0 ? (
+        <div style={{ fontSize: 13, color: '#999' }}>Keine Termine in diesem Zeitraum.</div>
+      ) : (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 16, maxHeight: '50vh', overflowY: 'auto' }}>
+          {entries.map((e) => (
+            <div key={e.appointmentId} style={{ border: '1px solid var(--color-border)', borderRadius: 6, padding: '10px 12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div>
+                <div style={{ fontSize: 13, fontWeight: 600 }}>
+                  {new Date(e.date).toLocaleDateString('de-CH', { day: '2-digit', month: '2-digit', year: '2-digit' })} · {e.time} · {e.customerLabel}
+                </div>
+                <div style={{ fontSize: 11, color: '#777' }}>{e.services.join(', ') || '—'}</div>
+              </div>
+              <div style={{ textAlign: 'right', flexShrink: 0 }}>
+                <div style={{ fontSize: 13, fontWeight: 700 }}>{formatCHF(e.payout)}</div>
+                <div style={{ fontSize: 10, color: '#999' }}>von {formatCHF(e.revenue)}</div>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderTop: '1px solid var(--color-border)', paddingTop: 12 }}>
+        <div style={{ fontSize: 13, fontWeight: 700 }}>
+          Total Auszahlung: <span style={{ color: 'var(--color-accent)' }}>{formatCHF(total)}</span>
+        </div>
+        {period !== 'tag' && entries.length > 0 && (
+          <button
+            className="btn btn-outline"
+            onClick={() =>
+              downloadBillingPdf({
+                title: `Abrechnung ${row.artistName} ${label}`,
+                subtitle: label,
+                artistName: row.artistName,
+                locationName,
+                rows: entries.map((e) => ({
+                  label: `${new Date(e.date).toLocaleDateString('de-CH', { day: '2-digit', month: '2-digit' })} · ${e.customerLabel} · ${e.services.join(', ') || '—'}`,
+                  amount: e.payout,
+                })),
+                total,
+              })
+            }
+          >
+            PDF herunterladen
+          </button>
+        )}
+      </div>
+    </Modal>
+  );
+}
+
 export default function Abrechnung() {
   const { locations, locationsLoaded, isLocationLocked, accountLocationId } = useLocationContext();
   const [period, setPeriod] = useState<Period>('tag');
@@ -46,6 +193,7 @@ export default function Abrechnung() {
   const [billing, setBilling] = useState<LocationBilling | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [detailRow, setDetailRow] = useState<LocationBillingArtistRow | null>(null);
 
   // Standort-Auswahl: Hauptadmin darf frei wählen, Location-Manager ist fix auf die
   // eigene Location beschränkt (unabhängig davon, welchen Standort er im Kalender
@@ -214,11 +362,12 @@ export default function Abrechnung() {
           </div>
 
           <div style={{ border: '1px solid var(--color-border)', borderRadius: 6, background: 'var(--color-surface)', overflow: 'hidden' }}>
-            <div style={{ display: 'grid', gridTemplateColumns: '1.4fr 1fr 1fr 1fr', padding: '10px 14px', fontSize: 11, textTransform: 'uppercase', letterSpacing: 0.5, color: '#999', borderBottom: '1px solid var(--color-border)', fontWeight: 600 }}>
+            <div style={{ display: 'grid', gridTemplateColumns: '1.4fr 1fr 1fr 1fr 0.7fr', padding: '10px 14px', fontSize: 11, textTransform: 'uppercase', letterSpacing: 0.5, color: '#999', borderBottom: '1px solid var(--color-border)', fontWeight: 600 }}>
               <div>Artist</div>
               <div>Umsatz</div>
               <div>Miet- &amp; Serviceanteil</div>
               <div>Auszahlung</div>
+              <div></div>
             </div>
             {billing.artistRows.length === 0 ? (
               <div style={{ padding: 16, fontSize: 12, color: '#999' }}>Keine Dienstleistungsumsätze in diesem Zeitraum.</div>
@@ -226,7 +375,7 @@ export default function Abrechnung() {
               billing.artistRows.map((row) => (
                 <div
                   key={row.artistId}
-                  style={{ display: 'grid', gridTemplateColumns: '1.4fr 1fr 1fr 1fr', padding: '14px', fontSize: 13, borderBottom: '1px solid var(--color-border-subtle, #eee)', alignItems: 'center' }}
+                  style={{ display: 'grid', gridTemplateColumns: '1.4fr 1fr 1fr 1fr 0.7fr', padding: '14px', fontSize: 13, borderBottom: '1px solid var(--color-border-subtle, #eee)', alignItems: 'center' }}
                 >
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                     <span style={{ width: 8, height: 8, borderRadius: '50%', background: row.calendarColor, display: 'inline-block', flexShrink: 0 }} />
@@ -235,12 +384,28 @@ export default function Abrechnung() {
                   <div>{formatCHF(row.revenue)}</div>
                   <div>{row.sharePct}%</div>
                   <div style={{ fontWeight: 600 }}>{formatCHF(row.payout)}</div>
+                  <div onClick={() => setDetailRow(row)} style={{ color: 'var(--color-accent)', fontWeight: 600, cursor: 'pointer', textAlign: 'right' }}>
+                    Detail
+                  </div>
                 </div>
               ))
             )}
           </div>
         </>
       ) : null}
+
+      {detailRow && (
+        <ArtistDetailModal
+          row={detailRow}
+          locationId={locationId}
+          locationName={currentLocationName}
+          period={period}
+          day={day}
+          month={month}
+          year={year}
+          onClose={() => setDetailRow(null)}
+        />
+      )}
     </div>
   );
 }
