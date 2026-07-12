@@ -10,7 +10,7 @@ export default async function handler(req: any, res: any) {
   }
 
   const { customerId, type, fileName, mimeType, dataBase64 } = req.body || {};
-  if (!customerId || !type || !dataBase64 || !['id_photo', 'signature'].includes(type)) {
+  if (!customerId || !type || !dataBase64 || !['id_photo', 'signature', 'document'].includes(type)) {
     res.status(400).json({ error: 'Angaben unvollständig.' });
     return;
   }

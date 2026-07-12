@@ -131,6 +131,121 @@ function SignaturePad({ onChange }: { onChange: (dataUrl: string | null) => void
   );
 }
 
+async function buildAndUploadPdf(opts: {
+  customerId: string;
+  vorname: string;
+  name: string;
+  locationName: string;
+  strasse: string;
+  plzOrt: string;
+  phone: string;
+  email: string;
+  birthdate: string;
+  treatmentType: string;
+  answers: { label: string; answer: boolean; detail?: string | null }[];
+  sonstiges: string;
+  signatureDataUrl: string | null;
+}) {
+  const { jsPDF } = await import('jspdf');
+  const doc = new jsPDF();
+  const today = new Date().toLocaleDateString('de-CH');
+  let y = 20;
+
+  doc.setFontSize(16);
+  doc.text('Registrierungsformular', 14, y);
+  y += 6;
+  doc.setFontSize(10);
+  doc.setTextColor(120);
+  doc.text(`${opts.vorname} ${opts.name} · ${today} · ${opts.locationName}`, 14, y);
+  y += 10;
+  doc.setTextColor(0);
+
+  doc.setFontSize(12);
+  doc.text('Kontaktdaten', 14, y);
+  y += 6;
+  doc.setFontSize(10);
+  const contactLines = [
+    `Adresse: ${opts.strasse}, ${opts.plzOrt}`,
+    `Telefon: ${opts.phone}`,
+    `E-Mail: ${opts.email || '—'}`,
+    `Geburtsdatum: ${opts.birthdate}`,
+    `Interesse: ${opts.treatmentType === 'tattoo' ? 'Tattoo' : 'Piercing'}`,
+  ];
+  for (const line of contactLines) {
+    doc.text(line, 14, y);
+    y += 6;
+  }
+  y += 4;
+
+  doc.setFontSize(12);
+  doc.text('Gesundheitsfragebogen', 14, y);
+  y += 7;
+  doc.setFontSize(10);
+  for (const a of opts.answers) {
+    if (y > 275) {
+      doc.addPage();
+      y = 20;
+    }
+    const line = `${a.label}: ${a.answer ? 'Ja' : 'Nein'}${a.detail ? ` — ${a.detail}` : ''}`;
+    const wrapped = doc.splitTextToSize(line, 180);
+    doc.text(wrapped, 14, y);
+    y += 6 * wrapped.length;
+  }
+  if (opts.sonstiges.trim()) {
+    if (y > 270) {
+      doc.addPage();
+      y = 20;
+    }
+    const wrapped = doc.splitTextToSize(`Sonstiges: ${opts.sonstiges.trim()}`, 180);
+    doc.text(wrapped, 14, y);
+    y += 6 * wrapped.length;
+  }
+  y += 6;
+
+  if (y > 240) {
+    doc.addPage();
+    y = 20;
+  }
+  doc.setFontSize(12);
+  doc.text('Einverständniserklärung', 14, y);
+  y += 7;
+  doc.setFontSize(9);
+  doc.setTextColor(90);
+  const consentParas = [
+    'Mit meiner Unterschrift bestätige ich, dass ich die gesundheitlichen Fragen wahrheitsgemäss beantwortet habe und über die Risiken der Behandlung (Tattoo/Piercing) informiert wurde.',
+    'Ich erkläre mich mit der Durchführung der Behandlung einverstanden und entbinde SkinProject von Ansprüchen, die auf unvollständigen oder unrichtigen Angaben beruhen.',
+    'Meine Daten werden gemäss Datenschutzbestimmungen ausschliesslich zur Kundenverwaltung gespeichert.',
+  ];
+  for (const p of consentParas) {
+    const wrapped = doc.splitTextToSize(p, 180);
+    doc.text(wrapped, 14, y);
+    y += 5 * wrapped.length + 2;
+  }
+  doc.setTextColor(0);
+
+  if (opts.signatureDataUrl) {
+    if (y > 220) {
+      doc.addPage();
+      y = 20;
+    }
+    y += 4;
+    doc.setFontSize(10);
+    doc.text('Unterschrift:', 14, y);
+    y += 4;
+    doc.addImage(opts.signatureDataUrl, 'PNG', 14, y, 80, 40);
+  }
+
+  const dataUrl = doc.output('datauristring');
+  const dataBase64 = dataUrl.split(',')[1];
+  const fileName = `Registrierung_${opts.vorname}_${opts.name}_${today.replace(/\./g, '-')}.pdf`;
+
+  await fetch('/api/registration-upload', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ customerId: opts.customerId, type: 'document', fileName, mimeType: 'application/pdf', dataBase64 }),
+  });
+}
+
 export default function RegisterCustomer() {
   const { locationId } = useParams();
   const [step, setStep] = useState<Step>('phone');
@@ -186,6 +301,34 @@ export default function RegisterCustomer() {
       .catch(() => setLoadError('Verbindung fehlgeschlagen.'))
       .finally(() => setLoading(false));
   }, [locationId]);
+
+  useEffect(() => {
+    if (step !== 'fertig') return;
+    const timer = setTimeout(() => {
+      setStep('phone');
+      setCustomerId(null);
+      setPhone('');
+      setLookupError(null);
+      setVorname('');
+      setName('');
+      setStrasse('');
+      setPlzOrt('');
+      setEmail('');
+      setTreatmentType('tattoo');
+      setProfileError(null);
+      setBirthdate('');
+      setIdPhotoError(null);
+      setAnswers(Object.fromEntries(ALL_YESNO_QUESTIONS.map((q) => [q.key, false])));
+      setDetails({});
+      setSonstiges('');
+      setSignatureDataUrl(null);
+      setSignatureDocumentId(null);
+      setSignatureError(null);
+      setConsentChecked(false);
+      setFinalizeError(null);
+    }, 5000);
+    return () => clearTimeout(timer);
+  }, [step]);
 
   const age = birthdate ? Math.floor((Date.now() - new Date(birthdate).getTime()) / (365.25 * 24 * 3600 * 1000)) : null;
   const isMinor = age !== null && age < 18;
@@ -347,6 +490,31 @@ export default function RegisterCustomer() {
       });
       const body = await res.json();
       if (!res.ok) throw new Error(body.error || 'Unbekannter Fehler.');
+
+      // PDF des gesamten Fragebogens erstellen und unter Dokumente ablegen (best effort —
+      // schlägt das fehl, blockiert es nicht den Abschluss für die Kundin).
+      try {
+        await buildAndUploadPdf({
+          customerId,
+          vorname,
+          name,
+          locationName,
+          strasse,
+          plzOrt,
+          phone,
+          email,
+          birthdate,
+          treatmentType,
+          answers: [
+            ...ALL_YESNO_QUESTIONS.map((q) => ({ label: q.label, answer: answers[q.key], detail: details[q.key]?.trim() || null })),
+          ],
+          sonstiges,
+          signatureDataUrl,
+        });
+      } catch {
+        // still proceed - PDF is a nice-to-have, not a blocker
+      }
+
       setStep('fertig');
     } catch (e: any) {
       setFinalizeError(e.message);
@@ -371,7 +539,7 @@ export default function RegisterCustomer() {
         {step === 'phone' && (
           <div style={cardInner}>
             <div style={{ width: 48, height: 48, borderRadius: '50%', background: 'var(--color-primary)', margin: '0 auto 12px' }} />
-            <div style={{ textAlign: 'center', fontFamily: "'Space Grotesk', sans-serif", fontSize: 19, fontWeight: 700, letterSpacing: 0.5, marginBottom: 28 }}>2NDSKIN</div>
+            <div style={{ textAlign: 'center', fontFamily: "'Space Grotesk', sans-serif", fontSize: 19, fontWeight: 700, letterSpacing: 0.5, marginBottom: 28 }}>SkinProject</div>
             <div style={heading}>Willkommen!</div>
             <div style={subtext}>Schön, dass du da bist. Bevor es losgeht, erstellen wir kurz dein Kundenprofil — das dauert nur 2–3 Minuten.</div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 'auto' }}>
