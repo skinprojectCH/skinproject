@@ -827,28 +827,44 @@ export async function fetchLocationBilling(locationId: string, startDateISO: str
   const start = `${startDateISO}T00:00:00`;
   const end = `${endDateISO}T23:59:59`;
 
-  const { data: orders, error } = await supabase
+  // Salon-weite Kennzahlen (inkl. Laufkunden ohne Termin): alle bezahlten Bestellungen
+  // an dieser Location, nach Bestelldatum.
+  const { data: orders, error: ordersError } = await supabase
     .from('orders')
-    .select('id, total, subtotal, status, appointments(artist_id, artists(id, name, calendar_color, revenue_share_pct)), order_line_items(service_id, product_id, line_total)')
+    .select('id, total, status')
     .eq('location_id', locationId)
     .eq('status', 'bezahlt')
     .gte('created_at', start)
     .lte('created_at', end);
-  if (error) throw error;
+  if (ordersError) throw ordersError;
 
-  const rows = (orders as any[]) || [];
-  const salonRevenue = rows.reduce((sum, o) => sum + Number(o.total), 0);
-  const orderCount = rows.length;
+  const orderRows = (orders as any[]) || [];
+  const salonRevenue = orderRows.reduce((sum, o) => sum + Number(o.total), 0);
+  const orderCount = orderRows.length;
   const avgOrderValue = orderCount > 0 ? salonRevenue / orderCount : 0;
 
+  // Pro-Artist-Umsatz: über Termine (start_time) statt Bestell-Erstelldatum berechnet —
+  // exakt dieselbe Methode wie fetchArtistEarnings in der Artist-PWA, damit "Dein Anteil"
+  // dort und die Abrechnung hier für denselben Zeitraum immer übereinstimmen.
+  const { data: appts, error: apptError } = await supabase
+    .from('appointments')
+    .select('artist_id, artists(id, name, calendar_color, revenue_share_pct), orders(subtotal, total, status, order_line_items(service_id, product_id, line_total))')
+    .eq('location_id', locationId)
+    .eq('type', 'termin')
+    .gte('start_time', start)
+    .lte('start_time', end);
+  if (apptError) throw apptError;
+
   const byArtist: Record<string, LocationBillingArtistRow> = {};
-  for (const o of rows) {
-    const artist = o.appointments?.artists;
+  for (const appt of (appts as any[]) || []) {
+    const artist = appt.artists;
     if (!artist) continue;
-    const lineItems = o.order_line_items || [];
+    const order = appt.orders?.[0];
+    if (!order || order.status !== 'bezahlt') continue;
+    const lineItems = order.order_line_items || [];
     const serviceSubtotal = lineItems.filter((li: any) => li.service_id).reduce((s: number, li: any) => s + Number(li.line_total), 0);
     if (serviceSubtotal <= 0) continue;
-    const discountFactor = Number(o.subtotal) > 0 ? Number(o.total) / Number(o.subtotal) : 1;
+    const discountFactor = Number(order.subtotal) > 0 ? Number(order.total) / Number(order.subtotal) : 1;
     const revenue = serviceSubtotal * discountFactor;
     if (!byArtist[artist.id]) {
       byArtist[artist.id] = { artistId: artist.id, artistName: artist.name, calendarColor: artist.calendar_color, revenue: 0, sharePct: artist.revenue_share_pct || 0, payout: 0 };
