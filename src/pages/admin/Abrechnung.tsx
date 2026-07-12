@@ -155,7 +155,7 @@ function ArtistDetailModal({
         <div style={{ fontSize: 13, fontWeight: 700 }}>
           Total Auszahlung: <span style={{ color: 'var(--color-accent)' }}>{formatCHF(total)}</span>
         </div>
-        {period !== 'tag' && entries.length > 0 && (
+        {entries.length > 0 && (
           <button
             className="btn btn-outline"
             onClick={() =>
