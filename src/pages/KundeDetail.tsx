@@ -306,6 +306,23 @@ export default function KundeDetail() {
             <input value={plzOrt} onChange={(e) => setPlzOrt(e.target.value)} style={inputStyle} placeholder="—" />
           </div>
 
+          {id && (
+            <div style={{ border: '1px solid var(--color-border)', borderRadius: 6, padding: 14, marginBottom: 20, background: 'var(--color-surface)' }}>
+              <div className="label-uppercase" style={{ marginBottom: 4 }}>
+                Registrierungslink
+              </div>
+              <div style={{ display: 'flex', gap: 8, alignItems: 'flex-start' }}>
+                <div style={{ flex: 1, border: '1px solid var(--color-border)', borderRadius: 4, padding: '9px 10px', fontSize: 12, color: '#555', overflow: 'hidden' }}>
+                  <div style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{`${window.location.origin}/register/${id}`}</div>
+                </div>
+                <button className="btn btn-secondary" style={{ flexShrink: 0 }} onClick={() => navigator.clipboard.writeText(`${window.location.origin}/register/${id}`)}>
+                  Kopieren
+                </button>
+              </div>
+              <div style={{ fontSize: 11, color: '#999', marginTop: 4 }}>Vor dem Termin an den Kunden schicken — Gesundheitsfragebogen &amp; Einverständnis.</div>
+            </div>
+          )}
+
           <div style={{ border: '1px solid var(--color-border)', borderRadius: 6, padding: 14, marginBottom: 20, background: 'var(--color-surface)' }}>
             <textarea
               value={notes}

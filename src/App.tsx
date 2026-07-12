@@ -18,12 +18,14 @@ import Abrechnung from './pages/admin/Abrechnung';
 import Locations from './pages/admin/Locations';
 import Gutscheine from './pages/admin/Gutscheine';
 import ArtistApp from './pages/artist/ArtistApp';
+import RegisterCustomer from './pages/register/RegisterCustomer';
 
 export default function App() {
   return (
     <Routes>
       <Route path="/login" element={<Login />} />
       <Route path="/artist/:artistId" element={<ArtistApp />} />
+      <Route path="/register/:customerId" element={<RegisterCustomer />} />
 
       <Route element={<RequireAuth />}>
         <Route element={<AppLayout />}>
