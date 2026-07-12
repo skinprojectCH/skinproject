@@ -97,7 +97,7 @@ const NAV_ITEMS: NavItem[] = [
   { key: 'kunden', label: 'Kunden', path: '/kunden', icon: () => <SmileyIcon /> },
   {
     key: 'personal',
-    label: 'Personal',
+    label: 'Settings',
     path: '/admin/artists',
     icon: () => <SettingsIcon />,
     children: [
