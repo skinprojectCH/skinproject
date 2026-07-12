@@ -43,13 +43,11 @@ function SmileyIcon() {
   );
 }
 
-function PeopleIcon() {
+function SettingsIcon() {
   return (
     <svg {...ICON_PROPS}>
-      <circle cx="9" cy="8" r="3" />
-      <path d="M3.5 19c.7-3 2.8-4.7 5.5-4.7s4.8 1.7 5.5 4.7" />
-      <circle cx="17" cy="8.5" r="2.4" />
-      <path d="M15.5 14.5c2.3.2 3.9 1.8 4.5 4.2" />
+      <circle cx="12" cy="12" r="3.2" />
+      <path d="M12 3.5v2.4M12 18.1v2.4M20.5 12h-2.4M5.9 12H3.5M17.6 6.4l-1.7 1.7M8.1 15.9l-1.7 1.7M17.6 17.6l-1.7-1.7M8.1 8.1L6.4 6.4" />
     </svg>
   );
 }
@@ -101,7 +99,7 @@ const NAV_ITEMS: NavItem[] = [
     key: 'personal',
     label: 'Personal',
     path: '/admin/artists',
-    icon: () => <PeopleIcon />,
+    icon: () => <SettingsIcon />,
     children: [
       { key: 'artists', label: 'Artists', path: '/admin/artists' },
       { key: 'schichtplan', label: 'Schichtplan', path: '/admin/schichtplan' },

@@ -122,6 +122,130 @@ export default function KundeDetail() {
     }, 0);
   }, [appointmentHistory]);
 
+  const upcomingAppointments = useMemo(() => {
+    const now = Date.now();
+    return appointmentHistory.filter((a: any) => new Date(a.start_time).getTime() >= now).sort((a: any, b: any) => new Date(a.start_time).getTime() - new Date(b.start_time).getTime());
+  }, [appointmentHistory]);
+
+  const pastAppointments = useMemo(() => {
+    const now = Date.now();
+    return appointmentHistory.filter((a: any) => new Date(a.start_time).getTime() < now);
+  }, [appointmentHistory]);
+
+  function renderApptCard(appt: any) {
+    const statusInfo = STATUS_LABELS[appt.status] || STATUS_LABELS.gebucht;
+    const services = (appt.appointment_line_items || []).map((li: any) => li.services?.name).filter(Boolean);
+    const order = appt.orders?.[0];
+    const showStatusBadge = appt.status === 'storniert' || appt.status === 'nicht_erschienen';
+    const apptFiles = docsByAppointment[appt.id] || [];
+    const apptDocs = apptFiles.filter((d) => d.type === 'document');
+    const apptPhotos = apptFiles.filter((d) => d.type === 'photo');
+    const isExpanded = expandedApptId === appt.id;
+    return (
+      <div key={appt.id} style={{ border: '1px solid var(--color-border)', borderRadius: 8, padding: '14px 16px', marginBottom: 12, background: 'var(--color-surface)' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12 }}>
+          <div style={{ fontSize: 13, fontWeight: 700 }}>
+            {new Date(appt.start_time).toLocaleDateString('de-CH', { day: '2-digit', month: '2-digit', year: 'numeric' })}
+            {' · '}
+            {services.length > 0 ? services.join(', ') : appt.type === 'absenz' ? 'Absenz' : 'Termin'}
+            {' · '}
+            {appt.artists?.name || '—'}
+          </div>
+          {showStatusBadge ? (
+            <div
+              style={{
+                border: `1px solid ${statusInfo.color}`,
+                color: statusInfo.color,
+                borderRadius: 10,
+                padding: '2px 10px',
+                fontSize: 10,
+                fontWeight: 600,
+                flexShrink: 0,
+                textTransform: 'uppercase',
+              }}
+            >
+              {appt.status === 'storniert' ? 'Absage' : statusInfo.label}
+            </div>
+          ) : (
+            <div style={{ fontSize: 13, fontWeight: 700, flexShrink: 0 }}>{order ? formatCHF(order.total) : '—'}</div>
+          )}
+        </div>
+
+        {appt.notes && <div style={{ fontSize: 12, color: '#777', marginTop: 4 }}>Notiz: {appt.notes}</div>}
+
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 10, flexWrap: 'wrap' }}>
+          {apptDocs.length > 0 && (
+            <div
+              onClick={() => setExpandedApptId(isExpanded ? null : appt.id)}
+              style={{ border: '1px solid var(--color-border)', borderRadius: 10, padding: '3px 10px', fontSize: 11, color: '#777', cursor: 'pointer' }}
+            >
+              {apptDocs.length} {apptDocs.length === 1 ? 'Dokument' : 'Dokumente'}
+            </div>
+          )}
+          {apptPhotos.length > 0 && (
+            <div
+              onClick={() => setExpandedApptId(isExpanded ? null : appt.id)}
+              style={{ border: '1px solid var(--color-border)', borderRadius: 10, padding: '3px 10px', fontSize: 11, color: '#777', cursor: 'pointer' }}
+            >
+              {apptPhotos.length} {apptPhotos.length === 1 ? 'Foto' : 'Fotos'}
+            </div>
+          )}
+          <div onClick={() => triggerApptUpload(appt.id, 'document')} style={{ fontSize: 11, color: 'var(--color-accent)', fontWeight: 600, cursor: 'pointer' }}>
+            + Dokument
+          </div>
+          <div onClick={() => triggerApptUpload(appt.id, 'photo')} style={{ fontSize: 11, color: 'var(--color-accent)', fontWeight: 600, cursor: 'pointer' }}>
+            + Foto
+          </div>
+        </div>
+
+        {isExpanded && apptFiles.length > 0 && (
+          <div style={{ marginTop: 10, paddingTop: 10, borderTop: '1px solid var(--color-border)' }}>
+            {apptDocs.length > 0 && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: apptPhotos.length > 0 ? 10 : 0 }}>
+                {apptDocs.map((doc) => (
+                  <div key={doc.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 12, border: '1px solid var(--color-border)', borderRadius: 4, padding: '6px 10px' }}>
+                    <div style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{doc.file_name || doc.storage_path.split('/').pop()}</div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
+                      <div onClick={() => handleOpenFile(doc)} style={{ color: 'var(--color-accent)', fontWeight: 600, cursor: 'pointer' }}>
+                        Öffnen
+                      </div>
+                      <div onClick={() => handleDeleteFile(doc)} style={{ color: '#999', cursor: 'pointer' }}>
+                        ✕
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+            {apptPhotos.length > 0 && (
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 6 }}>
+                {apptPhotos.map((p) => (
+                  <div key={p.id} style={{ position: 'relative', cursor: 'pointer' }}>
+                    <div
+                      onClick={() => openLightbox(p)}
+                      style={{ aspectRatio: '1', background: '#EFEEEA', borderRadius: 4, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 9, color: '#999', overflow: 'hidden' }}
+                    >
+                      {photoUrls[p.id] ? <img src={photoUrls[p.id]} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} /> : 'Foto'}
+                    </div>
+                    <div
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleDeleteFile(p);
+                      }}
+                      style={{ position: 'absolute', top: 2, right: 2, background: 'rgba(0,0,0,0.5)', color: '#fff', borderRadius: '50%', width: 16, height: 16, fontSize: 10, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                    >
+                      ✕
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+    );
+  }
+
   useEffect(() => {
     const allPhotoDocs = [...photos, ...appointmentDocs.filter((d) => d.type === 'photo')];
     const missing = allPhotoDocs.filter((p) => !photoUrls[p.id]);
@@ -417,7 +541,7 @@ export default function KundeDetail() {
           )}
 
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 4 }}>
-            <h3 style={{ fontSize: 16 }}>Vergangene Termine</h3>
+            <h3 style={{ fontSize: 16 }}>Termine</h3>
             {appointmentHistory.length > 0 && (
               <div style={{ fontSize: 12, color: '#999' }}>
                 Gesamtumsatz Kunde: <strong style={{ color: 'var(--color-primary)' }}>{formatCHF(totalRevenue)}</strong>
@@ -429,121 +553,22 @@ export default function KundeDetail() {
           ) : appointmentHistory.length === 0 ? (
             <div style={{ fontSize: 12, color: '#999' }}>Noch keine Termine für diesen Kunden erfasst.</div>
           ) : (
-            <div style={{ marginTop: 10 }}>
-              {appointmentHistory.map((appt: any) => {
-                const statusInfo = STATUS_LABELS[appt.status] || STATUS_LABELS.gebucht;
-                const services = (appt.appointment_line_items || []).map((li: any) => li.services?.name).filter(Boolean);
-                const order = appt.orders?.[0];
-                const showStatusBadge = appt.status === 'storniert' || appt.status === 'nicht_erschienen';
-                const apptFiles = docsByAppointment[appt.id] || [];
-                const apptDocs = apptFiles.filter((d) => d.type === 'document');
-                const apptPhotos = apptFiles.filter((d) => d.type === 'photo');
-                const isExpanded = expandedApptId === appt.id;
-                return (
-                  <div key={appt.id} style={{ border: '1px solid var(--color-border)', borderRadius: 8, padding: '14px 16px', marginBottom: 12, background: 'var(--color-surface)' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12 }}>
-                      <div style={{ fontSize: 13, fontWeight: 700 }}>
-                        {new Date(appt.start_time).toLocaleDateString('de-CH', { day: '2-digit', month: '2-digit', year: 'numeric' })}
-                        {' · '}
-                        {services.length > 0 ? services.join(', ') : appt.type === 'absenz' ? 'Absenz' : 'Termin'}
-                        {' · '}
-                        {appt.artists?.name || '—'}
-                      </div>
-                      {showStatusBadge ? (
-                        <div
-                          style={{
-                            border: `1px solid ${statusInfo.color}`,
-                            color: statusInfo.color,
-                            borderRadius: 10,
-                            padding: '2px 10px',
-                            fontSize: 10,
-                            fontWeight: 600,
-                            flexShrink: 0,
-                            textTransform: 'uppercase',
-                          }}
-                        >
-                          {appt.status === 'storniert' ? 'Absage' : statusInfo.label}
-                        </div>
-                      ) : (
-                        <div style={{ fontSize: 13, fontWeight: 700, flexShrink: 0 }}>{order ? formatCHF(order.total) : '—'}</div>
-                      )}
-                    </div>
-
-                    {appt.notes && <div style={{ fontSize: 12, color: '#777', marginTop: 4 }}>Notiz: {appt.notes}</div>}
-
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 10, flexWrap: 'wrap' }}>
-                      {apptDocs.length > 0 && (
-                        <div
-                          onClick={() => setExpandedApptId(isExpanded ? null : appt.id)}
-                          style={{ border: '1px solid var(--color-border)', borderRadius: 10, padding: '3px 10px', fontSize: 11, color: '#777', cursor: 'pointer' }}
-                        >
-                          {apptDocs.length} {apptDocs.length === 1 ? 'Dokument' : 'Dokumente'}
-                        </div>
-                      )}
-                      {apptPhotos.length > 0 && (
-                        <div
-                          onClick={() => setExpandedApptId(isExpanded ? null : appt.id)}
-                          style={{ border: '1px solid var(--color-border)', borderRadius: 10, padding: '3px 10px', fontSize: 11, color: '#777', cursor: 'pointer' }}
-                        >
-                          {apptPhotos.length} {apptPhotos.length === 1 ? 'Foto' : 'Fotos'}
-                        </div>
-                      )}
-                      <div onClick={() => triggerApptUpload(appt.id, 'document')} style={{ fontSize: 11, color: 'var(--color-accent)', fontWeight: 600, cursor: 'pointer' }}>
-                        + Dokument
-                      </div>
-                      <div onClick={() => triggerApptUpload(appt.id, 'photo')} style={{ fontSize: 11, color: 'var(--color-accent)', fontWeight: 600, cursor: 'pointer' }}>
-                        + Foto
-                      </div>
-                    </div>
-
-                    {isExpanded && apptFiles.length > 0 && (
-                      <div style={{ marginTop: 10, paddingTop: 10, borderTop: '1px solid var(--color-border)' }}>
-                        {apptDocs.length > 0 && (
-                          <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: apptPhotos.length > 0 ? 10 : 0 }}>
-                            {apptDocs.map((doc) => (
-                              <div key={doc.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 12, border: '1px solid var(--color-border)', borderRadius: 4, padding: '6px 10px' }}>
-                                <div style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{doc.file_name || doc.storage_path.split('/').pop()}</div>
-                                <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
-                                  <div onClick={() => handleOpenFile(doc)} style={{ color: 'var(--color-accent)', fontWeight: 600, cursor: 'pointer' }}>
-                                    Öffnen
-                                  </div>
-                                  <div onClick={() => handleDeleteFile(doc)} style={{ color: '#999', cursor: 'pointer' }}>
-                                    ✕
-                                  </div>
-                                </div>
-                              </div>
-                            ))}
-                          </div>
-                        )}
-                        {apptPhotos.length > 0 && (
-                          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 6 }}>
-                            {apptPhotos.map((p) => (
-                              <div key={p.id} style={{ position: 'relative', cursor: 'pointer' }}>
-                                <div
-                                  onClick={() => openLightbox(p)}
-                                  style={{ aspectRatio: '1', background: '#EFEEEA', borderRadius: 4, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 9, color: '#999', overflow: 'hidden' }}
-                                >
-                                  {photoUrls[p.id] ? <img src={photoUrls[p.id]} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} /> : 'Foto'}
-                                </div>
-                                <div
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    handleDeleteFile(p);
-                                  }}
-                                  style={{ position: 'absolute', top: 2, right: 2, background: 'rgba(0,0,0,0.5)', color: '#fff', borderRadius: '50%', width: 16, height: 16, fontSize: 10, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-                                >
-                                  ✕
-                                </div>
-                              </div>
-                            ))}
-                          </div>
-                        )}
-                      </div>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
+            <>
+              {upcomingAppointments.length > 0 && (
+                <div style={{ marginTop: 10, marginBottom: 20 }}>
+                  <div style={{ fontSize: 12, fontWeight: 700, color: '#777', marginBottom: 8 }}>Anstehende Termine</div>
+                  {upcomingAppointments.map((appt) => renderApptCard(appt))}
+                </div>
+              )}
+              <div style={{ marginTop: 10 }}>
+                <div style={{ fontSize: 12, fontWeight: 700, color: '#777', marginBottom: 8 }}>Vergangene Termine</div>
+                {pastAppointments.length === 0 ? (
+                  <div style={{ fontSize: 12, color: '#999' }}>Noch keine vergangenen Termine.</div>
+                ) : (
+                  pastAppointments.map((appt) => renderApptCard(appt))
+                )}
+              </div>
+            </>
           )}
           <input
             ref={apptDocInputRef}
