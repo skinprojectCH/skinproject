@@ -54,11 +54,13 @@ function YesNoToggle({ value, onChange }: { value: boolean | null; onChange: (v:
 }
 
 export default function RegisterCustomer() {
-  const { customerId } = useParams();
+  const { locationId } = useParams();
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
-  const [name, setName] = useState('');
+  const [locationName, setLocationName] = useState('');
 
+  const [vorname, setVorname] = useState('');
+  const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [phone, setPhone] = useState('');
   const [birthdate, setBirthdate] = useState('');
@@ -78,31 +80,26 @@ export default function RegisterCustomer() {
   const [submitted, setSubmitted] = useState(false);
 
   useEffect(() => {
-    if (!customerId) return;
-    fetch(`/api/customer-info?id=${customerId}`)
+    if (!locationId) return;
+    fetch(`/api/location-info?id=${locationId}`)
       .then((r) => r.json())
       .then((body) => {
         if (body.error) {
           setLoadError(body.error);
           return;
         }
-        const c = body.customer;
-        setName(`${c.vorname} ${c.name}`);
-        setEmail(c.email || '');
-        setPhone(c.phone || '');
-        setBirthdate(c.birthdate || '');
-        setStrasse(c.strasse || '');
-        setPlzOrt(c.plz_ort || '');
+        setLocationName(body.location.name);
       })
       .catch(() => setLoadError('Verbindung fehlgeschlagen.'))
       .finally(() => setLoading(false));
-  }, [customerId]);
+  }, [locationId]);
 
+  const profileValid = vorname.trim().length > 0 && name.trim().length > 0;
   const allAnswered = ALL_QUESTIONS.every((q) => answers[q.key] !== null);
-  const canSubmit = allAnswered && treatmentType && consentAccepted && !submitting;
+  const canSubmit = profileValid && allAnswered && treatmentType && consentAccepted && !submitting;
 
   async function handleSubmit() {
-    if (!canSubmit || !customerId) return;
+    if (!canSubmit || !locationId) return;
     setSubmitting(true);
     setSubmitError(null);
     try {
@@ -111,8 +108,16 @@ export default function RegisterCustomer() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          customerId,
-          profile: { email: email.trim() || null, phone: phone.trim() || null, birthdate: birthdate || null, strasse: strasse.trim() || null, plzOrt: plzOrt.trim() || null },
+          locationId,
+          profile: {
+            vorname: vorname.trim(),
+            name: name.trim(),
+            email: email.trim() || null,
+            phone: phone.trim() || null,
+            birthdate: birthdate || null,
+            strasse: strasse.trim() || null,
+            plzOrt: plzOrt.trim() || null,
+          },
           treatmentType,
           treatmentDetail: treatmentDetail.trim() || null,
           answers: ALL_QUESTIONS.map((q) => ({ key: q.key, answer: answers[q.key], detail: details[q.key]?.trim() || null })),
@@ -146,7 +151,7 @@ export default function RegisterCustomer() {
     return (
       <div style={{ minHeight: '100vh', background: 'var(--color-bg)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24, fontFamily: 'var(--font-body)' }}>
         <div style={{ maxWidth: 380, textAlign: 'center' }}>
-          <div style={{ fontSize: 22, fontFamily: 'var(--font-heading)', fontWeight: 700, marginBottom: 10 }}>Danke, {name.split(' ')[0]}!</div>
+          <div style={{ fontSize: 22, fontFamily: 'var(--font-heading)', fontWeight: 700, marginBottom: 10 }}>Danke, {vorname}!</div>
           <div style={{ fontSize: 14, color: '#555', lineHeight: 1.6 }}>Deine Registrierung ist eingegangen. Bis bald im Studio.</div>
         </div>
       </div>
@@ -157,13 +162,23 @@ export default function RegisterCustomer() {
     <div style={{ minHeight: '100vh', background: 'var(--color-bg)', fontFamily: 'var(--font-body)', padding: '28px 16px 60px' }}>
       <div style={{ maxWidth: 480, margin: '0 auto' }}>
         <div style={{ textAlign: 'center', marginBottom: 24 }}>
-          <div style={{ fontFamily: 'var(--font-heading)', fontSize: 12, letterSpacing: 1, color: 'var(--color-accent)', textTransform: 'uppercase', marginBottom: 6 }}>SkinProject</div>
-          <div style={{ fontSize: 20, fontWeight: 700 }}>Hoi {name.split(' ')[0]}, willkommen!</div>
+          <div style={{ fontFamily: 'var(--font-heading)', fontSize: 12, letterSpacing: 1, color: 'var(--color-accent)', textTransform: 'uppercase', marginBottom: 6 }}>{locationName || 'SkinProject'}</div>
+          <div style={{ fontSize: 20, fontWeight: 700 }}>Willkommen!</div>
           <div style={{ fontSize: 13, color: '#777', marginTop: 4 }}>Bitte füll das kurz vor deinem Termin aus.</div>
         </div>
 
         <div style={boxStyle}>
           <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 12 }}>Deine Angaben</div>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 12 }}>
+            <div>
+              <div style={labelStyle}>Vorname</div>
+              <input value={vorname} onChange={(e) => setVorname(e.target.value)} style={inputStyle} />
+            </div>
+            <div>
+              <div style={labelStyle}>Name</div>
+              <input value={name} onChange={(e) => setName(e.target.value)} style={inputStyle} />
+            </div>
+          </div>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 12 }}>
             <div>
               <div style={labelStyle}>E-Mail</div>
@@ -173,6 +188,10 @@ export default function RegisterCustomer() {
               <div style={labelStyle}>Mobile</div>
               <input value={phone} onChange={(e) => setPhone(e.target.value)} style={inputStyle} placeholder="+41791234567" />
             </div>
+          </div>
+          <div style={{ marginBottom: 12 }}>
+            <div style={labelStyle}>Strasse</div>
+            <input value={strasse} onChange={(e) => setStrasse(e.target.value)} style={inputStyle} />
           </div>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
             <div>

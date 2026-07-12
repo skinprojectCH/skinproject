@@ -354,6 +354,21 @@ export default function Locations() {
           </div>
 
           <div style={{ border: '1px solid var(--color-border)', borderRadius: 6, padding: 14, marginBottom: 24, background: 'var(--color-surface)' }}>
+            <div className="label-uppercase" style={{ marginBottom: 4 }}>
+              Registrierungslink
+            </div>
+            <div style={{ display: 'flex', gap: 8, alignItems: 'flex-start' }}>
+              <div style={{ flex: 1, border: '1px solid var(--color-border)', borderRadius: 4, padding: '9px 10px', fontSize: 12, color: '#555', overflow: 'hidden' }}>
+                <div style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{`${window.location.origin}/register/${selectedId}`}</div>
+              </div>
+              <button className="btn btn-secondary" style={{ flexShrink: 0 }} onClick={() => navigator.clipboard.writeText(`${window.location.origin}/register/${selectedId}`)}>
+                Kopieren
+              </button>
+            </div>
+            <div style={{ fontSize: 11, color: '#999', marginTop: 4 }}>Für neue Kunden — z.B. als QR-Code an der Rezeption. Legt bei Absenden automatisch einen neuen Kunden an.</div>
+          </div>
+
+          <div style={{ border: '1px solid var(--color-border)', borderRadius: 6, padding: 14, marginBottom: 24, background: 'var(--color-surface)' }}>
             <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 12 }}>MWST</div>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 140px', gap: 14 }}>
               <div>

@@ -25,7 +25,7 @@ export default function App() {
     <Routes>
       <Route path="/login" element={<Login />} />
       <Route path="/artist/:artistId" element={<ArtistApp />} />
-      <Route path="/register/:customerId" element={<RegisterCustomer />} />
+      <Route path="/register/:locationId" element={<RegisterCustomer />} />
 
       <Route element={<RequireAuth />}>
         <Route element={<AppLayout />}>
