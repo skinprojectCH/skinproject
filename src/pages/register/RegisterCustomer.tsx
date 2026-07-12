@@ -131,6 +131,15 @@ function SignaturePad({ onChange }: { onChange: (dataUrl: string | null) => void
   );
 }
 
+async function getImageDimensions(dataUrl: string): Promise<{ width: number; height: number }> {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => resolve({ width: img.naturalWidth, height: img.naturalHeight });
+    img.onerror = reject;
+    img.src = dataUrl;
+  });
+}
+
 async function buildAndUploadPdf(opts: {
   customerId: string;
   vorname: string;
@@ -145,6 +154,7 @@ async function buildAndUploadPdf(opts: {
   answers: { label: string; answer: boolean; detail?: string | null }[];
   sonstiges: string;
   signatureDataUrl: string | null;
+  idPhotoDataUrl: string | null;
 }) {
   const { jsPDF } = await import('jspdf');
   const doc = new jsPDF();
@@ -223,6 +233,20 @@ async function buildAndUploadPdf(opts: {
   }
   doc.setTextColor(0);
 
+  if (opts.idPhotoDataUrl) {
+    doc.addPage();
+    doc.setFontSize(12);
+    doc.text('Ausweis', 14, 20);
+    try {
+      const dims = await getImageDimensions(opts.idPhotoDataUrl);
+      const width = 180;
+      const height = Math.min(250, width * (dims.height / dims.width));
+      doc.addImage(opts.idPhotoDataUrl, 'JPEG', 14, 28, width, height);
+    } catch {
+      // falls Bildformat/-grösse Probleme macht, PDF trotzdem fertigstellen
+    }
+  }
+
   if (opts.signatureDataUrl) {
     if (y > 220) {
       doc.addPage();
@@ -271,6 +295,7 @@ export default function RegisterCustomer() {
   const [savingBirthdate, setSavingBirthdate] = useState(false);
 
   const [uploadingId, setUploadingId] = useState(false);
+  const [idPhotoDataUrl, setIdPhotoDataUrl] = useState<string | null>(null);
   const [idPhotoError, setIdPhotoError] = useState<string | null>(null);
   const idFileInputRef = useRef<HTMLInputElement>(null);
 
@@ -279,8 +304,6 @@ export default function RegisterCustomer() {
   const [sonstiges, setSonstiges] = useState('');
 
   const [signatureDataUrl, setSignatureDataUrl] = useState<string | null>(null);
-  const [signatureDocumentId, setSignatureDocumentId] = useState<string | null>(null);
-  const [confirmingSignature, setConfirmingSignature] = useState(false);
   const [signatureError, setSignatureError] = useState<string | null>(null);
 
   const [consentChecked, setConsentChecked] = useState(false);
@@ -318,11 +341,11 @@ export default function RegisterCustomer() {
       setProfileError(null);
       setBirthdate('');
       setIdPhotoError(null);
+      setIdPhotoDataUrl(null);
       setAnswers(Object.fromEntries(ALL_YESNO_QUESTIONS.map((q) => [q.key, false])));
       setDetails({});
       setSonstiges('');
       setSignatureDataUrl(null);
-      setSignatureDocumentId(null);
       setSignatureError(null);
       setConsentChecked(false);
       setFinalizeError(null);
@@ -422,18 +445,12 @@ export default function RegisterCustomer() {
   }
 
   async function handleIdPhotoSelected(file: File | undefined) {
-    if (!file || !customerId) return;
+    if (!file) return;
     setUploadingId(true);
     setIdPhotoError(null);
     try {
       const { dataBase64, mimeType } = await resizeImageToBase64(file);
-      const res = await fetch('/api/registration-upload', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ customerId, type: 'id_photo', fileName: file.name, mimeType, dataBase64 }),
-      });
-      const body = await res.json();
-      if (!res.ok) throw new Error(body.error || 'Unbekannter Fehler.');
+      setIdPhotoDataUrl(`data:${mimeType};base64,${dataBase64}`);
       setStep('gesundheit');
     } catch (e: any) {
       setIdPhotoError(e.message);
@@ -442,28 +459,12 @@ export default function RegisterCustomer() {
     }
   }
 
-  async function handleSignatureConfirm() {
-    if (!signatureDataUrl || !customerId) {
+  function handleSignatureConfirm() {
+    if (!signatureDataUrl) {
       setSignatureError('Bitte zuerst unterschreiben.');
       return;
     }
-    setConfirmingSignature(true);
-    setSignatureError(null);
-    try {
-      const res = await fetch('/api/registration-upload', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ customerId, type: 'signature', fileName: 'unterschrift.png', mimeType: 'image/png', dataBase64: signatureDataUrl.split(',')[1] }),
-      });
-      const body = await res.json();
-      if (!res.ok) throw new Error(body.error || 'Unbekannter Fehler.');
-      setSignatureDocumentId(body.documentId);
-      setStep('einverstaendnis');
-    } catch (e: any) {
-      setSignatureError(e.message);
-    } finally {
-      setConfirmingSignature(false);
-    }
+    setStep('einverstaendnis');
   }
 
   async function handleFinalize() {
@@ -485,7 +486,6 @@ export default function RegisterCustomer() {
           ],
           healthNoticeText: healthNoticeLines.join('\n') || null,
           consentAccepted: true,
-          signatureDocumentId,
         }),
       });
       const body = await res.json();
@@ -510,6 +510,7 @@ export default function RegisterCustomer() {
           ],
           sonstiges,
           signatureDataUrl,
+          idPhotoDataUrl,
         });
       } catch {
         // still proceed - PDF is a nice-to-have, not a blocker
@@ -736,8 +737,8 @@ export default function RegisterCustomer() {
             </div>
             <SignaturePad onChange={setSignatureDataUrl} />
             {signatureError && <div style={{ fontSize: 11, color: 'var(--color-destructive)', margin: '8px 0' }}>{signatureError}</div>}
-            <button style={{ ...primaryBtn, marginTop: 10, opacity: signatureDataUrl && !confirmingSignature ? 1 : 0.4 }} disabled={!signatureDataUrl || confirmingSignature} onClick={handleSignatureConfirm}>
-              {confirmingSignature ? 'Speichert…' : 'Bestätigen'}
+            <button style={{ ...primaryBtn, marginTop: 10, opacity: signatureDataUrl ? 1 : 0.4 }} disabled={!signatureDataUrl} onClick={handleSignatureConfirm}>
+              Bestätigen
             </button>
           </div>
         )}
