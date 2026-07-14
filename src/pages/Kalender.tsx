@@ -646,25 +646,7 @@ function WeekView({
   for (let m = DISPLAY_START_MIN; m <= DISPLAY_END_MIN; m += 60) hourMarks.push(m);
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
-      <div style={{ marginBottom: 12, flexShrink: 0 }}>
-        <div className="label-uppercase" style={{ marginBottom: 4 }}>
-          Artist auswählen
-        </div>
-        <select
-          value={artistId}
-          onChange={(e) => setArtistId(e.target.value)}
-          style={{ border: '1px solid var(--color-border)', borderRadius: 4, padding: '8px 14px', fontSize: 13, width: 220, fontFamily: 'var(--font-body)' }}
-        >
-          {artists.map((a) => (
-            <option key={a.id} value={a.id}>
-              {a.name}
-            </option>
-          ))}
-        </select>
-        <div style={{ fontSize: 11, color: '#999', marginTop: 4 }}>Wochenansicht zeigt jeweils einen Artist.</div>
-      </div>
-
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', position: 'relative' }}>
       {artists.length === 0 ? (
         <div style={{ fontSize: 13, color: '#999' }}>Keine Artists an dieser Location.</div>
       ) : loading ? (
@@ -858,6 +840,33 @@ function WeekView({
             Ausserhalb der Arbeitszeit — kann nicht gebucht werden.
           </div>
         </div>
+      )}
+
+      {artists.length > 0 && (
+        <select
+          value={artistId}
+          onChange={(e) => setArtistId(e.target.value)}
+          title="Wochenansicht zeigt jeweils einen Artist."
+          style={{
+            position: 'absolute',
+            bottom: 12,
+            right: 12,
+            border: '1px solid var(--color-border)',
+            borderRadius: 4,
+            padding: '7px 12px',
+            fontSize: 12,
+            width: 200,
+            background: '#fff',
+            fontFamily: 'var(--font-body)',
+            boxShadow: '0 2px 8px rgba(0,0,0,0.08)',
+          }}
+        >
+          {artists.map((a) => (
+            <option key={a.id} value={a.id}>
+              {a.name}
+            </option>
+          ))}
+        </select>
       )}
     </div>
   );

@@ -533,7 +533,7 @@ function AppointmentDetail({ appt, artistId, locationId, onClose }: { appt: any;
   return (
     <div style={{ position: 'fixed', inset: 0, background: 'var(--color-bg)', zIndex: 200, display: 'flex', flexDirection: 'column' }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '16px 20px', background: 'var(--color-surface)', borderBottom: '1px solid var(--color-border)', flexShrink: 0 }}>
-        <button onClick={onClose} style={{ background: 'none', border: 'none', fontSize: 20, cursor: 'pointer', padding: 0 }}>‹</button>
+        <button onClick={onClose} style={{ background: 'none', border: 'none', fontSize: 20, color: 'var(--color-accent)', fontWeight: 700, cursor: 'pointer', padding: 0 }}>‹</button>
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ fontSize: 15, fontWeight: 700, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
             {appt.customers ? `${appt.customers.vorname} ${appt.customers.name}` : 'Laufkunde'}
@@ -1153,7 +1153,9 @@ const periodNavBtnStyle: React.CSSProperties = {
   borderRadius: 16,
   border: '1px solid var(--color-border)',
   background: 'var(--color-surface)',
+  color: 'var(--color-accent)',
   fontSize: 16,
+  fontWeight: 700,
   cursor: 'pointer',
 };
 
