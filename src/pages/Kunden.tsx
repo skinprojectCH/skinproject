@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { fetchCustomers, type Customer } from '../lib/queries';
-import NewCustomerModal from '../components/NewCustomerModal';
 
 function EditIcon() {
   return (
@@ -17,7 +16,6 @@ export default function Kunden() {
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [showNew, setShowNew] = useState(false);
   const [hoveredRow, setHoveredRow] = useState<string | null>(null);
   const navigate = useNavigate();
 
@@ -41,7 +39,7 @@ export default function Kunden() {
             onChange={(e) => setSearch(e.target.value)}
             style={{ border: '1px solid var(--color-border)', padding: '8px 14px', fontSize: 12, borderRadius: 4, width: 220 }}
           />
-          <button className="btn btn-primary" onClick={() => setShowNew(true)}>
+          <button className="btn btn-primary" onClick={() => navigate('/kunden/new')}>
             + Neu
           </button>
         </div>
@@ -111,21 +109,11 @@ export default function Kunden() {
           {filtered.length === 0 && customers.length > 0 && <div style={{ padding: '24px 12px', fontSize: 13, color: '#999' }}>Keine Kunden entsprechen der Suche.</div>}
           {customers.length === 0 && (
             <div style={{ padding: '24px 12px', fontSize: 13, color: '#999' }}>
-              Noch keine Kunden erfasst. <span onClick={() => setShowNew(true)} style={{ color: 'var(--color-accent)', fontWeight: 600, cursor: 'pointer' }}>Jetzt anlegen</span>.
+              Noch keine Kunden erfasst. <span onClick={() => navigate('/kunden/new')} style={{ color: 'var(--color-accent)', fontWeight: 600, cursor: 'pointer' }}>Jetzt anlegen</span>.
             </div>
           )}
           </div>
         </>
-      )}
-
-      {showNew && (
-        <NewCustomerModal
-          onClose={() => setShowNew(false)}
-          onCreated={(id) => {
-            setShowNew(false);
-            navigate(`/kunden/${id}`);
-          }}
-        />
       )}
     </div>
   );

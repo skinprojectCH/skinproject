@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import {
   fetchCustomer,
+  createCustomer,
   updateCustomer,
   deleteCustomer,
   fetchCustomerDocuments,
@@ -25,6 +26,7 @@ const STATUS_LABELS: Record<string, { label: string; color: string }> = {
 
 export default function KundeDetail() {
   const { id } = useParams();
+  const isNew = id === 'new';
   const navigate = useNavigate();
   const [customer, setCustomer] = useState<Customer | null>(null);
   const [loading, setLoading] = useState(true);
@@ -79,6 +81,12 @@ export default function KundeDetail() {
 
   useEffect(() => {
     if (!id) return;
+    if (isNew) {
+      setLoading(false);
+      setDocsLoading(false);
+      setHistoryLoading(false);
+      return;
+    }
     fetchCustomer(id)
       .then((c) => {
         setCustomer(c);
@@ -285,7 +293,7 @@ export default function KundeDetail() {
     setSaveError(null);
     setSaved(false);
     try {
-      await updateCustomer(id, {
+      const patch = {
         vorname: vorname.trim(),
         name: name.trim(),
         birthdate: birthdate || null,
@@ -294,7 +302,13 @@ export default function KundeDetail() {
         strasse: strasse.trim() || null,
         plz_ort: plzOrt.trim() || null,
         notes: notes.trim() || null,
-      });
+      };
+      if (isNew) {
+        const created = await createCustomer(patch);
+        navigate(`/kunden/${created.id}`, { replace: true });
+        return;
+      }
+      await updateCustomer(id, patch);
       setSaved(true);
       setTimeout(() => setSaved(false), 2500);
     } catch (e: any) {
@@ -371,13 +385,13 @@ export default function KundeDetail() {
 
   if (loading) return <div style={{ fontSize: 13, color: '#999' }}>Lädt…</div>;
   if (error) return <div style={{ fontSize: 13, color: 'var(--color-destructive)' }}>Fehler: {error}</div>;
-  if (!customer) return <div style={{ fontSize: 13, color: '#999' }}>Kunde nicht gefunden.</div>;
+  if (!customer && !isNew) return <div style={{ fontSize: 13, color: '#999' }}>Kunde nicht gefunden.</div>;
 
   return (
     <div>
       <div style={{ display: 'flex', gap: 28 }}>
         <div style={{ width: 340, flexShrink: 0 }}>
-          <h2 style={{ fontSize: 19, marginBottom: 16 }}>Kunde bearbeiten</h2>
+          <h2 style={{ fontSize: 19, marginBottom: 16 }}>{isNew ? 'Neuer Kunde' : 'Kunde bearbeiten'}</h2>
 
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14, marginBottom: 6 }}>
             <div>
@@ -439,6 +453,8 @@ export default function KundeDetail() {
             />
           </div>
 
+          {!isNew && (
+          <>
           <div style={{ border: '1px solid var(--color-border)', borderRadius: 6, padding: 14, marginBottom: 20, background: 'var(--color-surface)' }}>
             <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 10 }}>Dokumente</div>
             {docsLoading ? (
@@ -500,38 +516,46 @@ export default function KundeDetail() {
               {uploadingPhoto ? 'Lädt hoch…' : '+ Foto hochladen'}
             </div>
           </div>
+          </>
+          )}
 
           {fileError && <div style={{ fontSize: 12, color: 'var(--color-destructive)', marginBottom: 12 }}>{fileError}</div>}
           {saveError && <div style={{ fontSize: 12, color: 'var(--color-destructive)', marginBottom: 12 }}>{saveError}</div>}
           {saved && <div style={{ fontSize: 12, color: '#1a7a3f', marginBottom: 12 }}>✓ Gespeichert.</div>}
 
           <button className="btn btn-primary" style={{ width: '100%', justifyContent: 'center', marginBottom: 10, opacity: saving ? 0.6 : 1 }} disabled={saving} onClick={handleSave}>
-            {saving ? 'Speichert…' : 'Speichern'}
+            {saving ? (isNew ? 'Erstellt…' : 'Speichert…') : isNew ? 'Kunde erstellen' : 'Speichern'}
           </button>
 
-          {!confirmDelete ? (
-            <button className="btn btn-destructive" style={{ width: '100%', justifyContent: 'center' }} onClick={() => setConfirmDelete(true)}>
-              Kunde löschen
-            </button>
-          ) : (
-            <div style={{ display: 'flex', gap: 10 }}>
-              <button className="btn btn-secondary" style={{ flex: 1, justifyContent: 'center' }} onClick={() => setConfirmDelete(false)}>
-                Doch nicht
+          {!isNew && (
+            !confirmDelete ? (
+              <button className="btn btn-destructive" style={{ width: '100%', justifyContent: 'center' }} onClick={() => setConfirmDelete(true)}>
+                Kunde löschen
               </button>
-              <button
-                className="btn btn-destructive"
-                style={{ flex: 1, justifyContent: 'center', background: 'var(--color-destructive)', color: '#fff', opacity: deleting ? 0.6 : 1 }}
-                disabled={deleting}
-                onClick={handleDelete}
-              >
-                {deleting ? 'Löscht…' : 'Wirklich löschen'}
-              </button>
-            </div>
+            ) : (
+              <div style={{ display: 'flex', gap: 10 }}>
+                <button className="btn btn-secondary" style={{ flex: 1, justifyContent: 'center' }} onClick={() => setConfirmDelete(false)}>
+                  Doch nicht
+                </button>
+                <button
+                  className="btn btn-destructive"
+                  style={{ flex: 1, justifyContent: 'center', background: 'var(--color-destructive)', color: '#fff', opacity: deleting ? 0.6 : 1 }}
+                  disabled={deleting}
+                  onClick={handleDelete}
+                >
+                  {deleting ? 'Löscht…' : 'Wirklich löschen'}
+                </button>
+              </div>
+            )
           )}
         </div>
 
         <div style={{ flex: 1, minWidth: 0 }}>
-          {customer.health_notice && (
+          {isNew ? (
+            <div style={{ fontSize: 12, color: '#999', marginTop: 4 }}>Termine, Dokumente und Gesundheitshinweise sind verfügbar, sobald der Kunde erstellt ist.</div>
+          ) : (
+          <>
+          {customer?.health_notice && (
             <div style={{ border: '1px solid var(--color-warn-border)', background: 'var(--color-warn-bg)', borderRadius: 6, padding: '12px 14px', marginBottom: 16 }}>
               <div style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: 0.5, color: '#8A6D2E', fontWeight: 700, marginBottom: 6 }}>
                 Gesundheitshinweise (aus Anmeldeformular)
@@ -589,6 +613,8 @@ export default function KundeDetail() {
               e.target.value = '';
             }}
           />
+          </>
+          )}
         </div>
       </div>
 
