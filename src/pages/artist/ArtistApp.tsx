@@ -751,17 +751,26 @@ function TermineTab({ artistId, locationId, artistColor }: { artistId: string; l
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [selected, setSelected] = useState<any | null>(null);
+  const todayRef = useRef<HTMLDivElement>(null);
 
   function reload() {
     setLoading(true);
     setError(null);
-    fetchAppointmentsForArtistRange(artistId, todayISO(), shiftISO(todayISO(), 30))
+    fetchAppointmentsForArtistRange(artistId, shiftISO(todayISO(), -30), shiftISO(todayISO(), 30))
       .then(setAppointments)
       .catch((e) => setError(e.message))
       .finally(() => setLoading(false));
   }
 
   useEffect(reload, [artistId]);
+
+  function scrollToToday(behavior: ScrollBehavior = 'smooth') {
+    todayRef.current?.scrollIntoView({ behavior, block: 'start' });
+  }
+
+  useEffect(() => {
+    if (!loading) scrollToToday('auto');
+  }, [loading]);
 
   function cardStyleFor(status: string): React.CSSProperties {
     let background = hexToRgba(artistColor, 0.1);
@@ -783,13 +792,30 @@ function TermineTab({ artistId, locationId, artistColor }: { artistId: string; l
 
   return (
     <div>
+      <div
+        style={{
+          position: 'sticky',
+          top: 0,
+          zIndex: 10,
+          background: 'var(--color-bg)',
+          display: 'flex',
+          justifyContent: 'flex-end',
+          padding: '4px 0 14px',
+          marginBottom: 2,
+        }}
+      >
+        <div onClick={() => scrollToToday()} style={{ fontSize: 12, color: 'var(--color-accent)', fontWeight: 700, cursor: 'pointer', border: '1px solid var(--color-accent)', borderRadius: 14, padding: '5px 14px', background: 'var(--color-surface)' }}>
+          Heute
+        </div>
+      </div>
+
       {loading && <div style={{ fontSize: 13, color: '#999' }}>Lädt…</div>}
       {error && <div style={{ fontSize: 13, color: 'var(--color-destructive)' }}>{error}</div>}
-      {!loading && !error && appointments.length === 0 && <div style={{ fontSize: 13, color: '#999' }}>Keine Termine in den nächsten 30 Tagen.</div>}
+      {!loading && !error && appointments.length === 0 && <div style={{ fontSize: 13, color: '#999' }}>Keine Termine in diesem Zeitraum.</div>}
 
       {!loading &&
         grouped.map(([dateKey, appts]) => (
-          <div key={dateKey} style={{ marginBottom: 20 }}>
+          <div key={dateKey} ref={dateKey === today ? todayRef : undefined} style={{ marginBottom: 20, scrollMarginTop: 56 }}>
             <div
               style={{
                 fontSize: 12,
