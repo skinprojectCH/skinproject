@@ -731,7 +731,7 @@ function AppointmentDetail({ appt, artistId, locationId, onClose }: { appt: any;
 // Termine-Tab: Tageskalender (Liste, keine Wochenansicht)
 // ============================================================
 const CHUNK_DAYS = 14;
-const MAX_LOOKAHEAD_DAYS = 180;
+const MAX_LOOKAHEAD_DAYS = 30;
 
 function formatDateHeader(dateISO: string) {
   const today = todayISO();
@@ -828,7 +828,12 @@ function TermineTab({ artistId, locationId, artistColor }: { artistId: string; l
     return Object.entries(map).sort(([a], [b]) => a.localeCompare(b));
   })();
 
-  const cardStyle: React.CSSProperties = { border: '1px solid var(--color-border)', borderRadius: 8, padding: '14px 16px', background: hexToRgba(artistColor, 0.1), cursor: 'pointer' };
+  function cardStyleFor(status: string): React.CSSProperties {
+    let background = hexToRgba(artistColor, 0.1);
+    if (status === 'kassiert') background = hexToRgba(artistColor, 0.24);
+    else if (status === 'nicht_erschienen') background = hexToRgba('#8B5A5A', 0.12);
+    return { border: '1px solid var(--color-border)', borderRadius: 8, padding: '14px 16px', background, cursor: 'pointer' };
+  }
 
   return (
     <div>
@@ -840,7 +845,7 @@ function TermineTab({ artistId, locationId, artistColor }: { artistId: string; l
             setPickedDate(next);
             loadPickedDate(next);
           }}
-          style={{ width: 32, height: 32, borderRadius: 16, border: '1px solid var(--color-border)', background: 'var(--color-surface)', fontSize: 15, cursor: 'pointer', flexShrink: 0 }}
+          style={{ width: 32, height: 32, borderRadius: 16, border: '1px solid var(--color-border)', background: 'var(--color-surface)', color: 'var(--color-accent)', fontSize: 16, fontWeight: 700, cursor: 'pointer', flexShrink: 0 }}
         >
           ‹
         </button>
@@ -876,7 +881,7 @@ function TermineTab({ artistId, locationId, artistColor }: { artistId: string; l
             setPickedDate(next);
             loadPickedDate(next);
           }}
-          style={{ width: 32, height: 32, borderRadius: 16, border: '1px solid var(--color-border)', background: 'var(--color-surface)', fontSize: 15, cursor: 'pointer', flexShrink: 0 }}
+          style={{ width: 32, height: 32, borderRadius: 16, border: '1px solid var(--color-border)', background: 'var(--color-surface)', color: 'var(--color-accent)', fontSize: 16, fontWeight: 700, cursor: 'pointer', flexShrink: 0 }}
         >
           ›
         </button>
@@ -900,7 +905,7 @@ function TermineTab({ artistId, locationId, artistColor }: { artistId: string; l
               const statusInfo = STATUS_LABELS[appt.status] || STATUS_LABELS.gebucht;
               const services = (appt.appointment_line_items || []).map((li: any) => li.services?.name).filter(Boolean);
               return (
-                <div key={appt.id} onClick={() => setSelected(appt)} style={cardStyle}>
+                <div key={appt.id} onClick={() => setSelected(appt)} style={cardStyleFor(appt.status)}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 10 }}>
                     <div>
                       <div style={{ fontSize: 13, fontWeight: 700 }}>
@@ -935,7 +940,7 @@ function TermineTab({ artistId, locationId, artistColor }: { artistId: string; l
                     const statusInfo = STATUS_LABELS[appt.status] || STATUS_LABELS.gebucht;
                     const services = (appt.appointment_line_items || []).map((li: any) => li.services?.name).filter(Boolean);
                     return (
-                      <div key={appt.id} onClick={() => setSelected(appt)} style={cardStyle}>
+                      <div key={appt.id} onClick={() => setSelected(appt)} style={cardStyleFor(appt.status)}>
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 10 }}>
                           <div>
                             <div style={{ fontSize: 13, fontWeight: 700 }}>
@@ -960,7 +965,7 @@ function TermineTab({ artistId, locationId, artistColor }: { artistId: string; l
           {hasMore && <div ref={sentinelRef} style={{ height: 1 }} />}
           {loadingMore && <div style={{ fontSize: 12, color: '#999', textAlign: 'center', padding: '10px 0' }}>Lädt weitere Termine…</div>}
           {!loading && !hasMore && appointments.length > 0 && (
-            <div style={{ fontSize: 12, color: '#999', textAlign: 'center', padding: '10px 0' }}>Keine weiteren Termine in den nächsten 6 Monaten.</div>
+            <div style={{ fontSize: 12, color: '#999', textAlign: 'center', padding: '10px 0' }}>Keine weiteren Termine in den nächsten 30 Tagen.</div>
           )}
         </>
       )}
