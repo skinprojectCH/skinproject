@@ -855,6 +855,8 @@ function TermineTab({ artistId, locationId, artistColor }: { artistId: string; l
           </div>
         ))}
 
+      {!loading && <div style={{ minHeight: '75vh' }} aria-hidden />}
+
       {selected && <AppointmentDetail appt={selected} artistId={artistId} locationId={locationId} onClose={() => { setSelected(null); reload(); }} />}
     </div>
   );
