@@ -57,7 +57,7 @@ export default function Gutscheine() {
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 16, marginBottom: 24 }}>
         {KPIS.map((k) => (
-          <div key={k.label} style={{ border: '1px solid #eee', background: '#fbfaf8', borderRadius: 6, padding: 16 }}>
+          <div key={k.label} style={{ border: '1px solid var(--color-border)', background: 'var(--color-surface)', borderRadius: 6, padding: 16 }}>
             <div className="label-uppercase" style={{ marginBottom: 8 }}>
               {k.label}
             </div>
@@ -71,6 +71,7 @@ export default function Gutscheine() {
 
       {!loading && !error && (
         <>
+          <div style={{ border: '1px solid var(--color-border)', borderRadius: 6, background: 'var(--color-surface)', overflow: 'hidden' }}>
           <div style={{ display: 'grid', gridTemplateColumns: '120px 1fr 90px 90px 100px 90px', padding: '10px 12px', fontSize: 11, textTransform: 'uppercase', letterSpacing: 0.5, color: '#999', borderBottom: '1px solid var(--color-border)', fontWeight: 600 }}>
             <div>Code</div>
             <div>Käufer</div>
@@ -106,6 +107,7 @@ export default function Gutscheine() {
             </div>
           ))}
           {filtered.length === 0 && <div style={{ padding: '20px 12px', fontSize: 13, color: '#999' }}>Noch keine Gutscheine verkauft.</div>}
+          </div>
         </>
       )}
     </div>
