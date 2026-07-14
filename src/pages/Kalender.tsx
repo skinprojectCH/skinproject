@@ -835,38 +835,36 @@ function WeekView({
             </div>
           </div>
 
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 12px', fontSize: 11, color: '#999', borderTop: '1px solid #eee', flexShrink: 0 }}>
-            <span style={{ width: 12, height: 12, background: HATCH_BG, display: 'inline-block', borderRadius: 2 }} />
-            Ausserhalb der Arbeitszeit — kann nicht gebucht werden.
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, padding: '10px 12px', fontSize: 11, color: '#999', borderTop: '1px solid #eee', flexShrink: 0 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <span style={{ width: 12, height: 12, background: HATCH_BG, display: 'inline-block', borderRadius: 2 }} />
+              Ausserhalb der Arbeitszeit — kann nicht gebucht werden.
+            </div>
+            {artists.length > 0 && (
+              <select
+                value={artistId}
+                onChange={(e) => setArtistId(e.target.value)}
+                title="Wochenansicht zeigt jeweils einen Artist."
+                style={{
+                  border: '1px solid var(--color-border)',
+                  borderRadius: 4,
+                  padding: '6px 10px',
+                  fontSize: 12,
+                  width: 180,
+                  background: '#fff',
+                  fontFamily: 'var(--font-body)',
+                  flexShrink: 0,
+                }}
+              >
+                {artists.map((a) => (
+                  <option key={a.id} value={a.id}>
+                    {a.name}
+                  </option>
+                ))}
+              </select>
+            )}
           </div>
         </div>
-      )}
-
-      {artists.length > 0 && (
-        <select
-          value={artistId}
-          onChange={(e) => setArtistId(e.target.value)}
-          title="Wochenansicht zeigt jeweils einen Artist."
-          style={{
-            position: 'absolute',
-            bottom: 12,
-            right: 12,
-            border: '1px solid var(--color-border)',
-            borderRadius: 4,
-            padding: '7px 12px',
-            fontSize: 12,
-            width: 200,
-            background: '#fff',
-            fontFamily: 'var(--font-body)',
-            boxShadow: '0 2px 8px rgba(0,0,0,0.08)',
-          }}
-        >
-          {artists.map((a) => (
-            <option key={a.id} value={a.id}>
-              {a.name}
-            </option>
-          ))}
-        </select>
       )}
     </div>
   );

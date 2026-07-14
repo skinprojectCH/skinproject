@@ -809,12 +809,12 @@ function TermineTab({ artistId, locationId, artistColor }: { artistId: string; l
       <div
         style={{
           position: 'sticky',
-          top: 0,
+          top: 64,
           zIndex: 10,
           background: 'var(--color-bg)',
           display: 'flex',
           justifyContent: 'flex-end',
-          padding: '4px 0 14px',
+          padding: '10px 0 14px',
           marginBottom: 2,
         }}
       >
@@ -853,7 +853,7 @@ function TermineTab({ artistId, locationId, artistColor }: { artistId: string; l
                       apptRefs.current[appt.id] = el;
                     }}
                     onClick={() => setSelected(appt)}
-                    style={{ ...cardStyleFor(appt.status), scrollMarginTop: 56 }}
+                    style={{ ...cardStyleFor(appt.status), scrollMarginTop: 130 }}
                   >
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 10 }}>
                       <div>
@@ -1387,7 +1387,7 @@ function ArtistDashboard({ artist: initialArtist, onLogout }: { artist: Artist; 
 
   return (
     <div style={{ minHeight: '100vh', background: 'var(--color-bg)', fontFamily: 'var(--font-body)', paddingBottom: 76 }}>
-      <div style={{ background: 'var(--color-primary)', padding: '14px 20px', display: 'flex', alignItems: 'center', gap: 12 }}>
+      <div style={{ background: 'var(--color-primary)', padding: '14px 20px', display: 'flex', alignItems: 'center', gap: 12, position: 'sticky', top: 0, zIndex: 20, height: 64, boxSizing: 'border-box' }}>
         <img src="/logo-skinproject.png" alt="" style={{ width: 36, height: 36, flexShrink: 0 }} />
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ fontSize: 9, textTransform: 'uppercase', letterSpacing: 0.5, color: 'var(--color-accent)' }}>SkinProject</div>
