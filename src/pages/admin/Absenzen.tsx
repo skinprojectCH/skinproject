@@ -297,6 +297,7 @@ export default function Absenzen() {
 
       {!loading && !error && (
         <>
+          <div style={{ border: '1px solid var(--color-border)', borderRadius: 6, background: 'var(--color-surface)', overflow: 'hidden' }}>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr 1.3fr 40px', padding: '10px 12px', fontSize: 11, textTransform: 'uppercase', letterSpacing: 0.5, color: '#999', borderBottom: '1px solid var(--color-border)', fontWeight: 600 }}>
             <div>Artist</div>
             <div>Von</div>
@@ -340,6 +341,7 @@ export default function Absenzen() {
             </div>
           ))}
           {filtered.length === 0 && <div style={{ padding: '24px 12px', fontSize: 13, color: '#999' }}>Keine Einträge in dieser Kategorie.</div>}
+          </div>
           {filtered.length > 0 && <div style={{ fontSize: 11, color: '#999', marginTop: 10 }}>Klick auf eine Zeile öffnet die Bearbeitung.</div>}
         </>
       )}
