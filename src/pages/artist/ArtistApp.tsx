@@ -446,22 +446,18 @@ function AppointmentDetail({ appt, artistId, locationId, onClose }: { appt: any;
   const [notes, setNotes] = useState(appt.notes || '');
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
-  const [docs, setDocs] = useState<CustomerDocument[]>([]);
   const [photos, setPhotos] = useState<CustomerDocument[]>([]);
   const [loadingFiles, setLoadingFiles] = useState(true);
-  const [uploadingDoc, setUploadingDoc] = useState(false);
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
   const [fileError, setFileError] = useState<string | null>(null);
   const [photoUrls, setPhotoUrls] = useState<Record<string, string>>({});
   const [lightboxUrl, setLightboxUrl] = useState<string | null>(null);
-  const docInputRef = useRef<HTMLInputElement>(null);
   const photoInputRef = useRef<HTMLInputElement>(null);
 
   function reload() {
     setLoadingFiles(true);
     fetchDocumentsForAppointment(appt.id)
       .then((all) => {
-        setDocs(all.filter((d) => d.type === 'document'));
         setPhotos(all.filter((d) => d.type === 'photo'));
       })
       .catch((e) => setFileError(e.message))
@@ -508,17 +504,16 @@ function AppointmentDetail({ appt, artistId, locationId, onClose }: { appt: any;
     }
   }
 
-  async function handleFile(file: File | undefined, type: 'document' | 'photo') {
+  async function handleFile(file: File | undefined) {
     if (!file || !appt.customer_id) return;
     setFileError(null);
-    type === 'document' ? setUploadingDoc(true) : setUploadingPhoto(true);
+    setUploadingPhoto(true);
     try {
-      await uploadCustomerFile(appt.customer_id, file, type, appt.id);
+      await uploadCustomerFile(appt.customer_id, file, 'photo', appt.id);
       reload();
     } catch (e: any) {
       setFileError(e.message);
     } finally {
-      setUploadingDoc(false);
       setUploadingPhoto(false);
     }
   }
@@ -676,43 +671,6 @@ function AppointmentDetail({ appt, artistId, locationId, onClose }: { appt: any;
         </div>
 
         <div style={{ border: '1px solid var(--color-border)', borderRadius: 6, padding: 14, marginBottom: 16, background: 'var(--color-surface)' }}>
-          <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 10 }}>Dokumente</div>
-          {loadingFiles ? (
-            <div style={{ fontSize: 12, color: '#999' }}>Lädt…</div>
-          ) : (
-            <>
-              {docs.length === 0 ? (
-                <div style={{ fontSize: 12, color: '#999', marginBottom: 10 }}>Noch keine Dokumente.</div>
-              ) : (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 10 }}>
-                  {docs.map((doc) => (
-                    <div key={doc.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 12, border: '1px solid var(--color-border)', borderRadius: 4, padding: '8px 10px' }}>
-                      <div style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{doc.file_name || doc.storage_path.split('/').pop()}</div>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
-                        <div
-                          onClick={async () => {
-                            const url = await getCustomerFileUrl(doc.storage_path);
-                            window.open(url, '_blank');
-                          }}
-                          style={{ color: 'var(--color-accent)', fontWeight: 600, cursor: 'pointer' }}
-                        >
-                          Öffnen
-                        </div>
-                        <div onClick={() => handleDelete(doc)} style={{ color: '#999', cursor: 'pointer' }}>✕</div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </>
-          )}
-          <input ref={docInputRef} type="file" style={{ position: 'absolute', width: 1, height: 1, opacity: 0, overflow: 'hidden', pointerEvents: 'none' }} onChange={(e) => { handleFile(e.target.files?.[0], 'document'); e.target.value = ''; }} />
-          <button className="btn btn-outline" style={{ width: '100%', justifyContent: 'center' }} onClick={() => docInputRef.current?.click()} disabled={uploadingDoc}>
-            {uploadingDoc ? 'Lädt hoch…' : 'Dokument hinzufügen'}
-          </button>
-        </div>
-
-        <div style={{ border: '1px solid var(--color-border)', borderRadius: 6, padding: 14, marginBottom: 16, background: 'var(--color-surface)' }}>
           <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 10 }}>Fotos</div>
           {!loadingFiles && photos.length > 0 && (
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 6, marginBottom: 10 }}>
@@ -735,7 +693,7 @@ function AppointmentDetail({ appt, artistId, locationId, onClose }: { appt: any;
             </div>
           )}
           {!loadingFiles && photos.length === 0 && <div style={{ fontSize: 12, color: '#999', marginBottom: 10 }}>Noch keine Fotos.</div>}
-          <input ref={photoInputRef} type="file" accept="image/*" style={{ position: 'absolute', width: 1, height: 1, opacity: 0, overflow: 'hidden', pointerEvents: 'none' }} onChange={(e) => { handleFile(e.target.files?.[0], 'photo'); e.target.value = ''; }} />
+          <input ref={photoInputRef} type="file" accept="image/*" style={{ position: 'absolute', width: 1, height: 1, opacity: 0, overflow: 'hidden', pointerEvents: 'none' }} onChange={(e) => { handleFile(e.target.files?.[0]); e.target.value = ''; }} />
           <button className="btn btn-outline" style={{ width: '100%', justifyContent: 'center' }} onClick={() => photoInputRef.current?.click()} disabled={uploadingPhoto}>
             {uploadingPhoto ? 'Lädt hoch…' : 'Foto hinzufügen'}
           </button>
