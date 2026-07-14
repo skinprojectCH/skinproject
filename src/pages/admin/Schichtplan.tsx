@@ -85,15 +85,21 @@ export default function Schichtplan() {
       .finally(() => setLoadingShifts(false));
   }, [selectedArtistId, selectedLocationId]);
 
+  function reloadAllArtistShifts(artistId: string) {
+    fetchAllShiftsForArtist(artistId)
+      .then(setAllArtistShifts)
+      .catch(() => setAllArtistShifts([]));
+  }
+
   useEffect(() => {
     if (!selectedArtistId) {
       setAllArtistShifts([]);
       return;
     }
-    fetchAllShiftsForArtist(selectedArtistId)
-      .then(setAllArtistShifts)
-      .catch(() => setAllArtistShifts([]));
-  }, [selectedArtistId]);
+    reloadAllArtistShifts(selectedArtistId);
+    // Bei jedem Location-Wechsel neu laden, nicht nur bei Artist-Wechsel — sonst zeigt
+    // die Konflikt-Warnung nach einem Speichervorgang an anderer Location veraltete Daten.
+  }, [selectedArtistId, selectedLocationId]);
 
   const otherLocationShiftsByWeekday = useMemo(() => {
     const map: Record<number, (Shift & { locations: { name: string } | null })[]> = {};
@@ -125,6 +131,7 @@ export default function Schichtplan() {
       const slots = WEEKDAYS.flatMap((_, weekday) => schedule[weekday].map((s) => ({ weekday, start_time: s.from, end_time: s.to })));
       await replaceArtistShifts(selectedArtistId, selectedLocationId, validFrom, unbefristet ? null : validTo || null, slots);
       setSaved(true);
+      reloadAllArtistShifts(selectedArtistId);
       setTimeout(() => setSaved(false), 2500);
     } catch (e: any) {
       setSaveError(e.message);
@@ -163,7 +170,6 @@ export default function Schichtplan() {
             {activeArtists.map((a) => (
               <option key={a.id} value={a.id}>
                 {a.name}
-                {a.location_id && a.location_id !== selectedLocationId ? ` (Stamm: ${locations.find((l) => l.id === a.location_id)?.name || '—'})` : ''}
               </option>
             ))}
           </select>
