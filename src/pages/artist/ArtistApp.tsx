@@ -101,7 +101,7 @@ function PinPad({ pin, setPin, onSubmit, loading, maxLen = 6 }: { pin: string; s
       </div>
       <button
         className="btn btn-primary"
-        style={{ width: '100%', justifyContent: 'center', marginTop: 24, opacity: pin.length >= 4 && !loading ? 1 : 0.4 }}
+        style={{ width: '100%', justifyContent: 'center', marginTop: 24, background: 'var(--color-accent)', border: 'none', opacity: pin.length >= 4 && !loading ? 1 : 0.4 }}
         disabled={pin.length < 4 || loading}
         onClick={onSubmit}
       >
@@ -173,7 +173,7 @@ function ArtistLoginScreen({ artistId, onLoggedIn }: { artistId: string; onLogge
     >
       <img src="/logo-skinproject.png" alt="SkinProject" style={{ width: 96, height: 96, marginBottom: 20 }} />
       <div style={{ fontSize: 20, fontWeight: 700, color: '#fff', marginBottom: 32, textAlign: 'center' }}>
-        {name ? `Hoi ${name}` : '\u00A0'}
+        {name ? `Hallo ${name}` : '\u00A0'}
       </div>
 
       {infoError ? (
