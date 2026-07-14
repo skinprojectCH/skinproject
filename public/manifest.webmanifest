@@ -2,7 +2,6 @@
   "name": "SkinProject",
   "short_name": "SkinProject",
   "description": "SkinProject Artist-PWA",
-  "start_url": "/",
   "display": "standalone",
   "background_color": "#111111",
   "theme_color": "#111111",
