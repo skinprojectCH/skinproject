@@ -1,6 +1,20 @@
 import { useEffect, useState } from 'react';
 import Modal from './Modal';
-import { fetchArtists, fetchCustomers, fetchServices, fetchServiceCategories, createAppointment, addAppointmentLineItems, createAbsence, type Artist, type Customer, type Service, type ServiceCategory } from '../lib/queries';
+import {
+  fetchArtists,
+  fetchCustomers,
+  fetchServices,
+  fetchServiceCategories,
+  fetchShiftsForDate,
+  fetchArtistIdsWithAnyShifts,
+  createAppointment,
+  addAppointmentLineItems,
+  createAbsence,
+  type Artist,
+  type Customer,
+  type Service,
+  type ServiceCategory,
+} from '../lib/queries';
 import NewCustomerModal from './NewCustomerModal';
 
 const ABSENCE_TYPES: { key: 'ferien' | 'krank' | 'abwesend'; label: string }[] = [
@@ -24,6 +38,8 @@ export default function TerminModal({ onClose, onSave, locationId, initialDate, 
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const [allArtists, setAllArtists] = useState<Artist[]>([]);
+  const [idsWithShifts, setIdsWithShifts] = useState<Set<string>>(new Set());
   const [artists, setArtists] = useState<Artist[]>([]);
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [services, setServices] = useState<Service[]>([]);
@@ -31,17 +47,14 @@ export default function TerminModal({ onClose, onSave, locationId, initialDate, 
   const [categoryFilter, setCategoryFilter] = useState<string>('');
 
   useEffect(() => {
-    Promise.all([fetchArtists(), fetchCustomers(), fetchServices(), fetchServiceCategories()])
-      .then(([a, c, s, cats]) => {
-        const scopedArtists = a.filter((art) => art.status === 'active');
-        setArtists(scopedArtists);
+    Promise.all([fetchArtists(), fetchCustomers(), fetchServices(), fetchServiceCategories(), fetchArtistIdsWithAnyShifts()])
+      .then(([a, c, s, cats, withShifts]) => {
+        const active = a.filter((art) => art.status === 'active');
+        setAllArtists(active);
+        setIdsWithShifts(withShifts);
         setCustomers(c);
         setServices(s.filter((sv) => sv.active));
         setCategories(cats);
-        if (scopedArtists.length) {
-          const preferred = initialArtistId && scopedArtists.some((art) => art.id === initialArtistId) ? initialArtistId : scopedArtists[0].id;
-          setSelectedArtist(preferred);
-        }
       })
       .catch((e) => setError(e.message));
   }, []);
@@ -55,6 +68,30 @@ export default function TerminModal({ onClose, onSave, locationId, initialDate, 
   const [selectedServices, setSelectedServices] = useState<string[]>(['']);
   const totalDuration = selectedServices.reduce((sum, id) => sum + (services.find((s) => s.id === id)?.duration_minutes || 0), 0);
   const totalPrice = selectedServices.reduce((sum, id) => sum + (services.find((s) => s.id === id)?.price || 0), 0);
+
+  // Nur Artists anzeigen, die laut Schichtplan an diesem Datum an dieser Location arbeiten
+  // (Rückfallebene: Artists ganz ohne Schichtplan erscheinen an ihrer Stamm-Location).
+  useEffect(() => {
+    if (allArtists.length === 0) return;
+    if (!locationId) {
+      setArtists(allArtists);
+      return;
+    }
+    fetchShiftsForDate(allArtists.map((a) => a.id), date)
+      .then((shifts) => {
+        const idsHere = new Set(shifts.filter((s) => s.location_id === locationId).map((s) => s.artist_id));
+        const scoped = allArtists.filter((a) => idsHere.has(a.id) || (!idsWithShifts.has(a.id) && a.location_id === locationId));
+        setArtists(scoped.length > 0 ? scoped : allArtists);
+      })
+      .catch(() => setArtists(allArtists));
+  }, [allArtists, idsWithShifts, locationId, date]);
+
+  useEffect(() => {
+    if (artists.length && (!selectedArtist || !artists.some((a) => a.id === selectedArtist))) {
+      const preferred = initialArtistId && artists.some((a) => a.id === initialArtistId) ? initialArtistId : artists[0].id;
+      setSelectedArtist(preferred);
+    }
+  }, [artists]);
 
   // Absenz-State
   const [absenceType, setAbsenceType] = useState<'ferien' | 'krank' | 'abwesend'>('ferien');
@@ -72,6 +109,10 @@ export default function TerminModal({ onClose, onSave, locationId, initialDate, 
   async function handleSaveTermin() {
     if (!selectedArtist || !time || !date) {
       setError('Bitte Artist, Datum und Zeit auswählen.');
+      return;
+    }
+    if (!selectedServices.some((id) => id)) {
+      setError('Bitte mindestens einen Service auswählen.');
       return;
     }
     setSaving(true);

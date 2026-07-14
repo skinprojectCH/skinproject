@@ -136,9 +136,21 @@ const NAV_ITEMS: NavItem[] = [
 ];
 
 function LocationSwitcher() {
-  const { locations, locationsLoaded, selectedLocationId, setSelectedLocationId, favoriteLocationId, toggleFavorite } = useLocationContext();
+  const { locations, locationsLoaded, selectedLocationId, setSelectedLocationId, favoriteLocationId, toggleFavorite, isLocationLocked } = useLocationContext();
 
   if (!locationsLoaded || locations.length === 0) return null;
+
+  // Salon-Manager-Login ist fest an eine Location geknüpft -> kein Wechsel, kein Dropdown,
+  // nur Anzeige. Nur der Hauptadmin (kein fester Standort) darf zwischen Locations wechseln.
+  if (isLocationLocked) {
+    const current = locations.find((l) => l.id === selectedLocationId);
+    return (
+      <div style={{ padding: '0 14px 18px', textAlign: 'center' }}>
+        <div style={{ fontSize: 9, textTransform: 'uppercase', letterSpacing: 0.5, color: '#888', marginBottom: 6 }}>Standort</div>
+        <div style={{ fontSize: 12, fontWeight: 700, color: '#eee' }}>{current?.name || '—'}</div>
+      </div>
+    );
+  }
 
   return (
     <div style={{ padding: '0 14px 18px' }}>

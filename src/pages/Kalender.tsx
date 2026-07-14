@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import TerminModal from '../components/TerminModal';
 import EditTerminModal from '../components/EditTerminModal';
 import Modal from '../components/Modal';
@@ -6,6 +6,10 @@ import { fetchAppointmentsForDay, fetchArtists, fetchShiftsForDate, fetchArtistI
 import { useLocationContext } from '../lib/locationContext';
 
 type ViewMode = 'tag' | 'woche' | 'liste';
+
+function artistDisplayName(a: { name: string; kuenstlername?: string | null } | null | undefined) {
+  return a?.kuenstlername || a?.name || '—';
+}
 
 interface LoadedAppointment {
   id: string;
@@ -37,7 +41,7 @@ function mapAppointmentRow(a: any, dateISO: string): LoadedAppointment {
     customerPhone: a.customers?.phone || null,
     services: (a.appointment_line_items || []).map((li: any) => li.services?.name).filter(Boolean),
     artistId: a.artist_id,
-    artistName: a.artists?.name || '—',
+    artistName: artistDisplayName(a.artists),
     artistColor: a.artists?.calendar_color || 'var(--color-accent)',
     status: a.status,
   };
@@ -345,12 +349,23 @@ function DayView({
   const hourMarks: number[] = [];
   for (let m = DISPLAY_START_MIN; m <= DISPLAY_END_MIN; m += 60) hourMarks.push(m);
 
+  const scrollRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!showNowIndicator || !scrollRef.current) return;
+    const container = scrollRef.current;
+    const target = nowTop - container.clientHeight / 2;
+    container.scrollTo({ top: Math.max(0, target), behavior: 'auto' });
+    // Nur beim Wechsel auf "heute" zentrieren, nicht bei jedem Minuten-Tick (sonst
+    // reisst es den Nutzer beim Scrollen ständig zurück).
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isToday]);
+
   return (
     <div style={{ border: '1px solid #eee', borderRadius: 6, overflow: 'hidden', display: 'flex', flexDirection: 'column', height: '100%' }}>
       {/* Kopfzeile + Zeitraster in EINEM scrollenden Container, damit Scrollbar-Breite
           Kopfzeile und Spalten gleichermassen betrifft (sonst Breiten-Versatz). Kopfzeile
           bleibt optisch fix via position:sticky. */}
-      <div style={{ flex: 1, minHeight: 0, overflowY: 'auto' }}>
+      <div ref={scrollRef} style={{ flex: 1, minHeight: 0, overflowY: 'auto' }}>
         <div style={{ display: 'flex', borderBottom: '1px solid #eee', position: 'sticky', top: 0, zIndex: 10, background: '#fff' }}>
           <div style={{ width: 56, flexShrink: 0, background: '#fff' }} />
           {artists.map((artist) => {
@@ -380,7 +395,7 @@ function DayView({
             >
               <div style={{ fontFamily: 'var(--font-heading)', fontSize: 13, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, color: fullDayAbsence ? ABSENCE_TEXT : '#111' }}>
                 <span style={{ width: 8, height: 8, borderRadius: '50%', background: artist.calendar_color, display: 'inline-block', flexShrink: 0 }} />
-                <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{artist.name}</span>
+                <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{artistDisplayName(artist)}</span>
               </div>
               <div style={{ fontSize: 10, color: fullDayAbsence ? ABSENCE_TEXT : label || absence ? '#999' : 'var(--color-destructive)', fontWeight: fullDayAbsence ? 700 : 400 }}>{statusText}</div>
             </div>
@@ -477,7 +492,7 @@ function DayView({
                     key={`abs-${i}`}
                     onClick={(e) => {
                       e.stopPropagation();
-                      if (absence) onSelectAbsence(absence, artist.name);
+                      if (absence) onSelectAbsence(absence, artistDisplayName(artist));
                     }}
                     onDoubleClick={(e) => e.stopPropagation()}
                     style={{
@@ -858,7 +873,7 @@ function WeekView({
               >
                 {artists.map((a) => (
                   <option key={a.id} value={a.id}>
-                    {a.name}
+                    {artistDisplayName(a)}
                   </option>
                 ))}
               </select>
@@ -886,7 +901,7 @@ function ListView({
   onSelectAbsence: (absence: Absence, artistName: string) => void;
 }) {
   const [hoveredRow, setHoveredRow] = useState<string | null>(null);
-  const artistName = (id: string) => artists.find((a) => a.id === id)?.name || '—';
+  const artistName = (id: string) => artistDisplayName(artists.find((a) => a.id === id));
 
   return (
     <div>

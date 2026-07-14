@@ -285,6 +285,10 @@ function TerminForm({
       setError('Bitte Datum und Zeit auswählen.');
       return;
     }
+    if (!selectedServices.some((id) => id)) {
+      setError('Bitte mindestens einen Service auswählen.');
+      return;
+    }
     setSaving(true);
     setError(null);
     try {
@@ -345,13 +349,13 @@ function TerminForm({
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 14 }}>
-        <div>
+        <div style={{ minWidth: 0 }}>
           {formFieldLabel('Datum')}
-          <input type="date" value={date} onChange={(e) => setDate(e.target.value)} style={formBoxStyle} />
+          <input type="date" value={date} onChange={(e) => setDate(e.target.value)} style={{ ...formBoxStyle, width: '100%', maxWidth: '100%' }} />
         </div>
-        <div>
+        <div style={{ minWidth: 0 }}>
           {formFieldLabel('Startzeit')}
-          <input type="time" value={time} onChange={(e) => setTime(e.target.value)} style={formBoxStyle} />
+          <input type="time" value={time} onChange={(e) => setTime(e.target.value)} style={{ ...formBoxStyle, width: '100%', maxWidth: '100%' }} />
         </div>
       </div>
 
@@ -533,7 +537,25 @@ function AppointmentDetail({ appt, artistId, locationId, onClose }: { appt: any;
   return (
     <div style={{ position: 'fixed', inset: 0, background: 'var(--color-bg)', zIndex: 200, display: 'flex', flexDirection: 'column' }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '16px 20px', background: 'var(--color-surface)', borderBottom: '1px solid var(--color-border)', flexShrink: 0 }}>
-        <button onClick={onClose} style={{ background: 'none', border: 'none', fontSize: 20, color: 'var(--color-accent)', fontWeight: 700, cursor: 'pointer', padding: 0 }}>‹</button>
+        <button
+          onClick={onClose}
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 4,
+            background: 'var(--color-surface)',
+            border: '1px solid var(--color-accent)',
+            borderRadius: 14,
+            fontSize: 12,
+            fontWeight: 700,
+            color: 'var(--color-accent)',
+            cursor: 'pointer',
+            padding: '5px 12px 5px 8px',
+            flexShrink: 0,
+          }}
+        >
+          ‹ Zurück
+        </button>
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ fontSize: 15, fontWeight: 700, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
             {appt.customers ? `${appt.customers.vorname} ${appt.customers.name}` : 'Laufkunde'}
@@ -684,7 +706,7 @@ function AppointmentDetail({ appt, artistId, locationId, onClose }: { appt: any;
               )}
             </>
           )}
-          <input ref={docInputRef} type="file" style={{ display: 'none' }} onChange={(e) => { handleFile(e.target.files?.[0], 'document'); e.target.value = ''; }} />
+          <input ref={docInputRef} type="file" style={{ position: 'absolute', width: 1, height: 1, opacity: 0, overflow: 'hidden', pointerEvents: 'none' }} onChange={(e) => { handleFile(e.target.files?.[0], 'document'); e.target.value = ''; }} />
           <button className="btn btn-outline" style={{ width: '100%', justifyContent: 'center' }} onClick={() => docInputRef.current?.click()} disabled={uploadingDoc}>
             {uploadingDoc ? 'Lädt hoch…' : 'Dokument hinzufügen'}
           </button>
@@ -713,7 +735,7 @@ function AppointmentDetail({ appt, artistId, locationId, onClose }: { appt: any;
             </div>
           )}
           {!loadingFiles && photos.length === 0 && <div style={{ fontSize: 12, color: '#999', marginBottom: 10 }}>Noch keine Fotos.</div>}
-          <input ref={photoInputRef} type="file" accept="image/*" style={{ display: 'none' }} onChange={(e) => { handleFile(e.target.files?.[0], 'photo'); e.target.value = ''; }} />
+          <input ref={photoInputRef} type="file" accept="image/*" style={{ position: 'absolute', width: 1, height: 1, opacity: 0, overflow: 'hidden', pointerEvents: 'none' }} onChange={(e) => { handleFile(e.target.files?.[0], 'photo'); e.target.value = ''; }} />
           <button className="btn btn-outline" style={{ width: '100%', justifyContent: 'center' }} onClick={() => photoInputRef.current?.click()} disabled={uploadingPhoto}>
             {uploadingPhoto ? 'Lädt hoch…' : 'Foto hinzufügen'}
           </button>
@@ -814,11 +836,11 @@ function TermineTab({ artistId, locationId, artistColor }: { artistId: string; l
           background: 'var(--color-bg)',
           display: 'flex',
           justifyContent: 'flex-end',
-          padding: '10px 0 14px',
+          padding: '16px 0 14px',
           marginBottom: 2,
         }}
       >
-        <div onClick={() => scrollToUpcoming()} style={{ fontSize: 12, color: 'var(--color-accent)', fontWeight: 700, cursor: 'pointer', border: '1px solid var(--color-accent)', borderRadius: 14, padding: '5px 14px', background: 'var(--color-surface)' }}>
+        <div onClick={() => scrollToUpcoming()} style={{ fontSize: 12, lineHeight: 1.5, color: 'var(--color-accent)', fontWeight: 700, cursor: 'pointer', border: '1px solid var(--color-accent)', borderRadius: 14, padding: '6px 14px', background: 'var(--color-surface)' }}>
           Heute
         </div>
       </div>
@@ -858,7 +880,8 @@ function TermineTab({ artistId, locationId, artistColor }: { artistId: string; l
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 10 }}>
                       <div>
                         <div style={{ fontSize: 13, fontWeight: 700 }}>
-                          {new Date(appt.start_time).toLocaleTimeString('de-CH', { hour: '2-digit', minute: '2-digit' })} · {appt.customers ? `${appt.customers.vorname} ${appt.customers.name}` : 'Laufkunde'}
+                          {new Date(appt.start_time).toLocaleTimeString('de-CH', { hour: '2-digit', minute: '2-digit' })}
+                          {appt.end_time ? `–${new Date(appt.end_time).toLocaleTimeString('de-CH', { hour: '2-digit', minute: '2-digit' })}` : ''} · {appt.customers ? `${appt.customers.vorname} ${appt.customers.name}` : 'Laufkunde'}
                         </div>
                         <div style={{ fontSize: 12, color: '#777', marginTop: 2 }}>
                           {services.join(', ') || '—'}

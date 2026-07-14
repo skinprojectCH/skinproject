@@ -112,7 +112,12 @@ export default function KundeDetail() {
 
   const vornameValid = vorname.trim().length > 0;
   const nameValid = name.trim().length > 0;
-  const canSave = vornameValid && nameValid;
+  const birthdateValid = birthdate.trim().length > 0;
+  const phoneValid = phone.trim().length > 0;
+  const emailValid = email.trim().length > 0;
+  const strasseValid = strasse.trim().length > 0;
+  const plzOrtValid = plzOrt.trim().length > 0;
+  const canSave = vornameValid && nameValid && birthdateValid && phoneValid && emailValid && strasseValid && plzOrtValid;
 
   const docsByAppointment = useMemo(() => {
     const map: Record<string, CustomerDocument[]> = {};
@@ -413,36 +418,46 @@ export default function KundeDetail() {
             <div className="label-uppercase" style={{ marginBottom: 4 }}>
               Geburtsdatum
             </div>
-            <input type="date" value={birthdate} onChange={(e) => setBirthdate(e.target.value)} style={inputStyle} />
+            <input type="date" value={birthdate} onChange={(e) => setBirthdate(e.target.value)} style={attempted && !birthdateValid ? { ...inputStyle, border: '1px solid var(--color-destructive)' } : inputStyle} />
           </div>
 
           <div style={{ margin: '14px 0 6px' }}>
             <div className="label-uppercase" style={{ marginBottom: 4 }}>
               Mobile
             </div>
-            <input value={phone} onChange={(e) => setPhone(e.target.value)} onBlur={handlePhoneBlur} style={inputStyle} placeholder="+41791234567" />
+            <input
+              value={phone}
+              onChange={(e) => setPhone(e.target.value)}
+              onBlur={handlePhoneBlur}
+              style={attempted && !phoneValid ? { ...inputStyle, border: '1px solid var(--color-destructive)' } : inputStyle}
+              placeholder="+41791234567"
+            />
           </div>
 
           <div style={{ margin: '14px 0 20px' }}>
             <div className="label-uppercase" style={{ marginBottom: 4 }}>
               E-Mail
             </div>
-            <input value={email} onChange={(e) => setEmail(e.target.value)} style={inputStyle} placeholder="—" />
+            <input value={email} onChange={(e) => setEmail(e.target.value)} style={attempted && !emailValid ? { ...inputStyle, border: '1px solid var(--color-destructive)' } : inputStyle} placeholder="—" />
           </div>
 
           <div style={{ margin: '14px 0 6px' }}>
             <div className="label-uppercase" style={{ marginBottom: 4 }}>
               Strasse
             </div>
-            <input value={strasse} onChange={(e) => setStrasse(e.target.value)} style={inputStyle} placeholder="—" />
+            <input value={strasse} onChange={(e) => setStrasse(e.target.value)} style={attempted && !strasseValid ? { ...inputStyle, border: '1px solid var(--color-destructive)' } : inputStyle} placeholder="—" />
           </div>
 
-          <div style={{ margin: '14px 0 20px' }}>
+          <div style={{ margin: '14px 0 6px' }}>
             <div className="label-uppercase" style={{ marginBottom: 4 }}>
               PLZ / Ort
             </div>
-            <input value={plzOrt} onChange={(e) => setPlzOrt(e.target.value)} style={inputStyle} placeholder="—" />
+            <input value={plzOrt} onChange={(e) => setPlzOrt(e.target.value)} style={attempted && !plzOrtValid ? { ...inputStyle, border: '1px solid var(--color-destructive)' } : inputStyle} placeholder="—" />
           </div>
+          {attempted && (!birthdateValid || !phoneValid || !emailValid || !strasseValid || !plzOrtValid) && (
+            <div style={{ fontSize: 11, color: 'var(--color-destructive)', marginBottom: 8 }}>Geburtsdatum, Mobile, E-Mail, Strasse und PLZ/Ort sind Pflichtfelder.</div>
+          )}
+          <div style={{ marginBottom: 12 }} />
 
           <div style={{ border: '1px solid var(--color-border)', borderRadius: 6, padding: 14, marginBottom: 20, background: 'var(--color-surface)' }}>
             <textarea

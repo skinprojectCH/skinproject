@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { fetchLocations, fetchArtists, fetchShiftsForArtist, replaceArtistShifts, type Location, type Artist, type Shift } from '../../lib/queries';
+import { fetchLocations, fetchArtists, fetchShiftsForArtist, fetchAllShiftsForArtist, replaceArtistShifts, type Location, type Artist, type Shift } from '../../lib/queries';
 
 interface Slot {
   id: string;
@@ -32,6 +32,7 @@ export default function Schichtplan() {
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [existingShifts, setExistingShifts] = useState<Shift[]>([]);
+  const [allArtistShifts, setAllArtistShifts] = useState<(Shift & { locations: { name: string } | null })[]>([]);
 
   useEffect(() => {
     Promise.all([fetchLocations(), fetchArtists()])
@@ -83,6 +84,25 @@ export default function Schichtplan() {
       .catch((e) => setError(e.message))
       .finally(() => setLoadingShifts(false));
   }, [selectedArtistId, selectedLocationId]);
+
+  useEffect(() => {
+    if (!selectedArtistId) {
+      setAllArtistShifts([]);
+      return;
+    }
+    fetchAllShiftsForArtist(selectedArtistId)
+      .then(setAllArtistShifts)
+      .catch(() => setAllArtistShifts([]));
+  }, [selectedArtistId]);
+
+  const otherLocationShiftsByWeekday = useMemo(() => {
+    const map: Record<number, (Shift & { locations: { name: string } | null })[]> = {};
+    for (const s of allArtistShifts) {
+      if (s.location_id === selectedLocationId) continue;
+      (map[s.weekday] ||= []).push(s);
+    }
+    return map;
+  }, [allArtistShifts, selectedLocationId]);
 
   function addSlot(weekday: number) {
     setSchedule((prev) => ({ ...prev, [weekday]: [...prev[weekday], { id: crypto.randomUUID(), from: '09:00', to: '18:00' }] }));
@@ -185,7 +205,9 @@ export default function Schichtplan() {
 
               <div style={{ border: '1px solid var(--color-border)', borderRadius: 6, padding: 14, marginBottom: 24, background: 'var(--color-surface)' }}>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                  {WEEKDAYS.map((day, weekday) => (
+                  {WEEKDAYS.map((day, weekday) => {
+                    const conflicts = otherLocationShiftsByWeekday[weekday] || [];
+                    return (
                     <div
                       key={day}
                       style={{
@@ -193,9 +215,10 @@ export default function Schichtplan() {
                         gridTemplateColumns: '60px 1fr',
                         gap: 12,
                         alignItems: 'center',
-                        border: '1px solid var(--color-border)',
+                        border: conflicts.length > 0 ? '1px solid var(--color-warn-border)' : '1px solid var(--color-border)',
                         borderRadius: 6,
                         padding: '10px 12px',
+                        background: conflicts.length > 0 ? 'var(--color-warn-bg)' : 'transparent',
                       }}
                     >
                       <div style={{ fontSize: 12, fontWeight: 600, color: schedule[weekday].length === 0 ? '#999' : '#111' }}>{day}</div>
@@ -224,9 +247,15 @@ export default function Schichtplan() {
                         <div onClick={() => addSlot(weekday)} style={{ fontSize: 11, color: 'var(--color-accent)', fontWeight: 600, cursor: 'pointer' }}>
                           + Zeitfenster
                         </div>
+                        {conflicts.length > 0 && (
+                          <div style={{ fontSize: 11, color: '#8A6D2E', fontWeight: 600, marginLeft: 'auto', whiteSpace: 'nowrap' }} title="Bereits an diesem Tag eingeplant">
+                            ⚠ auch: {conflicts.map((c) => `${c.locations?.name || '—'} ${c.start_time.slice(0, 5)}–${c.end_time.slice(0, 5)}`).join(', ')}
+                          </div>
+                        )}
                       </div>
                     </div>
-                  ))}
+                    );
+                  })}
                 </div>
               </div>
 

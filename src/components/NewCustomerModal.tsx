@@ -19,10 +19,16 @@ export default function NewCustomerModal({ onClose, onCreated }: { onClose: () =
 
   const vornameValid = vorname.trim().length > 0;
   const nameValid = name.trim().length > 0;
+  const phoneValid = phone.trim().length > 0;
+  const emailValid = email.trim().length > 0;
+  const strasseValid = strasse.trim().length > 0;
+  const plzOrtValid = plzOrt.trim().length > 0;
+  const birthdateValid = birthdate.trim().length > 0;
+  const allValid = vornameValid && nameValid && phoneValid && emailValid && strasseValid && plzOrtValid && birthdateValid;
 
   async function handleCreate() {
     setAttempted(true);
-    if (!vornameValid || !nameValid) return;
+    if (!allValid) return;
     setSaving(true);
     setError(null);
     try {
@@ -70,35 +76,42 @@ export default function NewCustomerModal({ onClose, onCreated }: { onClose: () =
           <div className="label-uppercase" style={{ marginBottom: 4 }}>
             Mobile
           </div>
-          <input value={phone} onChange={(e) => setPhone(e.target.value)} onBlur={() => phone.trim() && setPhone(normalizePhone(phone))} style={inputStyle} placeholder="+41791234567" />
+          <input
+            value={phone}
+            onChange={(e) => setPhone(e.target.value)}
+            onBlur={() => phone.trim() && setPhone(normalizePhone(phone))}
+            style={attempted && !phoneValid ? { ...inputStyle, border: '1px solid var(--color-destructive)' } : inputStyle}
+            placeholder="+41791234567"
+          />
         </div>
         <div>
           <div className="label-uppercase" style={{ marginBottom: 4 }}>
             E-Mail
           </div>
-          <input value={email} onChange={(e) => setEmail(e.target.value)} style={inputStyle} placeholder="optional" />
+          <input value={email} onChange={(e) => setEmail(e.target.value)} style={attempted && !emailValid ? { ...inputStyle, border: '1px solid var(--color-destructive)' } : inputStyle} />
         </div>
       </div>
       <div style={{ marginBottom: 14 }}>
         <div className="label-uppercase" style={{ marginBottom: 4 }}>
           Strasse
         </div>
-        <input value={strasse} onChange={(e) => setStrasse(e.target.value)} style={inputStyle} placeholder="optional" />
+        <input value={strasse} onChange={(e) => setStrasse(e.target.value)} style={attempted && !strasseValid ? { ...inputStyle, border: '1px solid var(--color-destructive)' } : inputStyle} />
       </div>
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 14 }}>
         <div>
           <div className="label-uppercase" style={{ marginBottom: 4 }}>
             PLZ / Ort
           </div>
-          <input value={plzOrt} onChange={(e) => setPlzOrt(e.target.value)} style={inputStyle} placeholder="optional" />
+          <input value={plzOrt} onChange={(e) => setPlzOrt(e.target.value)} style={attempted && !plzOrtValid ? { ...inputStyle, border: '1px solid var(--color-destructive)' } : inputStyle} />
         </div>
         <div>
           <div className="label-uppercase" style={{ marginBottom: 4 }}>
             Geburtsdatum
           </div>
-          <input type="date" value={birthdate} onChange={(e) => setBirthdate(e.target.value)} style={inputStyle} />
+          <input type="date" value={birthdate} onChange={(e) => setBirthdate(e.target.value)} style={attempted && !birthdateValid ? { ...inputStyle, border: '1px solid var(--color-destructive)' } : inputStyle} />
         </div>
       </div>
+      {attempted && !allValid && <div style={{ fontSize: 11, color: 'var(--color-destructive)', marginBottom: 8 }}>Alle Felder sind Pflicht.</div>}
       {error && <div style={{ fontSize: 12, color: 'var(--color-destructive)', marginBottom: 12 }}>{error}</div>}
       <div style={{ display: 'flex', gap: 10 }}>
         <button className="btn btn-secondary" style={{ flex: 1, justifyContent: 'center' }} onClick={onClose}>

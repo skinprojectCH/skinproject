@@ -105,6 +105,10 @@ export default function EditTerminModal({ appointmentId, onClose }: Props) {
       setSaveError('Bitte Artist, Datum und Zeit auswählen.');
       return;
     }
+    if (!selectedServices.some((id) => id)) {
+      setSaveError('Bitte mindestens einen Service auswählen.');
+      return;
+    }
     setSaving(true);
     setSaveError(null);
     try {

@@ -427,7 +427,7 @@ export async function fetchAppointmentsForDay(dateISO: string, locationId?: stri
   const end = `${dateISO}T23:59:59`;
   let query = supabase
     .from('appointments')
-    .select('*, customers(vorname, name, phone), artists(name, calendar_color), appointment_line_items(service_id, services(name))')
+    .select('*, customers(vorname, name, phone), artists(name, kuenstlername, calendar_color), appointment_line_items(service_id, services(name))')
     .gte('start_time', start)
     .lte('start_time', end)
     .order('start_time');
@@ -665,6 +665,14 @@ export async function fetchShiftsForArtist(artistId: string, locationId: string)
   const { data, error } = await supabase.from('shifts').select('*').eq('artist_id', artistId).eq('location_id', locationId).order('weekday');
   if (error) throw error;
   return data as Shift[];
+}
+
+// Für die Doppelbuchungs-Warnung im Schichtplan: alle Schichten eines Artists an ALLEN
+// Locations (nicht nur der aktuell bearbeiteten), inkl. Location-Name.
+export async function fetchAllShiftsForArtist(artistId: string) {
+  const { data, error } = await supabase.from('shifts').select('*, locations(name)').eq('artist_id', artistId).order('weekday');
+  if (error) throw error;
+  return data as (Shift & { locations: { name: string } | null })[];
 }
 
 // Alle Artist-IDs, die IRGENDWO (egal welche Location/Wochentag) einen Schichtplan-Eintrag
