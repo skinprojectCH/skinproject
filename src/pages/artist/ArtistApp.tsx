@@ -3,6 +3,7 @@ import { useParams } from 'react-router-dom';
 import { supabase } from '../../lib/supabaseClient';
 import {
   fetchArtistById,
+  updateArtist,
   fetchAppointmentsForArtistRange,
   fetchArtistEarnings,
   fetchDocumentsForAppointment,
@@ -170,9 +171,7 @@ function ArtistLoginScreen({ artistId, onLoggedIn }: { artistId: string; onLogge
         fontFamily: 'var(--font-body)',
       }}
     >
-      <div style={{ fontFamily: 'var(--font-heading)', fontSize: 13, letterSpacing: 1, color: 'var(--color-accent)', textTransform: 'uppercase', marginBottom: 8 }}>
-        SkinProject
-      </div>
+      <img src="/logo-skinproject.png" alt="SkinProject" style={{ width: 96, height: 96, marginBottom: 20 }} />
       <div style={{ fontSize: 20, fontWeight: 700, color: '#fff', marginBottom: 32, textAlign: 'center' }}>
         {name ? `Hoi ${name}` : '\u00A0'}
       </div>
@@ -749,7 +748,6 @@ function TermineTab({ artistId, locationId }: { artistId: string; locationId: st
   const [error, setError] = useState<string | null>(null);
   const [rangeEndOffset, setRangeEndOffset] = useState(0);
   const [selected, setSelected] = useState<any | null>(null);
-  const [showNew, setShowNew] = useState(false);
   const sentinelRef = useRef<HTMLDivElement>(null);
 
   const [pickedDate, setPickedDate] = useState('');
@@ -823,10 +821,6 @@ function TermineTab({ artistId, locationId }: { artistId: string; locationId: st
 
   return (
     <div>
-      <button className="btn btn-primary" style={{ width: '100%', justifyContent: 'center', marginBottom: 16 }} onClick={() => setShowNew(true)}>
-        + Neuer Termin
-      </button>
-
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16 }}>
         <input
           type="date"
@@ -930,26 +924,6 @@ function TermineTab({ artistId, locationId }: { artistId: string; locationId: st
       )}
 
       {selected && <AppointmentDetail appt={selected} artistId={artistId} locationId={locationId} onClose={() => { setSelected(null); reload(); if (pickedDate) loadPickedDate(pickedDate); }} />}
-
-      {showNew && (
-        <div style={{ position: 'fixed', inset: 0, background: 'var(--color-bg)', zIndex: 200, display: 'flex', flexDirection: 'column' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '16px 20px', background: 'var(--color-surface)', borderBottom: '1px solid var(--color-border)', flexShrink: 0 }}>
-            <button onClick={() => setShowNew(false)} style={{ background: 'none', border: 'none', fontSize: 20, cursor: 'pointer', padding: 0 }}>‹</button>
-            <div style={{ fontSize: 15, fontWeight: 700 }}>Neuer Termin</div>
-          </div>
-          <div style={{ flex: 1, overflowY: 'auto', padding: 20 }}>
-            <TerminForm
-              artistId={artistId}
-              locationId={locationId}
-              onCancel={() => setShowNew(false)}
-              onSaved={() => {
-                setShowNew(false);
-                reload();
-              }}
-            />
-          </div>
-        </div>
-      )}
     </div>
   );
 }
@@ -1260,41 +1234,263 @@ function UmsatzTab({ artist }: { artist: Artist }) {
 }
 
 // ============================================================
-// Dashboard
+// Bottom-Nav Icons
 // ============================================================
-function ArtistDashboard({ artist, onLogout }: { artist: Artist; onLogout: () => void }) {
-  const [tab, setTab] = useState<'termine' | 'umsatz'>('termine');
+function NavIcon({ type }: { type: 'agenda' | 'buchen' | 'abschluesse' | 'profil' }) {
+  const props = { width: 20, height: 20, viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', strokeWidth: 1.7, strokeLinecap: 'round' as const, strokeLinejoin: 'round' as const };
+  if (type === 'agenda')
+    return (
+      <svg {...props}>
+        <rect x="3.5" y="5" width="17" height="16" rx="2.5" />
+        <path d="M3.5 10h17" />
+        <path d="M8 3v4M16 3v4" />
+      </svg>
+    );
+  if (type === 'buchen')
+    return (
+      <svg {...props}>
+        <circle cx="12" cy="12" r="9" />
+        <path d="M12 8v8M8 12h8" />
+      </svg>
+    );
+  if (type === 'abschluesse')
+    return (
+      <svg {...props}>
+        <path d="M12 12V3.5A8.5 8.5 0 1 1 3.5 12H12z" />
+        <path d="M12 12L20 8" />
+      </svg>
+    );
+  return (
+    <svg {...props}>
+      <circle cx="12" cy="8" r="3.5" />
+      <path d="M4.5 20c1-4 4-6 7.5-6s6.5 2 7.5 6" />
+    </svg>
+  );
+}
+
+// ============================================================
+// Profil-Tab (M7)
+// ============================================================
+function ProfilTab({ artist, onUpdated, onLogout }: { artist: Artist; onUpdated: (a: Artist) => void; onLogout: () => void }) {
+  const [name, setName] = useState(artist.name);
+  const [vorname, setVorname] = useState(artist.kuenstlername || '');
+  const [strasse, setStrasse] = useState(artist.strasse || '');
+  const [plzOrt, setPlzOrt] = useState(artist.plz_ort || '');
+  const [phone, setPhone] = useState(artist.phone || '');
+  const [email, setEmail] = useState(artist.email || '');
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const [pinInput, setPinInput] = useState('');
+  const [pinSaving, setPinSaving] = useState(false);
+  const [pinError, setPinError] = useState<string | null>(null);
+  const [pinSuccess, setPinSuccess] = useState(false);
+
+  async function handleSave() {
+    setSaving(true);
+    setError(null);
+    setSaved(false);
+    try {
+      const patch = {
+        name: name.trim(),
+        kuenstlername: vorname.trim() || null,
+        strasse: strasse.trim() || null,
+        plz_ort: plzOrt.trim() || null,
+        phone: phone.trim() || null,
+        email: email.trim() || null,
+      };
+      await updateArtist(artist.id, patch);
+      onUpdated({ ...artist, ...patch });
+      setSaved(true);
+      setTimeout(() => setSaved(false), 2000);
+    } catch (e: any) {
+      setError(e.message);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function handleSetPin() {
+    if (!/^\d{4,6}$/.test(pinInput)) {
+      setPinError('PIN muss 4 bis 6 Ziffern haben.');
+      return;
+    }
+    setPinSaving(true);
+    setPinError(null);
+    setPinSuccess(false);
+    try {
+      const res = await fetch('/api/create-artist-pin', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ artistId: artist.id, pin: pinInput }),
+      });
+      const body = await res.json();
+      if (!res.ok) throw new Error(body.error || 'Unbekannter Fehler.');
+      setPinSuccess(true);
+      setPinInput('');
+    } catch (e: any) {
+      setPinError(e.message);
+    } finally {
+      setPinSaving(false);
+    }
+  }
+
+  const fieldBox: React.CSSProperties = { border: '1px solid var(--color-border)', borderRadius: 4, padding: '9px 10px', fontSize: 13, width: '100%', fontFamily: 'var(--font-body)' };
+  const label: React.CSSProperties = { fontSize: 10, textTransform: 'uppercase', color: '#999', marginBottom: 4, fontWeight: 600 };
 
   return (
-    <div style={{ minHeight: '100vh', background: 'var(--color-bg)', fontFamily: 'var(--font-body)' }}>
-      <div style={{ background: 'var(--color-primary)', padding: '18px 20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-        <div>
-          <div style={{ fontSize: 10, textTransform: 'uppercase', letterSpacing: 0.5, color: 'var(--color-accent)' }}>SkinProject</div>
-          <div style={{ fontSize: 16, fontWeight: 700, color: '#fff' }}>{artist.kuenstlername || artist.name}</div>
+    <div>
+      <div style={{ border: '1px solid var(--color-border)', borderRadius: 6, padding: 14, marginBottom: 16, background: 'var(--color-surface)' }}>
+        <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 12 }}>Mein Profil</div>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 12 }}>
+          <div>
+            <div style={label}>Name</div>
+            <input value={name} onChange={(e) => setName(e.target.value)} style={fieldBox} />
+          </div>
+          <div>
+            <div style={label}>Künstlername</div>
+            <input value={vorname} onChange={(e) => setVorname(e.target.value)} style={fieldBox} placeholder="optional" />
+          </div>
         </div>
-        <button onClick={onLogout} style={{ background: 'none', border: '1px solid rgba(255,255,255,0.3)', color: '#eee', borderRadius: 4, padding: '6px 12px', fontSize: 11, cursor: 'pointer' }}>
-          Abmelden
+        <div style={{ marginBottom: 12 }}>
+          <div style={label}>Strasse</div>
+          <input value={strasse} onChange={(e) => setStrasse(e.target.value)} style={fieldBox} />
+        </div>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 12 }}>
+          <div>
+            <div style={label}>PLZ / Ort</div>
+            <input value={plzOrt} onChange={(e) => setPlzOrt(e.target.value)} style={fieldBox} />
+          </div>
+          <div>
+            <div style={label}>Telefon</div>
+            <input value={phone} onChange={(e) => setPhone(e.target.value)} style={fieldBox} />
+          </div>
+        </div>
+        <div style={{ marginBottom: 14 }}>
+          <div style={label}>E-Mail</div>
+          <input value={email} onChange={(e) => setEmail(e.target.value)} style={fieldBox} type="email" />
+        </div>
+
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderTop: '1px solid var(--color-border)', paddingTop: 12, marginBottom: 4 }}>
+          <div style={{ fontSize: 12, color: '#777' }}>Miet- &amp; Serviceanteil</div>
+          <div style={{ textAlign: 'right' }}>
+            <div style={{ fontSize: 13, fontWeight: 700 }}>{artist.revenue_share_pct}%</div>
+            <div style={{ fontSize: 10, color: '#bbb' }}>nur durch Admin änderbar</div>
+          </div>
+        </div>
+
+        {error && <div style={{ fontSize: 11, color: 'var(--color-destructive)', marginTop: 10 }}>{error}</div>}
+        {saved && <div style={{ fontSize: 11, color: '#1a7a3f', marginTop: 10 }}>✓ Gespeichert.</div>}
+
+        <button className="btn btn-primary" style={{ width: '100%', justifyContent: 'center', marginTop: 14, opacity: saving ? 0.6 : 1 }} disabled={saving} onClick={handleSave}>
+          {saving ? 'Speichert…' : 'Speichern'}
         </button>
       </div>
 
-      <div style={{ display: 'flex', gap: 8, padding: '16px 20px 0' }}>
-        <button
-          onClick={() => setTab('termine')}
-          className={`payment-method-btn${tab === 'termine' ? ' payment-method-btn--selected' : ''}`}
-          style={{ flex: 1 }}
-        >
-          Termine
-        </button>
-        <button
-          onClick={() => setTab('umsatz')}
-          className={`payment-method-btn${tab === 'umsatz' ? ' payment-method-btn--selected' : ''}`}
-          style={{ flex: 1 }}
-        >
-          Umsatz
-        </button>
+      <div style={{ border: '1px solid var(--color-border)', borderRadius: 6, padding: 14, marginBottom: 16, background: 'var(--color-surface)' }}>
+        <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 10 }}>PIN ändern</div>
+        <div style={{ display: 'flex', gap: 8 }}>
+          <input
+            value={pinInput}
+            onChange={(e) => setPinInput(e.target.value.replace(/\D/g, '').slice(0, 6))}
+            style={{ ...fieldBox, flex: 1 }}
+            placeholder="Neuer 4–6-stelliger PIN"
+            inputMode="numeric"
+          />
+          <button className="btn btn-secondary" style={{ whiteSpace: 'nowrap', opacity: pinSaving ? 0.6 : 1 }} disabled={pinSaving} onClick={handleSetPin}>
+            {pinSaving ? '…' : 'Setzen'}
+          </button>
+        </div>
+        {pinError && <div style={{ fontSize: 11, color: 'var(--color-destructive)', marginTop: 6 }}>{pinError}</div>}
+        {pinSuccess && <div style={{ fontSize: 11, color: '#1a7a3f', marginTop: 6 }}>✓ PIN geändert.</div>}
       </div>
 
-      <div style={{ padding: 20 }}>{tab === 'termine' ? <TermineTab artistId={artist.id} locationId={artist.location_id} /> : <UmsatzTab artist={artist} />}</div>
+      <button className="btn btn-secondary" style={{ width: '100%', justifyContent: 'center' }} onClick={onLogout}>
+        Abmelden
+      </button>
+    </div>
+  );
+}
+
+// ============================================================
+// Dashboard
+// ============================================================
+function ArtistDashboard({ artist: initialArtist, onLogout }: { artist: Artist; onLogout: () => void }) {
+  const [tab, setTab] = useState<'agenda' | 'buchen' | 'abschluesse' | 'profil'>('agenda');
+  const [artist, setArtist] = useState(initialArtist);
+  const [bookingKey, setBookingKey] = useState(0);
+
+  const NAV_ITEMS: { key: typeof tab; label: string }[] = [
+    { key: 'agenda', label: 'Agenda' },
+    { key: 'buchen', label: 'Buchen' },
+    { key: 'abschluesse', label: 'Abschlüsse' },
+    { key: 'profil', label: 'Profil' },
+  ];
+
+  return (
+    <div style={{ minHeight: '100vh', background: 'var(--color-bg)', fontFamily: 'var(--font-body)', paddingBottom: 76 }}>
+      <div style={{ background: 'var(--color-primary)', padding: '14px 20px', display: 'flex', alignItems: 'center', gap: 12 }}>
+        <img src="/logo-skinproject.png" alt="" style={{ width: 36, height: 36, flexShrink: 0 }} />
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ fontSize: 9, textTransform: 'uppercase', letterSpacing: 0.5, color: 'var(--color-accent)' }}>SkinProject</div>
+          <div style={{ fontSize: 15, fontWeight: 700, color: '#fff', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{artist.kuenstlername || artist.name}</div>
+        </div>
+      </div>
+
+      <div style={{ padding: 20 }}>
+        {tab === 'agenda' && <TermineTab artistId={artist.id} locationId={artist.location_id} />}
+        {tab === 'buchen' && (
+          <div key={bookingKey} style={{ border: '1px solid var(--color-border)', borderRadius: 6, padding: 14, background: 'var(--color-surface)' }}>
+            <div style={{ fontSize: 15, fontWeight: 700, marginBottom: 14 }}>Neuer Termin</div>
+            <TerminForm
+              artistId={artist.id}
+              locationId={artist.location_id}
+              onCancel={() => setTab('agenda')}
+              onSaved={() => {
+                setBookingKey((k) => k + 1);
+                setTab('agenda');
+              }}
+            />
+          </div>
+        )}
+        {tab === 'abschluesse' && <UmsatzTab artist={artist} />}
+        {tab === 'profil' && <ProfilTab artist={artist} onUpdated={setArtist} onLogout={onLogout} />}
+      </div>
+
+      <div
+        style={{
+          position: 'fixed',
+          bottom: 0,
+          left: 0,
+          right: 0,
+          background: 'var(--color-surface)',
+          borderTop: '1px solid var(--color-border)',
+          display: 'flex',
+          paddingBottom: 'env(safe-area-inset-bottom, 0px)',
+          zIndex: 50,
+        }}
+      >
+        {NAV_ITEMS.map((item) => (
+          <div
+            key={item.key}
+            onClick={() => setTab(item.key)}
+            style={{
+              flex: 1,
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              gap: 3,
+              padding: '10px 0 8px',
+              color: tab === item.key ? 'var(--color-accent)' : '#999',
+              cursor: 'pointer',
+            }}
+          >
+            <NavIcon type={item.key} />
+            <div style={{ fontSize: 10, fontWeight: tab === item.key ? 700 : 400 }}>{item.label}</div>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }
