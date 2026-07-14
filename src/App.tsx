@@ -33,7 +33,6 @@ export default function App() {
         <Route path="/kalender" element={<Kalender />} />
         <Route path="/kasse" element={<Kasse />} />
         <Route path="/kunden" element={<Kunden />} />
-        <Route path="/kunden/new" element={<KundeDetail />} />
         <Route path="/kunden/:id" element={<KundeDetail />} />
 
         <Route path="/admin" element={<AdminIndex />} />
