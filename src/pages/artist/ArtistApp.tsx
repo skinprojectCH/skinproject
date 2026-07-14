@@ -751,7 +751,7 @@ function TermineTab({ artistId, locationId, artistColor }: { artistId: string; l
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [selected, setSelected] = useState<any | null>(null);
-  const todayRef = useRef<HTMLDivElement>(null);
+  const apptRefs = useRef<Record<string, HTMLDivElement | null>>({});
 
   function reload() {
     setLoading(true);
@@ -764,12 +764,26 @@ function TermineTab({ artistId, locationId, artistColor }: { artistId: string; l
 
   useEffect(reload, [artistId]);
 
-  function scrollToToday(behavior: ScrollBehavior = 'smooth') {
-    todayRef.current?.scrollIntoView({ behavior, block: 'start' });
+  // Ziel ist nicht stur "heute", sondern der erste noch offene Termin (Status "gebucht") —
+  // ist der heutige Tag bereits komplett abgeschlossen (alles kassiert/nicht erschienen),
+  // springt es direkt zum nächsten Tag mit offenen Terminen.
+  const upcoming = [...appointments].sort((a, b) => a.start_time.localeCompare(b.start_time));
+  const nowIso = new Date().toISOString();
+  const firstUpcoming = upcoming.find((a) => a.status === 'gebucht') || upcoming.find((a) => a.start_time >= nowIso);
+  const scrollTargetId = firstUpcoming?.id || null;
+
+  function scrollToUpcoming(behavior: ScrollBehavior = 'smooth') {
+    if (scrollTargetId && apptRefs.current[scrollTargetId]) {
+      apptRefs.current[scrollTargetId]?.scrollIntoView({ behavior, block: 'start' });
+    }
   }
 
   useEffect(() => {
-    if (!loading) scrollToToday('auto');
+    if (!loading) {
+      // kurz warten, bis die Refs nach dem Render gesetzt sind
+      requestAnimationFrame(() => scrollToUpcoming('auto'));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [loading]);
 
   function cardStyleFor(status: string): React.CSSProperties {
@@ -804,7 +818,7 @@ function TermineTab({ artistId, locationId, artistColor }: { artistId: string; l
           marginBottom: 2,
         }}
       >
-        <div onClick={() => scrollToToday()} style={{ fontSize: 12, color: 'var(--color-accent)', fontWeight: 700, cursor: 'pointer', border: '1px solid var(--color-accent)', borderRadius: 14, padding: '5px 14px', background: 'var(--color-surface)' }}>
+        <div onClick={() => scrollToUpcoming()} style={{ fontSize: 12, color: 'var(--color-accent)', fontWeight: 700, cursor: 'pointer', border: '1px solid var(--color-accent)', borderRadius: 14, padding: '5px 14px', background: 'var(--color-surface)' }}>
           Heute
         </div>
       </div>
@@ -815,7 +829,7 @@ function TermineTab({ artistId, locationId, artistColor }: { artistId: string; l
 
       {!loading &&
         grouped.map(([dateKey, appts]) => (
-          <div key={dateKey} ref={dateKey === today ? todayRef : undefined} style={{ marginBottom: 20, scrollMarginTop: 56 }}>
+          <div key={dateKey} style={{ marginBottom: 20 }}>
             <div
               style={{
                 fontSize: 12,
@@ -833,7 +847,14 @@ function TermineTab({ artistId, locationId, artistColor }: { artistId: string; l
                 const statusInfo = STATUS_LABELS[appt.status] || STATUS_LABELS.gebucht;
                 const services = (appt.appointment_line_items || []).map((li: any) => li.services?.name).filter(Boolean);
                 return (
-                  <div key={appt.id} onClick={() => setSelected(appt)} style={cardStyleFor(appt.status)}>
+                  <div
+                    key={appt.id}
+                    ref={(el) => {
+                      apptRefs.current[appt.id] = el;
+                    }}
+                    onClick={() => setSelected(appt)}
+                    style={{ ...cardStyleFor(appt.status), scrollMarginTop: 56 }}
+                  >
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 10 }}>
                       <div>
                         <div style={{ fontSize: 13, fontWeight: 700 }}>
