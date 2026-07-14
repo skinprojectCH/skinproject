@@ -458,6 +458,7 @@ export default function Produkte() {
 
         {!loading && !error && (
           <>
+            <div style={{ border: '1px solid var(--color-border)', borderRadius: 6, background: 'var(--color-surface)', overflow: 'hidden' }}>
             <div
               style={{
                 display: 'grid',
@@ -533,6 +534,7 @@ export default function Produkte() {
                 Noch keine Artikel erfasst. <span onClick={() => setCreatingProduct(true)} style={{ color: 'var(--color-accent)', fontWeight: 600, cursor: 'pointer' }}>Jetzt anlegen</span>.
               </div>
             )}
+            </div>
             {filtered.length > 0 && <div style={{ fontSize: 11, color: '#999', marginTop: 10 }}>Klick auf eine Zeile öffnet die Bearbeitung.</div>}
           </>
         )}

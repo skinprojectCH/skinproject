@@ -81,6 +81,7 @@ export default function Artists() {
 
       {!loading && !error && (
         <>
+          <div style={{ border: '1px solid var(--color-border)', borderRadius: 6, background: 'var(--color-surface)', overflow: 'hidden' }}>
           <div style={{ display: 'grid', gridTemplateColumns: '24px 1fr 90px 90px 40px', padding: '10px 12px', fontSize: 11, textTransform: 'uppercase', letterSpacing: 0.5, color: '#999', borderBottom: '1px solid var(--color-border)', fontWeight: 600 }}>
             <div />
             <div>Name</div>
@@ -139,6 +140,7 @@ export default function Artists() {
               Noch keine Artists erfasst. <span onClick={() => navigate('/admin/artists/new')} style={{ color: 'var(--color-accent)', fontWeight: 600, cursor: 'pointer' }}>Jetzt anlegen</span>.
             </div>
           )}
+          </div>
         </>
       )}
     </div>
