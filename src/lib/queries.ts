@@ -775,6 +775,8 @@ export interface ArtistEarningEntry {
   customerLabel: string;
   services: string[];
   amount: number;
+  locationId: string | null;
+  locationName: string;
 }
 
 export async function fetchArtistEarnings(artistId: string, startDateISO: string, endDateISO: string, sharePct: number) {
@@ -783,7 +785,7 @@ export async function fetchArtistEarnings(artistId: string, startDateISO: string
   const { data, error } = await supabase
     .from('appointments')
     .select(
-      'id, start_time, customers(vorname, name), appointment_line_items(service_id, services(name)), orders(id, subtotal, total, status, order_line_items(service_id, product_id, line_total))'
+      'id, start_time, location_id, locations(name), customers(vorname, name), appointment_line_items(service_id, services(name)), orders(id, subtotal, total, status, order_line_items(service_id, product_id, line_total))'
     )
     .eq('artist_id', artistId)
     .eq('type', 'termin')
@@ -809,6 +811,8 @@ export async function fetchArtistEarnings(artistId: string, startDateISO: string
       customerLabel: appt.customers ? `${appt.customers.vorname} ${appt.customers.name}` : 'Laufkunde',
       services,
       amount,
+      locationId: appt.location_id || null,
+      locationName: appt.locations?.name || '—',
     });
   }
   return entries;

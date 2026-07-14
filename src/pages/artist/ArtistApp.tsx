@@ -926,6 +926,12 @@ function UmsatzTag({ artistId, sharePct }: { artistId: string; sharePct: number 
 
   const total = entries.reduce((s, e) => s + e.amount, 0);
 
+  const byLocation = (() => {
+    const map: Record<string, ArtistEarningEntry[]> = {};
+    for (const e of entries) (map[e.locationName] ||= []).push(e);
+    return Object.entries(map).sort(([a], [b]) => a.localeCompare(b));
+  })();
+
   return (
     <div>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
@@ -942,8 +948,13 @@ function UmsatzTag({ artistId, sharePct }: { artistId: string; sharePct: number 
       </div>
 
       <div style={{ border: '1px solid var(--color-border)', borderRadius: 8, padding: '16px 18px', background: 'var(--color-surface)', marginBottom: 16 }}>
-        <div style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: 0.5, color: '#999', marginBottom: 6 }}>Dein Anteil</div>
+        <div style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: 0.5, color: '#999', marginBottom: 6 }}>Dein Anteil (alle Standorte)</div>
         <div style={{ fontSize: 22, fontWeight: 700, fontFamily: 'var(--font-heading)' }}>{formatCHF(total)}</div>
+        {byLocation.length > 1 && (
+          <div style={{ fontSize: 11, color: '#999', marginTop: 4 }}>
+            Achtung: unterschiedliche Standorte sind separate Firmen — siehe Aufteilung unten.
+          </div>
+        )}
       </div>
 
       {loading ? (
@@ -951,17 +962,28 @@ function UmsatzTag({ artistId, sharePct }: { artistId: string; sharePct: number 
       ) : entries.length === 0 ? (
         <div style={{ fontSize: 13, color: '#999' }}>Keine Einträge an diesem Tag.</div>
       ) : (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-          {entries.map((e) => (
-            <div key={e.appointmentId} style={{ border: '1px solid var(--color-border)', borderRadius: 6, padding: '10px 14px', background: 'var(--color-surface)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 13 }}>
-              <div>
-                <div style={{ fontWeight: 600 }}>{e.customerLabel}</div>
-                <div style={{ fontSize: 11, color: '#777' }}>{e.services.join(', ') || '—'}</div>
+        byLocation.map(([locationName, locEntries]) => {
+          const locTotal = locEntries.reduce((s, e) => s + e.amount, 0);
+          return (
+            <div key={locationName} style={{ marginBottom: 16 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 6 }}>
+                <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--color-accent)' }}>{locationName}</div>
+                <div style={{ fontSize: 12, fontWeight: 700 }}>{formatCHF(locTotal)}</div>
               </div>
-              <div style={{ fontWeight: 700 }}>{formatCHF(e.amount)}</div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                {locEntries.map((e) => (
+                  <div key={e.appointmentId} style={{ border: '1px solid var(--color-border)', borderRadius: 6, padding: '10px 14px', background: 'var(--color-surface)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 13 }}>
+                    <div>
+                      <div style={{ fontWeight: 600 }}>{e.customerLabel}</div>
+                      <div style={{ fontSize: 11, color: '#777' }}>{e.services.join(', ') || '—'}</div>
+                    </div>
+                    <div style={{ fontWeight: 700 }}>{formatCHF(e.amount)}</div>
+                  </div>
+                ))}
+              </div>
             </div>
-          ))}
-        </div>
+          );
+        })
       )}
     </div>
   );
@@ -995,9 +1017,9 @@ function UmsatzMonat({ artistId, artistName, sharePct }: { artistId: string; art
 
   const total = entries.reduce((s, e) => s + e.amount, 0);
 
-  const byDay = (() => {
-    const map: Record<string, number> = {};
-    for (const e of entries) map[e.date] = (map[e.date] || 0) + e.amount;
+  const byLocation = (() => {
+    const map: Record<string, ArtistEarningEntry[]> = {};
+    for (const e of entries) (map[e.locationName] ||= []).push(e);
     return Object.entries(map).sort(([a], [b]) => a.localeCompare(b));
   })();
 
@@ -1019,39 +1041,57 @@ function UmsatzMonat({ artistId, artistName, sharePct }: { artistId: string; art
       </div>
 
       <div style={{ border: '1px solid var(--color-border)', borderRadius: 8, padding: '16px 18px', background: 'var(--color-surface)', marginBottom: 16 }}>
-        <div style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: 0.5, color: '#999', marginBottom: 6 }}>Dein Anteil diesen Monat</div>
+        <div style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: 0.5, color: '#999', marginBottom: 6 }}>Dein Anteil diesen Monat (alle Standorte)</div>
         <div style={{ fontSize: 22, fontWeight: 700, fontFamily: 'var(--font-heading)' }}>{formatCHF(total)}</div>
+        {byLocation.length > 1 && (
+          <div style={{ fontSize: 11, color: '#999', marginTop: 4 }}>Standorte sind separate Firmen — je eigene Aufstellung + PDF unten.</div>
+        )}
       </div>
-
-      <button
-        className="btn btn-outline"
-        style={{ width: '100%', justifyContent: 'center', marginBottom: 16 }}
-        onClick={() =>
-          downloadEarningsPdf({
-            title: `Umsatz ${MONTH_NAMES[month]} ${year}`,
-            subtitle: `${MONTH_NAMES[month]} ${year}`,
-            artistName,
-            rows: byDay.map(([d, amt]) => ({ label: new Date(d).toLocaleDateString('de-CH', { weekday: 'short', day: '2-digit', month: '2-digit' }), amount: amt })),
-            total,
-          })
-        }
-      >
-        PDF herunterladen
-      </button>
 
       {loading ? (
         <div style={{ fontSize: 13, color: '#999' }}>Lädt…</div>
-      ) : byDay.length === 0 ? (
+      ) : byLocation.length === 0 ? (
         <div style={{ fontSize: 13, color: '#999' }}>Keine Einträge in diesem Monat.</div>
       ) : (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-          {byDay.map(([d, amt]) => (
-            <div key={d} style={{ border: '1px solid var(--color-border)', borderRadius: 6, padding: '9px 14px', background: 'var(--color-surface)', display: 'flex', justifyContent: 'space-between', fontSize: 13 }}>
-              <div>{new Date(d).toLocaleDateString('de-CH', { weekday: 'short', day: '2-digit', month: '2-digit' })}</div>
-              <div style={{ fontWeight: 600 }}>{formatCHF(amt)}</div>
+        byLocation.map(([locationName, locEntries]) => {
+          const locByDay = (() => {
+            const map: Record<string, number> = {};
+            for (const e of locEntries) map[e.date] = (map[e.date] || 0) + e.amount;
+            return Object.entries(map).sort(([a], [b]) => a.localeCompare(b));
+          })();
+          const locTotal = locEntries.reduce((s, e) => s + e.amount, 0);
+          return (
+            <div key={locationName} style={{ marginBottom: 20 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 8 }}>
+                <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--color-accent)' }}>{locationName}</div>
+                <div style={{ fontSize: 13, fontWeight: 700 }}>{formatCHF(locTotal)}</div>
+              </div>
+              <button
+                className="btn btn-outline"
+                style={{ width: '100%', justifyContent: 'center', marginBottom: 10 }}
+                onClick={() =>
+                  downloadEarningsPdf({
+                    title: `Umsatz ${MONTH_NAMES[month]} ${year} · ${locationName}`,
+                    subtitle: `${MONTH_NAMES[month]} ${year} · ${locationName}`,
+                    artistName,
+                    rows: locByDay.map(([d, amt]) => ({ label: new Date(d).toLocaleDateString('de-CH', { weekday: 'short', day: '2-digit', month: '2-digit' }), amount: amt })),
+                    total: locTotal,
+                  })
+                }
+              >
+                PDF herunterladen ({locationName})
+              </button>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                {locByDay.map(([d, amt]) => (
+                  <div key={d} style={{ border: '1px solid var(--color-border)', borderRadius: 6, padding: '9px 14px', background: 'var(--color-surface)', display: 'flex', justifyContent: 'space-between', fontSize: 13 }}>
+                    <div>{new Date(d).toLocaleDateString('de-CH', { weekday: 'short', day: '2-digit', month: '2-digit' })}</div>
+                    <div style={{ fontWeight: 600 }}>{formatCHF(amt)}</div>
+                  </div>
+                ))}
+              </div>
             </div>
-          ))}
-        </div>
+          );
+        })
       )}
     </div>
   );
@@ -1072,12 +1112,9 @@ function UmsatzJahr({ artistId, artistName, sharePct }: { artistId: string; arti
 
   const total = entries.reduce((s, e) => s + e.amount, 0);
 
-  const byMonth = (() => {
-    const map: Record<string, number> = {};
-    for (const e of entries) {
-      const key = e.date.slice(0, 7); // YYYY-MM
-      map[key] = (map[key] || 0) + e.amount;
-    }
+  const byLocation = (() => {
+    const map: Record<string, ArtistEarningEntry[]> = {};
+    for (const e of entries) (map[e.locationName] ||= []).push(e);
     return Object.entries(map).sort(([a], [b]) => a.localeCompare(b));
   })();
 
@@ -1090,39 +1127,60 @@ function UmsatzJahr({ artistId, artistName, sharePct }: { artistId: string; arti
       </div>
 
       <div style={{ border: '1px solid var(--color-border)', borderRadius: 8, padding: '16px 18px', background: 'var(--color-surface)', marginBottom: 16 }}>
-        <div style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: 0.5, color: '#999', marginBottom: 6 }}>Dein Anteil {year}</div>
+        <div style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: 0.5, color: '#999', marginBottom: 6 }}>Dein Anteil {year} (alle Standorte)</div>
         <div style={{ fontSize: 22, fontWeight: 700, fontFamily: 'var(--font-heading)' }}>{formatCHF(total)}</div>
+        {byLocation.length > 1 && (
+          <div style={{ fontSize: 11, color: '#999', marginTop: 4 }}>Standorte sind separate Firmen — je eigene Aufstellung + PDF unten.</div>
+        )}
       </div>
-
-      <button
-        className="btn btn-outline"
-        style={{ width: '100%', justifyContent: 'center', marginBottom: 16 }}
-        onClick={() =>
-          downloadEarningsPdf({
-            title: `Umsatz ${year}`,
-            subtitle: `Jahr ${year}`,
-            artistName,
-            rows: byMonth.map(([m, amt]) => ({ label: MONTH_NAMES[Number(m.slice(5, 7)) - 1], amount: amt })),
-            total,
-          })
-        }
-      >
-        PDF herunterladen
-      </button>
 
       {loading ? (
         <div style={{ fontSize: 13, color: '#999' }}>Lädt…</div>
-      ) : byMonth.length === 0 ? (
+      ) : byLocation.length === 0 ? (
         <div style={{ fontSize: 13, color: '#999' }}>Keine Einträge in diesem Jahr.</div>
       ) : (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-          {byMonth.map(([m, amt]) => (
-            <div key={m} style={{ border: '1px solid var(--color-border)', borderRadius: 6, padding: '9px 14px', background: 'var(--color-surface)', display: 'flex', justifyContent: 'space-between', fontSize: 13 }}>
-              <div>{MONTH_NAMES[Number(m.slice(5, 7)) - 1]}</div>
-              <div style={{ fontWeight: 600 }}>{formatCHF(amt)}</div>
+        byLocation.map(([locationName, locEntries]) => {
+          const locByMonth = (() => {
+            const map: Record<string, number> = {};
+            for (const e of locEntries) {
+              const key = e.date.slice(0, 7);
+              map[key] = (map[key] || 0) + e.amount;
+            }
+            return Object.entries(map).sort(([a], [b]) => a.localeCompare(b));
+          })();
+          const locTotal = locEntries.reduce((s, e) => s + e.amount, 0);
+          return (
+            <div key={locationName} style={{ marginBottom: 20 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 8 }}>
+                <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--color-accent)' }}>{locationName}</div>
+                <div style={{ fontSize: 13, fontWeight: 700 }}>{formatCHF(locTotal)}</div>
+              </div>
+              <button
+                className="btn btn-outline"
+                style={{ width: '100%', justifyContent: 'center', marginBottom: 10 }}
+                onClick={() =>
+                  downloadEarningsPdf({
+                    title: `Umsatz ${year} · ${locationName}`,
+                    subtitle: `Jahr ${year} · ${locationName}`,
+                    artistName,
+                    rows: locByMonth.map(([m, amt]) => ({ label: MONTH_NAMES[Number(m.slice(5, 7)) - 1], amount: amt })),
+                    total: locTotal,
+                  })
+                }
+              >
+                PDF herunterladen ({locationName})
+              </button>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                {locByMonth.map(([m, amt]) => (
+                  <div key={m} style={{ border: '1px solid var(--color-border)', borderRadius: 6, padding: '9px 14px', background: 'var(--color-surface)', display: 'flex', justifyContent: 'space-between', fontSize: 13 }}>
+                    <div>{MONTH_NAMES[Number(m.slice(5, 7)) - 1]}</div>
+                    <div style={{ fontWeight: 600 }}>{formatCHF(amt)}</div>
+                  </div>
+                ))}
+              </div>
             </div>
-          ))}
-        </div>
+          );
+        })
       )}
     </div>
   );
