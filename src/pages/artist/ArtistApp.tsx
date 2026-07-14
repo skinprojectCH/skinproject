@@ -740,7 +740,16 @@ function formatDateHeader(dateISO: string) {
   return new Date(dateISO).toLocaleDateString('de-CH', { weekday: 'long', day: 'numeric', month: 'long' });
 }
 
-function TermineTab({ artistId, locationId }: { artistId: string; locationId: string | null }) {
+function hexToRgba(hex: string, alpha: number) {
+  const clean = hex.replace('#', '');
+  const r = parseInt(clean.substring(0, 2), 16);
+  const g = parseInt(clean.substring(2, 4), 16);
+  const b = parseInt(clean.substring(4, 6), 16);
+  if (Number.isNaN(r) || Number.isNaN(g) || Number.isNaN(b)) return `rgba(176,141,61,${alpha})`;
+  return `rgba(${r},${g},${b},${alpha})`;
+}
+
+function TermineTab({ artistId, locationId, artistColor }: { artistId: string; locationId: string | null; artistColor: string }) {
   const [appointments, setAppointments] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
@@ -819,29 +828,70 @@ function TermineTab({ artistId, locationId }: { artistId: string; locationId: st
     return Object.entries(map).sort(([a], [b]) => a.localeCompare(b));
   })();
 
+  const cardStyle: React.CSSProperties = { border: '1px solid var(--color-border)', borderRadius: 8, padding: '14px 16px', background: hexToRgba(artistColor, 0.1), cursor: 'pointer' };
+
   return (
     <div>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16 }}>
-        <input
-          type="date"
-          value={pickedDate}
-          onChange={(e) => {
-            const v = e.target.value;
-            setPickedDate(v);
-            if (v) loadPickedDate(v);
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10, marginBottom: 6 }}>
+        <button
+          onClick={() => {
+            const base = pickedDate || todayISO();
+            const next = shiftISO(base, -1);
+            setPickedDate(next);
+            loadPickedDate(next);
           }}
-          style={{ flex: 1, border: '1px solid var(--color-border)', borderRadius: 6, padding: '9px 10px', fontSize: 13, fontFamily: 'var(--font-body)' }}
-        />
-        {pickedDate && (
-          <div onClick={() => setPickedDate('')} style={{ fontSize: 12, color: 'var(--color-accent)', fontWeight: 600, cursor: 'pointer', whiteSpace: 'nowrap' }}>
+          style={{ width: 32, height: 32, borderRadius: 16, border: '1px solid var(--color-border)', background: 'var(--color-surface)', fontSize: 15, cursor: 'pointer', flexShrink: 0 }}
+        >
+          ‹
+        </button>
+        <div style={{ position: 'relative' }}>
+          <div
+            style={{
+              border: '1px solid var(--color-border)',
+              borderRadius: 20,
+              padding: '8px 18px',
+              fontSize: 13,
+              fontWeight: 700,
+              background: 'var(--color-surface)',
+              whiteSpace: 'nowrap',
+            }}
+          >
+            {formatDateHeader(pickedDate || todayISO())}
+          </div>
+          <input
+            type="date"
+            value={pickedDate || todayISO()}
+            onChange={(e) => {
+              const v = e.target.value;
+              setPickedDate(v);
+              if (v) loadPickedDate(v);
+            }}
+            style={{ position: 'absolute', inset: 0, opacity: 0, cursor: 'pointer' }}
+          />
+        </div>
+        <button
+          onClick={() => {
+            const base = pickedDate || todayISO();
+            const next = shiftISO(base, 1);
+            setPickedDate(next);
+            loadPickedDate(next);
+          }}
+          style={{ width: 32, height: 32, borderRadius: 16, border: '1px solid var(--color-border)', background: 'var(--color-surface)', fontSize: 15, cursor: 'pointer', flexShrink: 0 }}
+        >
+          ›
+        </button>
+      </div>
+      {pickedDate && (
+        <div style={{ textAlign: 'center', marginBottom: 16 }}>
+          <div onClick={() => setPickedDate('')} style={{ display: 'inline-block', fontSize: 12, color: 'var(--color-accent)', fontWeight: 600, cursor: 'pointer' }}>
             Zurück zu heute
           </div>
-        )}
-      </div>
+        </div>
+      )}
+      {!pickedDate && <div style={{ marginBottom: 16 }} />}
 
       {pickedDate ? (
         <>
-          <div style={{ fontSize: 12, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.5, color: '#999', marginBottom: 8 }}>{formatDateHeader(pickedDate)}</div>
           {pickedDateLoading && <div style={{ fontSize: 13, color: '#999' }}>Lädt…</div>}
           {pickedDateError && <div style={{ fontSize: 13, color: 'var(--color-destructive)' }}>{pickedDateError}</div>}
           {!pickedDateLoading && !pickedDateError && pickedDateAppointments.length === 0 && <div style={{ fontSize: 13, color: '#999' }}>Keine Termine an diesem Tag.</div>}
@@ -850,11 +900,7 @@ function TermineTab({ artistId, locationId }: { artistId: string; locationId: st
               const statusInfo = STATUS_LABELS[appt.status] || STATUS_LABELS.gebucht;
               const services = (appt.appointment_line_items || []).map((li: any) => li.services?.name).filter(Boolean);
               return (
-                <div
-                  key={appt.id}
-                  onClick={() => setSelected(appt)}
-                  style={{ border: '1px solid var(--color-border)', borderRadius: 8, padding: '14px 16px', background: 'var(--color-surface)', cursor: 'pointer' }}
-                >
+                <div key={appt.id} onClick={() => setSelected(appt)} style={cardStyle}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 10 }}>
                     <div>
                       <div style={{ fontSize: 13, fontWeight: 700 }}>
@@ -889,11 +935,7 @@ function TermineTab({ artistId, locationId }: { artistId: string; locationId: st
                     const statusInfo = STATUS_LABELS[appt.status] || STATUS_LABELS.gebucht;
                     const services = (appt.appointment_line_items || []).map((li: any) => li.services?.name).filter(Boolean);
                     return (
-                      <div
-                        key={appt.id}
-                        onClick={() => setSelected(appt)}
-                        style={{ border: '1px solid var(--color-border)', borderRadius: 8, padding: '14px 16px', background: 'var(--color-surface)', cursor: 'pointer' }}
-                      >
+                      <div key={appt.id} onClick={() => setSelected(appt)} style={cardStyle}>
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 10 }}>
                           <div>
                             <div style={{ fontSize: 13, fontWeight: 700 }}>
@@ -1439,7 +1481,7 @@ function ArtistDashboard({ artist: initialArtist, onLogout }: { artist: Artist; 
       </div>
 
       <div style={{ padding: 20 }}>
-        {tab === 'agenda' && <TermineTab artistId={artist.id} locationId={artist.location_id} />}
+        {tab === 'agenda' && <TermineTab artistId={artist.id} locationId={artist.location_id} artistColor={artist.calendar_color} />}
         {tab === 'buchen' && (
           <div key={bookingKey} style={{ border: '1px solid var(--color-border)', borderRadius: 6, padding: 14, background: 'var(--color-surface)' }}>
             <div style={{ fontSize: 15, fontWeight: 700, marginBottom: 14 }}>Neuer Termin</div>
