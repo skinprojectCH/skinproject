@@ -890,6 +890,7 @@ function ListView({
 
   return (
     <div>
+      <div style={{ border: '1px solid var(--color-border)', borderRadius: 6, background: 'var(--color-surface)', overflow: 'hidden' }}>
       <div
         style={{
           display: 'grid',
@@ -949,6 +950,7 @@ function ListView({
         </div>
       ))}
       {appointments.length === 0 && <div style={{ padding: '20px 12px', fontSize: 13, color: '#999' }}>Keine Termine für diesen Tag.</div>}
+      </div>
 
       {absences.length > 0 && (
         <div style={{ marginTop: 24 }}>

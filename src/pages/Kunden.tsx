@@ -52,6 +52,7 @@ export default function Kunden() {
 
       {!loading && !error && (
         <>
+          <div style={{ border: '1px solid var(--color-border)', borderRadius: 6, background: 'var(--color-surface)', overflow: 'hidden' }}>
           <div
             style={{
               display: 'grid',
@@ -113,6 +114,7 @@ export default function Kunden() {
               Noch keine Kunden erfasst. <span onClick={() => setShowNew(true)} style={{ color: 'var(--color-accent)', fontWeight: 600, cursor: 'pointer' }}>Jetzt anlegen</span>.
             </div>
           )}
+          </div>
         </>
       )}
 
