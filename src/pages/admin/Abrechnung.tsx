@@ -440,11 +440,15 @@ export default function Abrechnung() {
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 16, marginBottom: 24 }}>
             <div style={summaryCardStyle}>
               <div style={{ fontSize: 11, color: '#999', textTransform: 'uppercase', marginBottom: 8, fontWeight: 600 }}>Umsatz Salon</div>
-              <div style={{ fontFamily: 'var(--font-heading)', fontSize: 22, fontWeight: 700 }}>{formatCHF(billing.salonRevenue)}</div>
+              <div style={{ fontFamily: 'var(--font-heading)', fontSize: 22, fontWeight: 700 }}>
+                {formatCHF(billing.salonRevenue - billing.artistRows.reduce((s, r) => s + r.payout, 0))}
+              </div>
+              <div style={{ fontSize: 10, color: '#bbb', marginTop: 2 }}>nach Auszahlung an Artists</div>
             </div>
             <div style={summaryCardStyle}>
               <div style={{ fontSize: 11, color: '#999', textTransform: 'uppercase', marginBottom: 8, fontWeight: 600 }}>Umsatz Artists</div>
-              <div style={{ fontFamily: 'var(--font-heading)', fontSize: 22, fontWeight: 700 }}>{formatCHF(billing.artistRevenue)}</div>
+              <div style={{ fontFamily: 'var(--font-heading)', fontSize: 22, fontWeight: 700 }}>{formatCHF(billing.artistRows.reduce((s, r) => s + r.payout, 0))}</div>
+              <div style={{ fontSize: 10, color: '#bbb', marginTop: 2 }}>Auszahlungen gesamt</div>
             </div>
             <div style={summaryCardStyle}>
               <div style={{ fontSize: 11, color: '#999', textTransform: 'uppercase', marginBottom: 8, fontWeight: 600 }}>Termine</div>
