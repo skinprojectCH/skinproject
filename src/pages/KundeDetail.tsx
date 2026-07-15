@@ -144,6 +144,12 @@ export default function KundeDetail() {
     return map;
   }, [appointmentDocs]);
 
+  // Termine, die schon ein Gesundheitsdokument haben, nicht mehr zur Auswahl anbieten,
+  // damit nicht versehentlich ein zweites zugewiesen wird.
+  const assignableAppointments = useMemo(() => {
+    return appointmentHistory.filter((appt: any) => !(docsByAppointment[appt.id] || []).some((d) => d.type === 'document'));
+  }, [appointmentHistory, docsByAppointment]);
+
   const totalRevenue = useMemo(() => {
     return appointmentHistory.reduce((sum, appt: any) => {
       const order = appt.orders?.[0];
@@ -522,7 +528,7 @@ export default function KundeDetail() {
                   <div key={doc.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 12, border: '1px solid var(--color-border)', borderRadius: 4, padding: '8px 10px', gap: 8 }}>
                     <div style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }}>{doc.file_name || doc.storage_path.split('/').pop()}</div>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
-                      {appointmentHistory.length > 0 && (
+                      {assignableAppointments.length > 0 && (
                         <select
                           value=""
                           disabled={assigningDocId === doc.id}
@@ -531,7 +537,7 @@ export default function KundeDetail() {
                           style={{ border: '1px solid var(--color-border)', borderRadius: 4, padding: '3px 6px', fontSize: 11, color: '#777', fontFamily: 'var(--font-body)', maxWidth: 150 }}
                         >
                           <option value="">→ Termin zuweisen…</option>
-                          {appointmentHistory.map((appt: any) => (
+                          {assignableAppointments.map((appt: any) => (
                             <option key={appt.id} value={appt.id}>
                               {new Date(appt.start_time).toLocaleDateString('de-CH', { day: '2-digit', month: '2-digit', year: '2-digit' })}
                               {' · '}
@@ -539,6 +545,9 @@ export default function KundeDetail() {
                             </option>
                           ))}
                         </select>
+                      )}
+                      {assignableAppointments.length === 0 && appointmentHistory.length > 0 && (
+                        <div style={{ fontSize: 10, color: '#bbb', fontStyle: 'italic' }}>alle Termine belegt</div>
                       )}
                       <div onClick={() => handleOpenFile(doc)} style={{ color: 'var(--color-accent)', fontWeight: 600, cursor: 'pointer' }}>
                         Öffnen
