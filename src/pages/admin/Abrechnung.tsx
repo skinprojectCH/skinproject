@@ -455,8 +455,9 @@ export default function Abrechnung() {
               <div style={{ fontFamily: 'var(--font-heading)', fontSize: 22, fontWeight: 700 }}>{billing.orderCount}</div>
             </div>
             <div style={summaryCardStyle}>
-              <div style={{ fontSize: 11, color: '#999', textTransform: 'uppercase', marginBottom: 8, fontWeight: 600 }}>Ø Bon</div>
-              <div style={{ fontFamily: 'var(--font-heading)', fontSize: 22, fontWeight: 700 }}>{formatCHF(billing.avgOrderValue)}</div>
+              <div style={{ fontSize: 11, color: '#999', textTransform: 'uppercase', marginBottom: 8, fontWeight: 600 }}>Umsatz</div>
+              <div style={{ fontFamily: 'var(--font-heading)', fontSize: 22, fontWeight: 700 }}>{formatCHF(billing.salonRevenue)}</div>
+              <div style={{ fontSize: 10, color: '#bbb', marginTop: 2 }}>Salon + Artists</div>
             </div>
           </div>
 
