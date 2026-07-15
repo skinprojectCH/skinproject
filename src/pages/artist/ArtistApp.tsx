@@ -671,7 +671,14 @@ function AppointmentDetail({ appt, artistId, locationId, onClose }: { appt: any;
         </div>
 
         <div style={{ border: '1px solid var(--color-border)', borderRadius: 6, padding: 14, marginBottom: 16, background: 'var(--color-surface)' }}>
-          <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 10 }}>Fotos</div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+            <div style={{ fontSize: 13, fontWeight: 700 }}>Fotos</div>
+            {!loadingFiles && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 11, fontWeight: 700, color: photos.length > 0 ? '#1a7a3f' : 'var(--color-destructive)' }}>
+                {photos.length > 0 ? '✓ Fotos ok' : '⚠ Fotos fehlen'}
+              </div>
+            )}
+          </div>
           {!loadingFiles && photos.length > 0 && (
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 6, marginBottom: 10 }}>
               {photos.map((p) => (
