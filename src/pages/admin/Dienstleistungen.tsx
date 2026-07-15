@@ -327,7 +327,7 @@ function CategoryModal({ category, onClose, onSaved }: { category: ServiceCatego
 
 export default function Dienstleistungen() {
   const [categoryId, setCategoryId] = useState('Alle');
-  const [statusFilter, setStatusFilter] = useState<'alle' | 'aktiv' | 'inaktiv'>('alle');
+  const [statusFilter, setStatusFilter] = useState<'alle' | 'aktiv' | 'inaktiv'>('aktiv');
   const [search, setSearch] = useState('');
   const [editingService, setEditingService] = useState<Service | null>(null);
   const [creatingService, setCreatingService] = useState(false);

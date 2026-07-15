@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { fetchVouchers, fetchCustomers, type Voucher, type Customer } from '../../lib/queries';
 
 export default function Gutscheine() {
-  const [filter, setFilter] = useState<'alle' | 'aktiv' | 'eingelöst'>('alle');
+  const [filter, setFilter] = useState<'alle' | 'aktiv' | 'eingelöst'>('aktiv');
   const [vouchers, setVouchers] = useState<Voucher[]>([]);
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [loading, setLoading] = useState(true);

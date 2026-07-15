@@ -21,7 +21,7 @@ function SearchIcon() {
 }
 
 export default function Artists() {
-  const [filter, setFilter] = useState<'alle' | 'active' | 'inactive'>('alle');
+  const [filter, setFilter] = useState<'alle' | 'active' | 'inactive'>('active');
   const [search, setSearch] = useState('');
   const [artists, setArtists] = useState<Artist[]>([]);
   const [loading, setLoading] = useState(true);

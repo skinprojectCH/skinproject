@@ -321,7 +321,7 @@ function CategoryModal({ category, onClose, onSaved }: { category: ProductCatego
 
 export default function Produkte() {
   const [categoryId, setCategoryId] = useState('Alle');
-  const [statusFilter, setStatusFilter] = useState<'alle' | 'aktiv' | 'inaktiv'>('alle');
+  const [statusFilter, setStatusFilter] = useState<'alle' | 'aktiv' | 'inaktiv'>('aktiv');
   const [search, setSearch] = useState('');
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [creatingProduct, setCreatingProduct] = useState(false);
