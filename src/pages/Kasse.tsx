@@ -702,12 +702,10 @@ export default function Kasse() {
   const [apptDocuments, setApptDocuments] = useState<CustomerDocument[]>([]);
   const [apptPhotos, setApptPhotos] = useState<CustomerDocument[]>([]);
   const [apptFilesLoading, setApptFilesLoading] = useState(false);
-  const [uploadingApptDoc, setUploadingApptDoc] = useState(false);
   const [uploadingApptPhoto, setUploadingApptPhoto] = useState(false);
   const [apptFileError, setApptFileError] = useState<string | null>(null);
   const [apptPhotoUrls, setApptPhotoUrls] = useState<Record<string, string>>({});
   const [apptLightboxUrl, setApptLightboxUrl] = useState<string | null>(null);
-  const apptDocInputRef = useRef<HTMLInputElement>(null);
   const apptPhotoInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -821,27 +819,17 @@ export default function Kasse() {
     }
   }
 
-  async function handleApptFileSelected(file: File | undefined, type: 'document' | 'photo') {
+  async function handleApptFileSelected(file: File | undefined) {
     if (!file || !appointmentId || !selectedCustomerId) return;
     setApptFileError(null);
-    type === 'document' ? setUploadingApptDoc(true) : setUploadingApptPhoto(true);
+    setUploadingApptPhoto(true);
     try {
-      await uploadCustomerFile(selectedCustomerId, file, type, appointmentId);
+      await uploadCustomerFile(selectedCustomerId, file, 'photo', appointmentId);
       reloadApptFiles();
     } catch (e: any) {
       setApptFileError(e.message);
     } finally {
-      setUploadingApptDoc(false);
       setUploadingApptPhoto(false);
-    }
-  }
-
-  async function handleOpenApptFile(doc: CustomerDocument) {
-    try {
-      const url = await getCustomerFileUrl(doc.storage_path);
-      window.open(url, '_blank');
-    } catch (e: any) {
-      setApptFileError(e.message);
     }
   }
 
@@ -1105,23 +1093,19 @@ export default function Kasse() {
                 <div style={{ fontSize: 12, color: '#999', marginBottom: 10 }}>Lädt…</div>
               ) : (
                 <>
-                  {apptDocuments.length > 0 && (
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 10 }}>
-                      {apptDocuments.map((doc) => (
-                        <div key={doc.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 12, border: '1px solid var(--color-border)', borderRadius: 4, padding: '8px 10px' }}>
-                          <div style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{doc.file_name || doc.storage_path.split('/').pop()}</div>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
-                            <div onClick={() => handleOpenApptFile(doc)} style={{ color: 'var(--color-accent)', fontWeight: 600, cursor: 'pointer' }}>
-                              Öffnen
-                            </div>
-                            <div onClick={() => handleDeleteApptFile(doc)} style={{ color: '#999', cursor: 'pointer' }}>
-                              ✕
-                            </div>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  )}
+                  <div
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 6,
+                      fontSize: 12,
+                      fontWeight: 600,
+                      color: apptDocuments.length > 0 ? '#1a7a3f' : 'var(--color-destructive)',
+                      marginBottom: 10,
+                    }}
+                  >
+                    {apptDocuments.length > 0 ? '✓ Alle Dokumente ok' : '⚠ Achtung: es fehlen noch die Gesundheitsdokumente'}
+                  </div>
 
                   {apptPhotos.length > 0 && (
                     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(6, 1fr)', gap: 6, marginBottom: 10 }}>
@@ -1152,29 +1136,17 @@ export default function Kasse() {
               {apptFileError && <div style={{ fontSize: 12, color: 'var(--color-destructive)', marginBottom: 10 }}>{apptFileError}</div>}
 
               <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
-                <button className="btn btn-outline" onClick={() => apptDocInputRef.current?.click()} disabled={uploadingApptDoc}>
-                  {uploadingApptDoc ? 'Lädt hoch…' : 'Dokument hinzufügen'}
-                </button>
                 <button className="btn btn-outline" onClick={() => apptPhotoInputRef.current?.click()} disabled={uploadingApptPhoto}>
                   {uploadingApptPhoto ? 'Lädt hoch…' : 'Foto hinzufügen'}
                 </button>
               </div>
-              <input
-                ref={apptDocInputRef}
-                type="file"
-                style={{ display: 'none' }}
-                onChange={(e) => {
-                  handleApptFileSelected(e.target.files?.[0], 'document');
-                  e.target.value = '';
-                }}
-              />
               <input
                 ref={apptPhotoInputRef}
                 type="file"
                 accept="image/*"
                 style={{ display: 'none' }}
                 onChange={(e) => {
-                  handleApptFileSelected(e.target.files?.[0], 'photo');
+                  handleApptFileSelected(e.target.files?.[0]);
                   e.target.value = '';
                 }}
               />
