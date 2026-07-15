@@ -572,8 +572,25 @@ export default function KundeDetail() {
           <>
           {customer?.health_notice && (
             <div style={{ border: '1px solid var(--color-warn-border)', background: 'var(--color-warn-bg)', borderRadius: 6, padding: '12px 14px', marginBottom: 16 }}>
-              <div style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: 0.5, color: '#8A6D2E', fontWeight: 700, marginBottom: 6 }}>
-                Gesundheitshinweise (aus Anmeldeformular)
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 10, marginBottom: 6 }}>
+                <div style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: 0.5, color: '#8A6D2E', fontWeight: 700 }}>
+                  Gesundheitshinweise (aus Anmeldeformular)
+                </div>
+                <div
+                  onClick={async () => {
+                    if (!id) return;
+                    try {
+                      await updateCustomer(id, { health_notice: null });
+                      setCustomer((prev) => (prev ? { ...prev, health_notice: null } : prev));
+                    } catch (e: any) {
+                      setError(e.message);
+                    }
+                  }}
+                  title="Gesundheitshinweis entfernen"
+                  style={{ color: '#8A6D2E', cursor: 'pointer', fontSize: 13, flexShrink: 0, lineHeight: 1 }}
+                >
+                  ✕
+                </div>
               </div>
               <div style={{ fontSize: 12, color: '#5a4a20', lineHeight: 1.6 }}>{customer.health_notice}</div>
             </div>
