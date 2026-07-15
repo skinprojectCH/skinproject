@@ -9,6 +9,7 @@ import {
   uploadCustomerFile,
   getCustomerFileUrl,
   deleteCustomerDocument,
+  assignDocumentToAppointment,
   fetchAppointmentsForCustomer,
   type Customer,
   type CustomerDocument,
@@ -65,6 +66,20 @@ export default function KundeDetail() {
   const [attempted, setAttempted] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [assigningDocId, setAssigningDocId] = useState<string | null>(null);
+
+  async function handleAssignDoc(docId: string, appointmentId: string) {
+    if (!appointmentId) return;
+    setAssigningDocId(docId);
+    try {
+      await assignDocumentToAppointment(docId, appointmentId);
+      reloadDocs();
+    } catch (e: any) {
+      setFileError(e.message);
+    } finally {
+      setAssigningDocId(null);
+    }
+  }
 
   function reloadDocs() {
     if (!id) return;
@@ -479,9 +494,27 @@ export default function KundeDetail() {
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 10 }}>
                 {documents.map((doc) => (
-                  <div key={doc.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 12, border: '1px solid var(--color-border)', borderRadius: 4, padding: '8px 10px' }}>
-                    <div style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{doc.file_name || doc.storage_path.split('/').pop()}</div>
+                  <div key={doc.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 12, border: '1px solid var(--color-border)', borderRadius: 4, padding: '8px 10px', gap: 8 }}>
+                    <div style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }}>{doc.file_name || doc.storage_path.split('/').pop()}</div>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
+                      {appointmentHistory.length > 0 && (
+                        <select
+                          value=""
+                          disabled={assigningDocId === doc.id}
+                          onChange={(e) => handleAssignDoc(doc.id, e.target.value)}
+                          title="Diesem Dokument einen Termin zuweisen"
+                          style={{ border: '1px solid var(--color-border)', borderRadius: 4, padding: '3px 6px', fontSize: 11, color: '#777', fontFamily: 'var(--font-body)', maxWidth: 150 }}
+                        >
+                          <option value="">→ Termin zuweisen…</option>
+                          {appointmentHistory.map((appt: any) => (
+                            <option key={appt.id} value={appt.id}>
+                              {new Date(appt.start_time).toLocaleDateString('de-CH', { day: '2-digit', month: '2-digit', year: '2-digit' })}
+                              {' · '}
+                              {(appt.appointment_line_items || []).map((li: any) => li.services?.name).filter(Boolean).join(', ') || 'Termin'}
+                            </option>
+                          ))}
+                        </select>
+                      )}
                       <div onClick={() => handleOpenFile(doc)} style={{ color: 'var(--color-accent)', fontWeight: 600, cursor: 'pointer' }}>
                         Öffnen
                       </div>

@@ -277,6 +277,14 @@ export async function deleteCustomerDocument(doc: CustomerDocument) {
   if (error) throw error;
 }
 
+// Ordnet ein bestehendes Kunden-Dokument (z.B. das Gesundheitsformular aus der Registrierung)
+// nachträglich einem konkreten Termin zu, z.B. wenn der Salon-Manager einen Termin für den
+// Kunden bucht und das Dokument dort sichtbar sein muss.
+export async function assignDocumentToAppointment(documentId: string, appointmentId: string | null) {
+  const { error } = await supabase.from('customer_documents').update({ appointment_id: appointmentId }).eq('id', documentId);
+  if (error) throw error;
+}
+
 // ---------- Services / Products ----------
 export async function fetchServiceCategories() {
   const { data, error } = await supabase.from('service_categories').select('*').order('sort_order');
