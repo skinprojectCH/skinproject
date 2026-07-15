@@ -5,6 +5,7 @@ import {
   fetchArtistById,
   updateArtist,
   fetchAppointmentsForArtistRange,
+  fetchAppointmentIdsWithPhotos,
   fetchArtistEarnings,
   fetchDocumentsForAppointment,
   uploadCustomerFile,
@@ -738,13 +739,17 @@ function TermineTab({ artistId, locationId, artistColor }: { artistId: string; l
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [selected, setSelected] = useState<any | null>(null);
+  const [idsWithPhotos, setIdsWithPhotos] = useState<Set<string>>(new Set());
   const apptRefs = useRef<Record<string, HTMLDivElement | null>>({});
 
   function reload() {
     setLoading(true);
     setError(null);
     fetchAppointmentsForArtistRange(artistId, shiftISO(todayISO(), -30), shiftISO(todayISO(), 30))
-      .then(setAppointments)
+      .then((appts) => {
+        setAppointments(appts);
+        fetchAppointmentIdsWithPhotos(appts.map((a: any) => a.id)).then(setIdsWithPhotos);
+      })
       .catch((e) => setError(e.message))
       .finally(() => setLoading(false));
   }
@@ -852,6 +857,11 @@ function TermineTab({ artistId, locationId, artistColor }: { artistId: string; l
                           {services.join(', ') || '—'}
                           {appt.locations?.name ? ` · ${appt.locations.name}` : ''}
                         </div>
+                        {appt.status !== 'storniert' && (
+                          <div style={{ fontSize: 11, fontWeight: 600, marginTop: 4, color: idsWithPhotos.has(appt.id) ? '#1a7a3f' : 'var(--color-destructive)' }}>
+                            {idsWithPhotos.has(appt.id) ? '✓ Fotos ok' : '⚠ Fotos fehlen'}
+                          </div>
+                        )}
                       </div>
                       <div style={{ border: `1px solid ${statusInfo.color}`, color: statusInfo.color, borderRadius: 10, padding: '2px 10px', fontSize: 10, fontWeight: 600, flexShrink: 0, textTransform: 'uppercase' }}>
                         {statusInfo.label}

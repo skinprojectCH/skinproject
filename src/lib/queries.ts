@@ -469,6 +469,15 @@ export async function fetchDocumentsForAppointment(appointmentId: string) {
   return data as CustomerDocument[];
 }
 
+// Für Listenansichten (z.B. Artist-PWA-Agenda): welche dieser Termine haben bereits
+// mindestens ein Foto? Eine Bulk-Abfrage statt einer Abfrage pro Termin.
+export async function fetchAppointmentIdsWithPhotos(appointmentIds: string[]): Promise<Set<string>> {
+  if (appointmentIds.length === 0) return new Set();
+  const { data, error } = await supabase.from('customer_documents').select('appointment_id').eq('type', 'photo').in('appointment_id', appointmentIds);
+  if (error) throw error;
+  return new Set((data || []).map((d: any) => d.appointment_id).filter(Boolean));
+}
+
 export async function fetchAppointmentsForCustomer(customerId: string) {
   const { data, error } = await supabase
     .from('appointments')
