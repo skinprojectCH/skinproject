@@ -201,6 +201,22 @@ export default function KundeDetail() {
 
         {appt.notes && <div style={{ fontSize: 12, color: '#777', marginTop: 4 }}>Notiz: {appt.notes}</div>}
 
+        {appt.status !== 'storniert' && (
+          <div
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 5,
+              marginTop: 8,
+              fontSize: 11,
+              fontWeight: 600,
+              color: apptDocs.length > 0 && apptPhotos.length > 0 ? '#1a7a3f' : 'var(--color-destructive)',
+            }}
+          >
+            {apptDocs.length > 0 && apptPhotos.length > 0 ? '✓' : '⚠'} {apptDocs.length > 0 && apptPhotos.length > 0 ? 'Dokumente ok' : 'Dokumente fehlen'}
+          </div>
+        )}
+
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 10, flexWrap: 'wrap' }}>
           {apptDocs.length > 0 && (
             <div
