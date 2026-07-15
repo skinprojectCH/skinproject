@@ -873,6 +873,11 @@ export default function Kasse() {
     setItems((prev) => prev.map((i) => (i.id === id ? { ...i, qty: Math.max(1, i.qty + delta) } : i)));
   }
 
+  function changePrice(id: string, value: string) {
+    const parsed = parseFloat(value.replace(',', '.'));
+    setItems((prev) => prev.map((i) => (i.id === id ? { ...i, unitPrice: Number.isFinite(parsed) && parsed >= 0 ? parsed : 0 } : i)));
+  }
+
   async function handleCheckoutComplete(payments: { method: string; amount: number; voucher_id?: string | null }[], total: number, discountType: 'percent' | 'chf' | null, discountValue: number) {
     await checkoutOrder({
       appointmentId: appointmentId || null,
@@ -1045,7 +1050,24 @@ export default function Kasse() {
                   </div>
                 )}
               </div>
-              <div>{chf(item.qty * item.unitPrice)}</div>
+              <div>
+                {item.kind === 'service' ? (
+                  <div style={{ display: 'flex', alignItems: 'baseline', gap: 3, justifyContent: 'flex-end' }}>
+                    CHF
+                    <input
+                      type="number"
+                      step="0.05"
+                      min="0"
+                      value={item.unitPrice}
+                      onChange={(e) => changePrice(item.id, e.target.value)}
+                      title="Preis nur für diesen Kassiervorgang anpassen — der Standardpreis der Dienstleistung bleibt unverändert."
+                      style={{ width: 64, border: '1px solid var(--color-border)', borderRadius: 4, padding: '4px 6px', fontSize: 13, textAlign: 'right', fontFamily: 'var(--font-body)' }}
+                    />
+                  </div>
+                ) : (
+                  chf(item.qty * item.unitPrice)
+                )}
+              </div>
               <button onClick={() => removeItem(item.id)} style={{ background: 'none', border: 'none', color: '#999', display: 'flex', justifyContent: 'flex-end', width: '100%' }}>
                 <TrashIcon />
               </button>
