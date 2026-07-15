@@ -803,7 +803,7 @@ export async function fetchArtistEarnings(artistId: string, startDateISO: string
     if (serviceSubtotal <= 0) continue;
     // Rabatte wirken auf die ganze Bestellung -> Anteil proportional runterskalieren.
     const discountFactor = Number(order.subtotal) > 0 ? Number(order.total) / Number(order.subtotal) : 1;
-    const amount = serviceSubtotal * discountFactor * (sharePct / 100);
+    const amount = serviceSubtotal * discountFactor * (1 - sharePct / 100); // sharePct = Salon-Anteil (Miet- & Serviceanteil), Artist bekommt den Rest
     const services = (appt.appointment_line_items || []).map((li: any) => li.services?.name).filter(Boolean);
     entries.push({
       appointmentId: appt.id,
@@ -825,7 +825,7 @@ export interface LocationBillingArtistRow {
   calendarColor: string;
   revenue: number; // eigener Dienstleistungsanteil (vor Beteiligung)
   sharePct: number;
-  payout: number; // revenue * sharePct/100
+  payout: number; // revenue * (1 - sharePct/100) -- sharePct ist der Salon-Anteil
 }
 
 export interface LocationBilling {
@@ -890,7 +890,7 @@ export async function fetchLocationBilling(locationId: string, startDateISO: str
     byArtist[artist.id].revenue += revenue;
   }
   const artistRows = Object.values(byArtist)
-    .map((r) => ({ ...r, payout: r.revenue * (r.sharePct / 100) }))
+    .map((r) => ({ ...r, payout: r.revenue * (1 - r.sharePct / 100) }))
     .sort((a, b) => b.revenue - a.revenue);
   const artistRevenue = artistRows.reduce((s, r) => s + r.revenue, 0);
 
@@ -904,7 +904,7 @@ export interface LocationArtistBillingEntry {
   customerLabel: string;
   services: string[];
   revenue: number; // eigener Dienstleistungsanteil vor Beteiligung
-  payout: number; // revenue * sharePct/100
+  payout: number; // revenue * (1 - sharePct/100) -- sharePct ist der Salon-Anteil
 }
 
 // Einzelaufschlüsselung für den "Detail"-Popup in der Abrechnung: alle Termine eines
@@ -946,7 +946,7 @@ export async function fetchLocationArtistBillingDetail(
       customerLabel: appt.customers ? `${appt.customers.vorname} ${appt.customers.name}` : 'Laufkunde',
       services,
       revenue,
-      payout: revenue * (sharePct / 100),
+      payout: revenue * (1 - sharePct / 100),
     });
   }
   return entries;
