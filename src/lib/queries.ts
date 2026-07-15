@@ -841,17 +841,22 @@ export async function fetchLocationBilling(locationId: string, startDateISO: str
   const end = `${endDateISO}T23:59:59`;
 
   // Salon-weite Kennzahlen (inkl. Laufkunden ohne Termin): alle bezahlten Bestellungen
-  // an dieser Location, nach Bestelldatum.
+  // an dieser Location, nach Bestelldatum. Bei Bestellungen MIT Termin wird die Location
+  // zusätzlich über den Termin verifiziert/abgeleitet (appointments.location_id), damit eine
+  // falsch/nicht gesetzte orders.location_id nicht zu einer Lücke zwischen "Umsatz Salon"
+  // und "Umsatz Artists" führt (beide müssen für denselben Termin übereinstimmen).
   const { data: orders, error: ordersError } = await supabase
     .from('orders')
-    .select('id, total, status')
-    .eq('location_id', locationId)
+    .select('id, total, status, location_id, appointment_id, appointments(location_id)')
     .eq('status', 'bezahlt')
     .gte('created_at', start)
     .lte('created_at', end);
   if (ordersError) throw ordersError;
 
-  const orderRows = (orders as any[]) || [];
+  const orderRows = ((orders as any[]) || []).filter((o) => {
+    const effectiveLocationId = o.appointment_id ? o.appointments?.location_id : o.location_id;
+    return effectiveLocationId === locationId;
+  });
   const salonRevenue = orderRows.reduce((sum, o) => sum + Number(o.total), 0);
   const orderCount = orderRows.length;
   const avgOrderValue = orderCount > 0 ? salonRevenue / orderCount : 0;
