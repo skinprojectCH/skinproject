@@ -15,6 +15,7 @@ import {
   type CustomerDocument,
 } from '../lib/queries';
 import { normalizePhone, formatCHF } from '../lib/format';
+import Modal from '../components/Modal';
 
 const inputStyle: React.CSSProperties = { border: '1px solid #ddd', borderRadius: 4, padding: '9px 10px', fontSize: 13, width: '100%', fontFamily: 'var(--font-body)' };
 
@@ -253,7 +254,7 @@ export default function KundeDetail() {
                       <div onClick={() => handleOpenFile(doc)} style={{ color: 'var(--color-accent)', fontWeight: 600, cursor: 'pointer' }}>
                         Öffnen
                       </div>
-                      <div onClick={() => handleDeleteFile(doc)} style={{ color: '#999', cursor: 'pointer' }}>
+                      <div onClick={() => setPendingDeleteFile(doc)} style={{ color: '#999', cursor: 'pointer' }}>
                         ✕
                       </div>
                     </div>
@@ -274,7 +275,7 @@ export default function KundeDetail() {
                     <div
                       onClick={(e) => {
                         e.stopPropagation();
-                        handleDeleteFile(p);
+                        setPendingDeleteFile(p);
                       }}
                       style={{ position: 'absolute', top: 2, right: 2, background: 'rgba(0,0,0,0.5)', color: '#fff', borderRadius: '50%', width: 16, height: 16, fontSize: 10, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
                     >
@@ -410,12 +411,20 @@ export default function KundeDetail() {
     }
   }
 
-  async function handleDeleteFile(doc: CustomerDocument) {
+  const [pendingDeleteFile, setPendingDeleteFile] = useState<CustomerDocument | null>(null);
+  const [deletingFile, setDeletingFile] = useState(false);
+
+  async function confirmDeleteFile() {
+    if (!pendingDeleteFile) return;
+    setDeletingFile(true);
     try {
-      await deleteCustomerDocument(doc);
+      await deleteCustomerDocument(pendingDeleteFile);
       reloadDocs();
+      setPendingDeleteFile(null);
     } catch (e: any) {
       setFileError(e.message);
+    } finally {
+      setDeletingFile(false);
     }
   }
 
@@ -534,7 +543,7 @@ export default function KundeDetail() {
                       <div onClick={() => handleOpenFile(doc)} style={{ color: 'var(--color-accent)', fontWeight: 600, cursor: 'pointer' }}>
                         Öffnen
                       </div>
-                      <div onClick={() => handleDeleteFile(doc)} style={{ color: '#999', cursor: 'pointer' }}>
+                      <div onClick={() => setPendingDeleteFile(doc)} style={{ color: '#999', cursor: 'pointer' }}>
                         ✕
                       </div>
                     </div>
@@ -564,7 +573,7 @@ export default function KundeDetail() {
                     <div
                       onClick={(e) => {
                         e.stopPropagation();
-                        handleDeleteFile(p);
+                        setPendingDeleteFile(p);
                       }}
                       style={{ position: 'absolute', top: 2, right: 2, background: 'rgba(0,0,0,0.5)', color: '#fff', borderRadius: '50%', width: 16, height: 16, fontSize: 10, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
                     >
@@ -698,6 +707,30 @@ export default function KundeDetail() {
           )}
         </div>
       </div>
+
+      {pendingDeleteFile && (
+        <Modal title="Dokument löschen?" onClose={() => (!deletingFile ? setPendingDeleteFile(null) : undefined)} width={400}>
+          <div style={{ border: '1px solid var(--color-warn-border)', background: 'var(--color-warn-bg)', borderRadius: 6, padding: '12px 14px', marginBottom: 16, fontSize: 13, color: '#5a4a20', lineHeight: 1.5 }}>
+            Dies ist ein wichtiges Dokument (z.B. Gesundheitsformular, Ausweis oder Einverständniserklärung). Einmal gelöscht, ist es unwiderruflich weg.
+          </div>
+          <div style={{ fontSize: 13, color: '#555', marginBottom: 20, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+            {pendingDeleteFile.file_name || pendingDeleteFile.storage_path.split('/').pop()}
+          </div>
+          <div style={{ display: 'flex', gap: 10 }}>
+            <button className="btn btn-secondary" style={{ flex: 1, justifyContent: 'center' }} disabled={deletingFile} onClick={() => setPendingDeleteFile(null)}>
+              Doch nicht
+            </button>
+            <button
+              className="btn btn-destructive"
+              style={{ flex: 1, justifyContent: 'center', background: 'var(--color-destructive)', color: '#fff', opacity: deletingFile ? 0.6 : 1 }}
+              disabled={deletingFile}
+              onClick={confirmDeleteFile}
+            >
+              {deletingFile ? 'Löscht…' : 'Wirklich löschen'}
+            </button>
+          </div>
+        </Modal>
+      )}
 
       {lightboxUrl && (
         <div
