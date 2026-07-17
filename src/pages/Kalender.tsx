@@ -970,34 +970,35 @@ function ListView({
       {absences.length > 0 && (
         <div style={{ marginTop: 24 }}>
           <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 10 }}>Absenzen</div>
-          {absences.map((abs) => (
-            <div
-              key={abs.id}
-              onClick={() => onSelectAbsence(abs, artistName(abs.artist_id))}
-              role="button"
-              tabIndex={0}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') onSelectAbsence(abs, artistName(abs.artist_id));
-              }}
-              style={{
-                display: 'flex',
-                justifyContent: 'space-between',
-                alignItems: 'center',
-                padding: '10px 12px',
-                fontSize: 13,
-                background: ABSENCE_BG,
-                borderRadius: 4,
-                marginBottom: 6,
-                cursor: 'pointer',
-              }}
-            >
-              <div style={{ color: ABSENCE_TEXT, fontWeight: 600 }}>{artistName(abs.artist_id)}</div>
-              <div style={{ color: ABSENCE_TEXT }}>
-                {ABSENCE_TYPE_LABELS[abs.type]}
-                {abs.half_day !== 'none' ? ` (${abs.half_day === 'am' ? 'Vormittag' : 'Nachmittag'})` : ' (ganzer Tag)'}
+          <div style={{ border: '1px solid var(--color-border)', borderRadius: 6, background: 'var(--color-surface)', overflow: 'hidden' }}>
+            {absences.map((abs, i) => (
+              <div
+                key={abs.id}
+                onClick={() => onSelectAbsence(abs, artistName(abs.artist_id))}
+                role="button"
+                tabIndex={0}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') onSelectAbsence(abs, artistName(abs.artist_id));
+                }}
+                style={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  padding: '12px 14px',
+                  fontSize: 13,
+                  background: ABSENCE_BG,
+                  borderBottom: i < absences.length - 1 ? '1px solid rgba(0,0,0,0.06)' : 'none',
+                  cursor: 'pointer',
+                }}
+              >
+                <div style={{ color: ABSENCE_TEXT, fontWeight: 600 }}>{artistName(abs.artist_id)}</div>
+                <div style={{ color: ABSENCE_TEXT }}>
+                  {ABSENCE_TYPE_LABELS[abs.type]}
+                  {abs.half_day !== 'none' ? ` (${abs.half_day === 'am' ? 'Vormittag' : 'Nachmittag'})` : ' (ganzer Tag)'}
+                </div>
               </div>
-            </div>
-          ))}
+            ))}
+          </div>
         </div>
       )}
 
@@ -1005,30 +1006,48 @@ function ListView({
         <div style={{ marginTop: 24 }}>
           <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 4 }}>Kassenbuch — Verkäufe ohne Termin</div>
           <div style={{ fontSize: 11, color: '#999', marginBottom: 10 }}>Direktverkäufe an der Kasse (z.B. reiner Artikelverkauf ohne Buchung).</div>
-          {walkInOrders.map((order: any) => {
-            const positions = (order.order_line_items || []).map((li: any) => li.description).join(', ');
-            const customerLabel = order.customers ? `${order.customers.vorname} ${order.customers.name}` : 'Laufkunde';
-            return (
-              <div
-                key={order.id}
-                style={{
-                  display: 'grid',
-                  gridTemplateColumns: '90px 1fr 1fr 100px',
-                  padding: '10px 12px',
-                  fontSize: 13,
-                  border: '1px solid #eee',
-                  borderRadius: 4,
-                  marginBottom: 6,
-                  alignItems: 'center',
-                }}
-              >
-                <div>{new Date(order.created_at).toLocaleTimeString('de-CH', { hour: '2-digit', minute: '2-digit' })}</div>
-                <div>{customerLabel}</div>
-                <div style={{ color: '#777', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{positions || '—'}</div>
-                <div style={{ fontWeight: 600, textAlign: 'right' }}>CHF {order.total}</div>
-              </div>
-            );
-          })}
+          <div style={{ border: '1px solid var(--color-border)', borderRadius: 6, background: 'var(--color-surface)', overflow: 'hidden' }}>
+            <div
+              style={{
+                display: 'grid',
+                gridTemplateColumns: '90px 1fr 1fr 100px',
+                padding: '10px 14px',
+                fontSize: 11,
+                textTransform: 'uppercase',
+                letterSpacing: 0.5,
+                color: '#999',
+                borderBottom: '1px solid var(--color-border)',
+                fontWeight: 600,
+              }}
+            >
+              <div>Zeit</div>
+              <div>Kunde</div>
+              <div>Positionen</div>
+              <div style={{ textAlign: 'right' }}>Total</div>
+            </div>
+            {walkInOrders.map((order: any, i: number) => {
+              const positions = (order.order_line_items || []).map((li: any) => li.description).join(', ');
+              const customerLabel = order.customers ? `${order.customers.vorname} ${order.customers.name}` : 'Laufkunde';
+              return (
+                <div
+                  key={order.id}
+                  style={{
+                    display: 'grid',
+                    gridTemplateColumns: '90px 1fr 1fr 100px',
+                    padding: '12px 14px',
+                    fontSize: 13,
+                    borderBottom: i < walkInOrders.length - 1 ? '1px solid #eee' : 'none',
+                    alignItems: 'center',
+                  }}
+                >
+                  <div>{new Date(order.created_at).toLocaleTimeString('de-CH', { hour: '2-digit', minute: '2-digit' })}</div>
+                  <div>{customerLabel}</div>
+                  <div style={{ color: '#777', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{positions || '—'}</div>
+                  <div style={{ fontWeight: 600, textAlign: 'right' }}>CHF {order.total}</div>
+                </div>
+              );
+            })}
+          </div>
         </div>
       )}
     </div>
