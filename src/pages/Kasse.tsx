@@ -983,7 +983,7 @@ export default function Kasse() {
           ) : (
             <>
               {contextLabel && <div style={{ fontSize: 12, color: 'var(--color-accent)', fontWeight: 600, marginBottom: 10 }}>{contextLabel}</div>}
-              <div style={{ display: 'flex', gap: 16, marginBottom: 20, flexWrap: 'wrap' }}>
+              <div style={{ border: '1px solid var(--color-border)', borderRadius: 6, padding: 14, marginBottom: 20, background: 'var(--color-surface)', display: 'flex', gap: 16, flexWrap: 'wrap' }}>
                 <div>
                   <div className="label-uppercase" style={{ marginBottom: 4 }}>
                     Kunde
@@ -1016,6 +1016,7 @@ export default function Kasse() {
             </>
           )}
 
+          <div style={{ border: '1px solid var(--color-border)', borderRadius: 6, background: 'var(--color-surface)', overflow: 'hidden' }}>
           <div
             style={{
               display: 'grid',
@@ -1136,6 +1137,7 @@ export default function Kasse() {
             );
           })}
           {items.length === 0 && <div style={{ padding: '20px 12px', fontSize: 13, color: '#999' }}>Warenkorb leer — Service oder Artikel hinzufügen.</div>}
+          </div>
 
           <div style={{ display: 'flex', gap: 10, marginTop: 14, marginBottom: 20, flexWrap: 'wrap' }}>
             <button className="btn btn-outline" onClick={() => setShowServiceModal(true)}>
