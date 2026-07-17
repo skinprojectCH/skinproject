@@ -1038,7 +1038,7 @@ export default function Kasse() {
       const mwstAmount = mwstActive && location?.mwst_prozent ? cardTotal - cardTotal / (1 + location.mwst_prozent / 100) : 0;
 
       return (
-        <div className="kasse-receipt-card" style={{ border: '1px solid var(--color-border)', borderRadius: 6, padding: 18, background: '#fff', width: '100%', maxWidth: 380 }}>
+        <div className="kasse-receipt-card" style={{ border: '1px solid var(--color-border)', borderRadius: 6, padding: 18, background: '#fff', flex: '1 1 320px', maxWidth: 380 }}>
           <div style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: 0.5, color: '#999', fontWeight: 700, marginBottom: 4 }}>
             Quittung {variant === 'salon' ? 'Salon' : 'Artist'}
           </div>
@@ -1114,6 +1114,7 @@ export default function Kasse() {
             .kasse-print-area {
               max-width: none !important;
               width: 100% !important;
+              flex-direction: column !important;
             }
             .kasse-receipt-card {
               background: #fff !important;
@@ -1136,7 +1137,7 @@ export default function Kasse() {
           <div style={{ fontSize: 20, fontWeight: 700, color: '#1a7a3f' }}>✓ Erfolgreich kassiert</div>
         </div>
 
-        <div className="kasse-print-area" style={{ display: 'flex', flexDirection: 'column', gap: 20, maxWidth: 380, marginBottom: 24 }}>
+        <div className="kasse-print-area" style={{ display: 'flex', flexDirection: 'row', flexWrap: 'wrap', gap: 20, marginBottom: 24 }}>
           {receiptCard('artist')}
           {receiptCard('salon')}
         </div>
