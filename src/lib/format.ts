@@ -1,11 +1,18 @@
 // Normalisiert Telefonnummern auf Schweizer Format +41XXXXXXXXX (ohne Leerschläge, ohne Trennzeichen).
 // Beispiele: "079 555 12 34" -> "+41795551234", "0041 79 555 12 34" -> "+41795551234"
+// Wurde explizit eine andere Landesvorwahl mit "+" eingegeben (z.B. "+49 495 556 6633"),
+// wird diese respektiert und NICHT mit +41 überschrieben.
 export function normalizePhone(raw: string): string {
   const trimmed = raw.trim();
   if (!trimmed) return '';
 
+  const hasExplicitCountryCode = trimmed.startsWith('+');
   let digits = trimmed.replace(/[^\d+]/g, '');
   digits = digits.replace(/\+/g, '');
+
+  if (hasExplicitCountryCode) {
+    return digits ? `+${digits}` : '';
+  }
 
   if (digits.startsWith('0041')) {
     digits = digits.slice(2); // "0041.." -> "41.."

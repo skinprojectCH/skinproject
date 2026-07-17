@@ -3,7 +3,9 @@ import { createClient } from '@supabase/supabase-js';
 function normalizePhone(raw: string): string {
   const trimmed = (raw || '').trim();
   if (!trimmed) return '';
+  const hasExplicitCountryCode = trimmed.startsWith('+');
   let digits = trimmed.replace(/[^\d+]/g, '').replace(/\+/g, '');
+  if (hasExplicitCountryCode) return digits ? `+${digits}` : '';
   if (digits.startsWith('0041')) digits = digits.slice(2);
   else if (digits.startsWith('41')) {
     // schon mit Landesvorwahl
