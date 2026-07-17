@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { fetchVouchers, fetchCustomers, type Voucher, type Customer } from '../../lib/queries';
+import { formatCHF } from '../../lib/format';
 
 export default function Gutscheine() {
   const [filter, setFilter] = useState<'alle' | 'aktiv' | 'eingelöst'>('aktiv');
@@ -24,8 +25,8 @@ export default function Gutscheine() {
   const activeCount = vouchers.filter((v) => v.status === 'aktiv').length;
 
   const KPIS = [
-    { label: 'Verkauft (Total)', value: `CHF ${totalSold.toLocaleString('de-CH')}` },
-    { label: 'Offener Restwert', value: `CHF ${openRemaining.toLocaleString('de-CH')}` },
+    { label: 'Verkauft (Total)', value: formatCHF(totalSold) },
+    { label: 'Offener Restwert', value: formatCHF(openRemaining) },
     { label: 'Aktive Gutscheine', value: String(activeCount) },
     { label: 'Eingelöst diesen Monat', value: '—' },
   ];
@@ -88,8 +89,8 @@ export default function Gutscheine() {
             >
               <div style={{ fontFamily: 'monospace' }}>{v.code}</div>
               <div>{buyerName(v.buyer_customer_id)}</div>
-              <div>CHF {v.value}</div>
-              <div>CHF {v.remaining_value}</div>
+              <div>{formatCHF(v.value)}</div>
+              <div>{formatCHF(v.remaining_value)}</div>
               <div>{new Date(v.created_at).toLocaleDateString('de-CH')}</div>
               <div
                 style={{

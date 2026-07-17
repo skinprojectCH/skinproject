@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import Modal from '../components/Modal';
+import { roundToRappen } from '../lib/format';
 import {
   fetchServices,
   fetchProducts,
@@ -66,7 +67,7 @@ interface SplitPayment {
 }
 
 function chf(n: number) {
-  return `CHF ${n.toFixed(2)}`;
+  return `CHF ${roundToRappen(n).toFixed(2)}`;
 }
 
 function GridIcon() {
@@ -154,7 +155,7 @@ function AddServiceModal({
             <div>
               {s.name} <span style={{ color: '#999', fontSize: 11 }}>· {s.duration_minutes} min</span>
             </div>
-            <div style={{ fontWeight: 600 }}>CHF {s.price}</div>
+            <div style={{ fontWeight: 600 }}>{chf(s.price)}</div>
           </div>
         ))}
         {filtered.length === 0 && <div style={{ fontSize: 13, color: '#999', padding: '10px 0' }}>Keine Services gefunden.</div>}
@@ -235,7 +236,7 @@ function AddProductModal({
               }}
             >
               <div>
-                {p.name} <span style={{ color: '#999', fontSize: 11 }}>· CHF {p.price}</span>
+                {p.name} <span style={{ color: '#999', fontSize: 11 }}>· {chf(p.price)}</span>
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                 <button onClick={() => setQty(p.id, -1)} style={stepperBtnStyle}>
@@ -362,7 +363,7 @@ function CheckoutModal({
   const [error, setError] = useState<string | null>(null);
 
   const discountAmount = discountMode === 'percent' ? (subtotal * appliedDiscountPct) / 100 : appliedDiscountPct;
-  const total = Math.max(0, subtotal - discountAmount);
+  const total = roundToRappen(Math.max(0, subtotal - discountAmount));
   const paid = payments.reduce((sum, p) => sum + p.amount, 0);
   const gutscheinRowsValid = payments
     .filter((p) => p.method === 'Gutschein')
@@ -559,7 +560,7 @@ function CheckoutModal({
               {p.voucherError && <div style={{ fontSize: 11, color: 'var(--color-destructive)' }}>{p.voucherError}</div>}
               {p.voucherId && p.voucherRemaining != null && (
                 <div style={{ fontSize: 11, color: p.amount > p.voucherRemaining ? 'var(--color-destructive)' : '#777' }}>
-                  Restwert Gutschein: CHF {Math.max(0, p.voucherRemaining - p.amount).toFixed(2)} von CHF {(p.voucherValue ?? p.voucherRemaining).toFixed(2)}
+                  Restwert Gutschein: {chf(Math.max(0, p.voucherRemaining - p.amount))} von {chf(p.voucherValue ?? p.voucherRemaining)}
                   {p.amount > p.voucherRemaining && ' — Betrag übersteigt Guthaben'}
                 </div>
               )}
@@ -963,7 +964,8 @@ export default function Kasse() {
     setCheckingOutDirect(true);
     setDirectCheckoutError(null);
     try {
-      await handleCheckoutComplete([{ method: paymentMethod, amount: subtotal }], subtotal, null, 0);
+      const roundedSubtotal = roundToRappen(subtotal);
+      await handleCheckoutComplete([{ method: paymentMethod, amount: roundedSubtotal }], roundedSubtotal, null, 0);
     } catch (e: any) {
       setDirectCheckoutError(e.message);
     } finally {

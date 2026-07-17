@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import Modal from '../../components/Modal';
+import { formatCHF } from '../../lib/format';
 import {
   fetchProductCategories,
   fetchProducts,
@@ -507,7 +508,7 @@ export default function Produkte() {
                 }}
               >
                 <div style={{ fontWeight: 500 }}>{p.name}</div>
-                <div>CHF {p.price}</div>
+                <div>{formatCHF(p.price)}</div>
                 <div style={{ color: '#777', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.description || '—'}</div>
                 <div>{categoryName(p.category_id)}</div>
                 <div

@@ -4,6 +4,7 @@ import EditTerminModal from '../components/EditTerminModal';
 import Modal from '../components/Modal';
 import { fetchAppointmentsForDay, fetchArtists, fetchShiftsForDate, fetchArtistIdsWithAnyShifts, fetchAbsencesForDate, fetchWalkInOrdersForDay, deleteAbsence, type Artist, type Shift, type Absence } from '../lib/queries';
 import { useLocationContext } from '../lib/locationContext';
+import { formatCHF } from '../lib/format';
 
 type ViewMode = 'tag' | 'woche' | 'liste';
 
@@ -1043,7 +1044,7 @@ function ListView({
                   <div>{new Date(order.created_at).toLocaleTimeString('de-CH', { hour: '2-digit', minute: '2-digit' })}</div>
                   <div>{customerLabel}</div>
                   <div style={{ color: '#777', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{positions || '—'}</div>
-                  <div style={{ fontWeight: 600, textAlign: 'right' }}>CHF {order.total}</div>
+                  <div style={{ fontWeight: 600, textAlign: 'right' }}>{formatCHF(order.total)}</div>
                 </div>
               );
             })}

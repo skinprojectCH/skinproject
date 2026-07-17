@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import Modal from '../../components/Modal';
+import { formatCHF } from '../../lib/format';
 import {
   fetchServiceCategories,
   fetchServices,
@@ -514,7 +515,7 @@ export default function Dienstleistungen() {
                 }}
               >
                 <div style={{ fontWeight: 500 }}>{s.name}</div>
-                <div>CHF {s.price}</div>
+                <div>{formatCHF(s.price)}</div>
                 <div>{s.duration_minutes} min</div>
                 <div style={{ color: '#777', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{s.description || '—'}</div>
                 <div>{categoryName(s.category_id)}</div>

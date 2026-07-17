@@ -27,7 +27,15 @@ export function normalizePhone(raw: string): string {
   return digits ? `+${digits}` : '';
 }
 
-// Formatiert einen Betrag als Schweizer Franken mit Tausender-Apostroph, z.B. "CHF 1'840"
+// Rundet auf die kleinste im Bargeldverkehr existierende Einheit (5 Rappen), z.B. für
+// Totalbeträge, Rabatte, MWST-Beträge etc.
+export function roundToRappen(amount: number): number {
+  return Math.round(amount / 0.05) * 0.05;
+}
+
+// Formatiert einen Betrag als Schweizer Franken mit Tausender-Apostroph und immer zwei
+// Nachkommastellen, gerundet auf 5 Rappen, z.B. "CHF 1'840.00" oder "CHF 12.05"
 export function formatCHF(amount: number): string {
-  return `CHF ${Math.round(amount).toLocaleString('de-CH')}`;
+  const rounded = roundToRappen(amount);
+  return `CHF ${rounded.toLocaleString('de-CH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }

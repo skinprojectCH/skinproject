@@ -16,6 +16,7 @@ import {
   type ServiceCategory,
 } from '../lib/queries';
 import NewCustomerModal from './NewCustomerModal';
+import { formatCHF } from '../lib/format';
 
 const ABSENCE_TYPES: { key: 'ferien' | 'krank' | 'abwesend'; label: string }[] = [
   { key: 'ferien', label: 'Ferien' },
@@ -275,7 +276,7 @@ export default function TerminModal({ onClose, onSave, locationId, initialDate, 
           </div>
           <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, color: '#777', marginBottom: 14, borderTop: '1px solid #eee', paddingTop: 10 }}>
             <div>Gesamtdauer: {totalDuration} min</div>
-            <div style={{ fontWeight: 600, color: '#111' }}>Total: CHF {totalPrice}</div>
+            <div style={{ fontWeight: 600, color: '#111' }}>Total: {formatCHF(totalPrice)}</div>
           </div>
         </>
       ) : (

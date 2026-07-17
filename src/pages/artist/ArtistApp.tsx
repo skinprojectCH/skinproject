@@ -407,7 +407,7 @@ function TerminForm({
 
       <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, color: '#777', marginBottom: 16, borderTop: '1px solid var(--color-border)', paddingTop: 10 }}>
         <div>Gesamtdauer: {totalDuration} min</div>
-        <div style={{ fontWeight: 600, color: '#111' }}>Total: CHF {totalPrice}</div>
+        <div style={{ fontWeight: 600, color: '#111' }}>Total: {formatCHF(totalPrice)}</div>
       </div>
 
       {error && <div style={{ fontSize: 12, color: 'var(--color-destructive)', marginBottom: 12 }}>{error}</div>}
@@ -627,7 +627,7 @@ function AppointmentDetail({ appt, artistId, locationId, onClose }: { appt: any;
                       (appt.appointment_line_items || []).map((li: any, i: number) => (
                         <div key={i} style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 2 }}>
                           <div>{li.services?.name || '—'}</div>
-                          <div style={{ color: '#777' }}>CHF {li.unit_price}</div>
+                          <div style={{ color: '#777' }}>{formatCHF(li.unit_price)}</div>
                         </div>
                       ))
                     )}

@@ -17,6 +17,7 @@ import {
   type ServiceCategory,
 } from '../lib/queries';
 import NewCustomerModal from './NewCustomerModal';
+import { formatCHF } from '../lib/format';
 
 interface Props {
   appointmentId: string;
@@ -302,7 +303,7 @@ export default function EditTerminModal({ appointmentId, onClose }: Props) {
 
       <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, color: '#777', marginBottom: 22, borderTop: '1px solid #eee', paddingTop: 10 }}>
         <div>Gesamtdauer: {totalDuration} min</div>
-        <div style={{ fontWeight: 600, color: '#111' }}>Total: CHF {totalPrice}</div>
+        <div style={{ fontWeight: 600, color: '#111' }}>Total: {formatCHF(totalPrice)}</div>
       </div>
 
       {saveError && <div style={{ fontSize: 12, color: 'var(--color-destructive)', marginBottom: 12 }}>{saveError}</div>}
