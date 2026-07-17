@@ -72,7 +72,7 @@ export default function Gutscheine() {
       {!loading && !error && (
         <>
           <div style={{ border: '1px solid var(--color-border)', borderRadius: 6, background: 'var(--color-surface)', overflow: 'hidden' }}>
-          <div style={{ display: 'grid', gridTemplateColumns: '120px 1fr 90px 90px 100px 90px', padding: '10px 12px', fontSize: 11, textTransform: 'uppercase', letterSpacing: 0.5, color: '#999', borderBottom: '1px solid var(--color-border)', fontWeight: 600 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: '120px 1fr 110px 90px 100px 90px', gap: 10, padding: '10px 12px', fontSize: 11, textTransform: 'uppercase', letterSpacing: 0.5, color: '#999', borderBottom: '1px solid var(--color-border)', fontWeight: 600 }}>
             <div>Code</div>
             <div>Käufer</div>
             <div>Verkaufswert</div>
@@ -84,7 +84,7 @@ export default function Gutscheine() {
           {filtered.map((v) => (
             <div
               key={v.id}
-              style={{ display: 'grid', gridTemplateColumns: '120px 1fr 90px 90px 100px 90px', padding: '14px 12px', fontSize: 13, borderBottom: '1px solid #eee', alignItems: 'center', color: v.status === 'eingelöst' ? '#999' : '#111' }}
+              style={{ display: 'grid', gridTemplateColumns: '120px 1fr 110px 90px 100px 90px', gap: 10, padding: '14px 12px', fontSize: 13, borderBottom: '1px solid #eee', alignItems: 'center', color: v.status === 'eingelöst' ? '#999' : '#111' }}
             >
               <div style={{ fontFamily: 'monospace' }}>{v.code}</div>
               <div>{buyerName(v.buyer_customer_id)}</div>
