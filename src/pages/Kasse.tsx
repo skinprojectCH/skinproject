@@ -709,7 +709,6 @@ export default function Kasse() {
   const [selectedCustomerId, setSelectedCustomerId] = useState<string>('');
   const [locations, setLocations] = useState<Location[]>([]);
   const [selectedLocationId, setSelectedLocationId] = useState<string>('');
-  const [locationLocked, setLocationLocked] = useState(false);
   const [paymentMethod, setPaymentMethod] = useState<string | null>(null);
   const [checkingOutDirect, setCheckingOutDirect] = useState(false);
   const [directCheckoutError, setDirectCheckoutError] = useState<string | null>(null);
@@ -792,7 +791,6 @@ export default function Kasse() {
         }
         if (appt.location_id) {
           setSelectedLocationId(appt.location_id);
-          setLocationLocked(true);
         }
         setContextLabel(`Termin: ${artist?.name || '—'} · ${new Date(appt.start_time).toLocaleString('de-CH', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}`);
         setApptNotes(appt.notes || '');
@@ -1180,23 +1178,9 @@ export default function Kasse() {
                   <div className="label-uppercase" style={{ marginBottom: 4 }}>
                     Standort
                   </div>
-                  {locationLocked ? (
-                    <div style={{ border: '1px solid #ddd', borderRadius: 4, padding: '9px 10px', fontSize: 13, width: 200, color: '#555' }}>
-                      {locations.find((l) => l.id === selectedLocationId)?.name || '—'}
-                    </div>
-                  ) : (
-                    <select
-                      value={selectedLocationId}
-                      onChange={(e) => setSelectedLocationId(e.target.value)}
-                      style={{ border: '1px solid #ddd', borderRadius: 4, padding: '9px 10px', fontSize: 13, width: 200, fontFamily: 'var(--font-body)' }}
-                    >
-                      {locations.map((l) => (
-                        <option key={l.id} value={l.id}>
-                          {l.name}
-                        </option>
-                      ))}
-                    </select>
-                  )}
+                  <div style={{ border: '1px solid #ddd', borderRadius: 4, padding: '9px 10px', fontSize: 13, width: 200, color: '#555' }}>
+                    {locations.find((l) => l.id === selectedLocationId)?.name || '—'}
+                  </div>
                 </div>
               </div>
             </>
