@@ -857,38 +857,44 @@ export async function fetchLocationBilling(locationId: string, startDateISO: str
   const start = `${startDateISO}T00:00:00`;
   const end = `${endDateISO}T23:59:59`;
 
-  // Salon-weite Kennzahlen (inkl. Laufkunden ohne Termin): alle bezahlten Bestellungen
-  // an dieser Location, nach Bestelldatum. Bei Bestellungen MIT Termin wird die Location
-  // zusätzlich über den Termin verifiziert/abgeleitet (appointments.location_id), damit eine
-  // falsch/nicht gesetzte orders.location_id nicht zu einer Lücke zwischen "Umsatz Salon"
-  // und "Umsatz Artists" führt (beide müssen für denselben Termin übereinstimmen).
-  const { data: orders, error: ordersError } = await supabase
-    .from('orders')
-    .select('id, total, status, location_id, appointment_id, appointments(location_id)')
-    .eq('status', 'bezahlt')
-    .gte('created_at', start)
-    .lte('created_at', end);
-  if (ordersError) throw ordersError;
-
-  const orderRows = ((orders as any[]) || []).filter((o) => {
-    const effectiveLocationId = o.appointment_id ? o.appointments?.location_id : o.location_id;
-    return effectiveLocationId === locationId;
-  });
-  const salonRevenue = orderRows.reduce((sum, o) => sum + Number(o.total), 0);
-  const orderCount = orderRows.length;
-  const avgOrderValue = orderCount > 0 ? salonRevenue / orderCount : 0;
-
-  // Pro-Artist-Umsatz: über Termine (start_time) statt Bestell-Erstelldatum berechnet —
-  // exakt dieselbe Methode wie fetchArtistEarnings in der Artist-PWA, damit "Dein Anteil"
-  // dort und die Abrechnung hier für denselben Zeitraum immer übereinstimmen.
+  // Termine dieser Location im Zeitraum -- Basis für BEIDE Kennzahlen (Salon-Umsatz aus
+  // Terminen UND Pro-Artist-Umsatz), damit die beiden niemals auseinanderlaufen können
+  // (vorher: zwei getrennte Abfragen mit unterschiedlichem Datumsfeld, die vereinzelt
+  // Termine unterschiedlich zählten).
   const { data: appts, error: apptError } = await supabase
     .from('appointments')
-    .select('artist_id, artists(id, name, calendar_color, revenue_share_pct), orders(subtotal, total, status, order_line_items(service_id, product_id, line_total))')
+    .select('id, artist_id, artists(id, name, calendar_color, revenue_share_pct), orders(total, subtotal, status, order_line_items(service_id, product_id, line_total))')
     .eq('location_id', locationId)
     .eq('type', 'termin')
     .gte('start_time', start)
     .lte('start_time', end);
   if (apptError) throw apptError;
+
+  const apptRows = (appts as any[]) || [];
+  const paidApptOrders = apptRows.map((a) => a.orders?.[0]).filter((o) => o && o.status === 'bezahlt');
+  const apptRevenue = paidApptOrders.reduce((s, o) => s + Number(o.total), 0);
+
+  // Laufkunden-Verkäufe ohne Termin (z.B. reiner Artikelverkauf an der Kasse) -- lassen
+  // sich nicht über Termine finden, daher separat über Bestelldatum.
+  const { data: walkInOrders, error: walkInError } = await supabase
+    .from('orders')
+    .select('id, total, status')
+    .eq('location_id', locationId)
+    .is('appointment_id', null)
+    .eq('status', 'bezahlt')
+    .gte('created_at', start)
+    .lte('created_at', end);
+  if (walkInError) throw walkInError;
+  const walkInRows = (walkInOrders as any[]) || [];
+  const walkInRevenue = walkInRows.reduce((s, o) => s + Number(o.total), 0);
+
+  const salonRevenue = apptRevenue + walkInRevenue;
+  const orderCount = paidApptOrders.length + walkInRows.length;
+  const avgOrderValue = orderCount > 0 ? salonRevenue / orderCount : 0;
+
+  // Pro-Artist-Umsatz: aus denselben Terminen berechnet, exakt dieselbe Methode wie
+  // fetchArtistEarnings in der Artist-PWA, damit "Dein Anteil" dort und die Abrechnung
+  // hier für denselben Zeitraum immer übereinstimmen.
 
   const byArtist: Record<string, LocationBillingArtistRow> = {};
   for (const appt of (appts as any[]) || []) {
