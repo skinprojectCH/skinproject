@@ -974,3 +974,41 @@ export async function fetchLocationArtistBillingDetail(
   }
   return entries;
 }
+
+// Für den "Dokumente fehlen"-Filter in der Kundenübersicht: alle Kunden, die mindestens
+// einen vergangenen Termin haben, bei dem nicht sowohl ein Dokument als auch ein Foto
+// hinterlegt sind (gleiche Logik wie das Ampel-Badge pro Terminkarte im Kundenprofil).
+export async function fetchCustomerIdsWithMissingDocs(): Promise<Set<string>> {
+  const nowIso = new Date().toISOString();
+  const { data: appts, error: apptError } = await supabase
+    .from('appointments')
+    .select('id, customer_id')
+    .eq('type', 'termin')
+    .neq('status', 'storniert')
+    .lt('start_time', nowIso)
+    .not('customer_id', 'is', null);
+  if (apptError) throw apptError;
+
+  const apptRows = (appts as any[]) || [];
+  if (apptRows.length === 0) return new Set();
+  const apptIds = apptRows.map((a) => a.id);
+
+  const { data: docs, error: docError } = await supabase.from('customer_documents').select('appointment_id, type').in('appointment_id', apptIds);
+  if (docError) throw docError;
+
+  const hasType: Record<string, { document: boolean; photo: boolean }> = {};
+  for (const d of (docs as any[]) || []) {
+    if (!d.appointment_id) continue;
+    const entry = (hasType[d.appointment_id] ||= { document: false, photo: false });
+    if (d.type === 'document') entry.document = true;
+    if (d.type === 'photo') entry.photo = true;
+  }
+
+  const customerIds = new Set<string>();
+  for (const appt of apptRows) {
+    const status = hasType[appt.id];
+    const complete = status?.document && status?.photo;
+    if (!complete) customerIds.add(appt.customer_id);
+  }
+  return customerIds;
+}

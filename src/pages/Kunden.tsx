@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { fetchCustomers, type Customer } from '../lib/queries';
+import { fetchCustomers, fetchCustomerIdsWithMissingDocs, type Customer } from '../lib/queries';
 
 function EditIcon() {
   return (
@@ -17,6 +17,9 @@ export default function Kunden() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [hoveredRow, setHoveredRow] = useState<string | null>(null);
+  const [missingDocsFilter, setMissingDocsFilter] = useState(false);
+  const [missingDocsIds, setMissingDocsIds] = useState<Set<string> | null>(null);
+  const [missingDocsLoading, setMissingDocsLoading] = useState(false);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -26,13 +29,47 @@ export default function Kunden() {
       .finally(() => setLoading(false));
   }, []);
 
-  const filtered = customers.filter((c) => `${c.name} ${c.vorname}`.toLowerCase().includes(search.toLowerCase()));
+  function toggleMissingDocsFilter() {
+    if (missingDocsFilter) {
+      setMissingDocsFilter(false);
+      return;
+    }
+    setMissingDocsFilter(true);
+    if (!missingDocsIds) {
+      setMissingDocsLoading(true);
+      fetchCustomerIdsWithMissingDocs()
+        .then(setMissingDocsIds)
+        .catch((e) => setError(e.message))
+        .finally(() => setMissingDocsLoading(false));
+    }
+  }
+
+  const filtered = customers
+    .filter((c) => `${c.name} ${c.vorname}`.toLowerCase().includes(search.toLowerCase()))
+    .filter((c) => !missingDocsFilter || missingDocsIds?.has(c.id));
 
   return (
     <div>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 22 }}>
         <h1 style={{ fontSize: 24 }}>Kunden</h1>
         <div style={{ display: 'flex', gap: 10 }}>
+          <button
+            onClick={toggleMissingDocsFilter}
+            title="Kunden mit vergangenen Terminen, bei denen Dokumente oder Fotos fehlen"
+            style={{
+              border: `1px solid ${missingDocsFilter ? 'var(--color-destructive)' : 'var(--color-border)'}`,
+              background: missingDocsFilter ? '#F6ECEC' : 'transparent',
+              color: missingDocsFilter ? 'var(--color-destructive)' : '#555',
+              padding: '8px 14px',
+              fontSize: 12,
+              fontWeight: 600,
+              borderRadius: 4,
+              cursor: 'pointer',
+              whiteSpace: 'nowrap',
+            }}
+          >
+            {missingDocsLoading ? 'Prüft…' : '⚠ Dokumente fehlen'}
+          </button>
           <input
             placeholder="Suche Name, Vorname…"
             value={search}
@@ -106,7 +143,11 @@ export default function Kunden() {
             </div>
           ))}
 
-          {filtered.length === 0 && customers.length > 0 && <div style={{ padding: '24px 12px', fontSize: 13, color: '#999' }}>Keine Kunden entsprechen der Suche.</div>}
+          {filtered.length === 0 && customers.length > 0 && (
+            <div style={{ padding: '24px 12px', fontSize: 13, color: '#999' }}>
+              {missingDocsFilter ? 'Keine Kunden mit fehlenden Dokumenten gefunden.' : 'Keine Kunden entsprechen der Suche.'}
+            </div>
+          )}
           {customers.length === 0 && (
             <div style={{ padding: '24px 12px', fontSize: 13, color: '#999' }}>
               Noch keine Kunden erfasst. <span onClick={() => navigate('/kunden/new')} style={{ color: 'var(--color-accent)', fontWeight: 600, cursor: 'pointer' }}>Jetzt anlegen</span>.
