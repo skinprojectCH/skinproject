@@ -519,6 +519,20 @@ export async function fetchOrderForAppointment(appointmentId: string) {
   return { order, lineItems: lineItems || [], payments: payments || [] };
 }
 
+// Für Kassenbuch-Einträge ohne Termin (Laufkunden-Direktverkauf): Bestellung direkt per ID.
+export async function fetchOrderById(orderId: string) {
+  const { data: order, error } = await supabase.from('orders').select('*').eq('id', orderId).maybeSingle();
+  if (error) throw error;
+  if (!order) return null;
+  const [{ data: lineItems, error: liError }, { data: payments, error: payError }] = await Promise.all([
+    supabase.from('order_line_items').select('*, services(name), products(name)').eq('order_id', order.id),
+    supabase.from('payments').select('*').eq('order_id', order.id),
+  ]);
+  if (liError) throw liError;
+  if (payError) throw payError;
+  return { order, lineItems: lineItems || [], payments: payments || [] };
+}
+
 export async function fetchAppointment(id: string) {
   const { data, error } = await supabase.from('appointments').select('*').eq('id', id).single();
   if (error) throw error;

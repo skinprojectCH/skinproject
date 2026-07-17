@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import TerminModal from '../components/TerminModal';
 import EditTerminModal from '../components/EditTerminModal';
 import Modal from '../components/Modal';
@@ -902,6 +903,8 @@ function ListView({
   onSelectAbsence: (absence: Absence, artistName: string) => void;
 }) {
   const [hoveredRow, setHoveredRow] = useState<string | null>(null);
+  const [hoveredWalkIn, setHoveredWalkIn] = useState<string | null>(null);
+  const navigate = useNavigate();
   const artistName = (id: string) => artistDisplayName(artists.find((a) => a.id === id));
 
   return (
@@ -1032,6 +1035,14 @@ function ListView({
               return (
                 <div
                   key={order.id}
+                  onClick={() => navigate('/kasse', { state: { orderId: order.id } })}
+                  onMouseEnter={() => setHoveredWalkIn(order.id)}
+                  onMouseLeave={() => setHoveredWalkIn(null)}
+                  role="button"
+                  tabIndex={0}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') navigate('/kasse', { state: { orderId: order.id } });
+                  }}
                   style={{
                     display: 'grid',
                     gridTemplateColumns: '90px 1fr 1fr 100px',
@@ -1039,6 +1050,9 @@ function ListView({
                     fontSize: 13,
                     borderBottom: i < walkInOrders.length - 1 ? '1px solid #eee' : 'none',
                     alignItems: 'center',
+                    cursor: 'pointer',
+                    background: hoveredWalkIn === order.id ? '#fbfaf8' : 'transparent',
+                    outline: 'none',
                   }}
                 >
                   <div>{new Date(order.created_at).toLocaleTimeString('de-CH', { hour: '2-digit', minute: '2-digit' })}</div>

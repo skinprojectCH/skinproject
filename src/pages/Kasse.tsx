@@ -15,6 +15,7 @@ import {
   fetchAppointment,
   fetchAppointmentLineItems,
   fetchOrderForAppointment,
+  fetchOrderById,
   fetchArtists,
   updateAppointment,
   deleteAppointment,
@@ -678,7 +679,8 @@ function CustomerSearchSelect({ customers, value, onChange }: { customers: Custo
 export default function Kasse() {
   const location = useLocation();
   const navigate = useNavigate();
-  const appointmentId = (location.state as { appointmentId?: string } | null)?.appointmentId;
+  const appointmentId = (location.state as { appointmentId?: string; orderId?: string } | null)?.appointmentId;
+  const directOrderId = (location.state as { appointmentId?: string; orderId?: string } | null)?.orderId;
 
   const [items, setItems] = useState<LineItem[]>([]);
   const [services, setServices] = useState<Service[]>([]);
@@ -744,6 +746,45 @@ export default function Kasse() {
       })
       .finally(() => setLoading(false));
   }, []);
+
+  // Falls über einen Kassenbuch-Eintrag (Laufkunden-Verkauf ohne Termin) aufgerufen:
+  // Quittung direkt aus der Bestellung rekonstruieren, ohne Termin/Artist-Bezug.
+  useEffect(() => {
+    if (!directOrderId || appointmentId) return;
+    (async () => {
+      try {
+        const [orderData, allLocations, allCustomers] = await Promise.all([fetchOrderById(directOrderId), fetchLocations(), fetchCustomers()]);
+        if (!orderData) return;
+        const { order, lineItems: dbLineItems, payments: dbPayments } = orderData;
+        const reconstructedItems: LineItem[] = dbLineItems.map((li: any) => ({
+          id: li.id,
+          label: li.description,
+          kind: li.service_id ? 'service' : li.product_id ? 'product' : 'voucher',
+          refId: li.service_id || li.product_id || '',
+          qty: li.quantity,
+          unitPrice: Number(li.unit_price),
+          discountType: li.discount_type || null,
+          discountValue: li.discount_value != null ? Number(li.discount_value) : null,
+        }));
+        const customer = allCustomers.find((c) => c.id === order.customer_id);
+        setReceipt({
+          items: reconstructedItems,
+          total: Number(order.total),
+          payments: dbPayments.map((p: any) => ({ method: p.method, amount: Number(p.amount) })),
+          customerLabel: customer ? `${customer.vorname} ${customer.name}` : 'Laufkunde',
+          contextLabel: null,
+          date: new Date(order.created_at).toLocaleString('de-CH', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }),
+          artist: null,
+          location: allLocations.find((l) => l.id === order.location_id) || null,
+        });
+        setCompleted(true);
+      } catch (e: any) {
+        setContextError(e.message);
+      } finally {
+        setLoading(false);
+      }
+    })();
+  }, [directOrderId, appointmentId]);
 
   // Falls über "Kassieren" im Termin-Dialog aufgerufen: Termin laden und Warenkorb vorbefüllen.
   useEffect(() => {
