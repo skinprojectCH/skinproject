@@ -13,6 +13,7 @@ import {
   fetchVoucherByCode,
   fetchAppointment,
   fetchAppointmentLineItems,
+  fetchOrderForAppointment,
   fetchArtists,
   updateAppointment,
   deleteAppointment,
@@ -754,6 +755,36 @@ export default function Kasse() {
         setActiveArtist(artist || null);
         if (appt.status === 'kassiert') {
           setAlreadyKassiert(true);
+          try {
+            const [orderData, allLocations, allCustomers] = await Promise.all([fetchOrderForAppointment(appointmentId), fetchLocations(), fetchCustomers()]);
+            if (orderData) {
+              const { order, lineItems: dbLineItems, payments: dbPayments } = orderData;
+              const reconstructedItems: LineItem[] = dbLineItems.map((li: any) => ({
+                id: li.id,
+                label: li.description,
+                kind: li.service_id ? 'service' : li.product_id ? 'product' : 'voucher',
+                refId: li.service_id || li.product_id || '',
+                qty: li.quantity,
+                unitPrice: Number(li.unit_price),
+                discountType: li.discount_type || null,
+                discountValue: li.discount_value != null ? Number(li.discount_value) : null,
+              }));
+              const customer = allCustomers.find((c) => c.id === appt.customer_id);
+              setReceipt({
+                items: reconstructedItems,
+                total: Number(order.total),
+                payments: dbPayments.map((p: any) => ({ method: p.method, amount: Number(p.amount) })),
+                customerLabel: customer ? `${customer.vorname} ${customer.name}` : 'Laufkunde',
+                contextLabel: `Termin: ${artist?.name || '—'} · ${new Date(appt.start_time).toLocaleString('de-CH', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}`,
+                date: new Date(order.created_at).toLocaleString('de-CH', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }),
+                artist: artist || null,
+                location: allLocations.find((l) => l.id === (appt.location_id || order.location_id)) || null,
+              });
+              setCompleted(true);
+            }
+          } catch (e: any) {
+            setContextError(e.message);
+          }
           return;
         }
         if (appt.customer_id) {
@@ -970,7 +1001,7 @@ export default function Kasse() {
 
   if (loading) return <div style={{ fontSize: 13, color: '#999' }}>Lädt…</div>;
 
-  if (alreadyKassiert) {
+  if (!completed && alreadyKassiert) {
     return (
       <div>
         <h2 style={{ fontSize: 26, marginBottom: 12 }}>Kasse</h2>
