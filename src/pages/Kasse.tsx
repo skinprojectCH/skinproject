@@ -1107,12 +1107,18 @@ export default function Kasse() {
 
     return (
       <div style={{ maxWidth: 720 }}>
-        <h2 style={{ fontSize: 26, marginBottom: 12 }}>Kasse</h2>
-        <div style={{ border: '1px solid var(--color-border)', borderRadius: 6, padding: '28px 32px', textAlign: 'center', background: 'var(--color-accent-fill)', marginBottom: 24 }}>
+        <style>{`
+          @media print {
+            .kasse-no-print { display: none !important; }
+            .kasse-print-area { max-width: none !important; }
+          }
+        `}</style>
+        <h2 className="kasse-no-print" style={{ fontSize: 26, marginBottom: 12 }}>Kasse</h2>
+        <div className="kasse-no-print" style={{ border: '1px solid var(--color-border)', borderRadius: 6, padding: '28px 32px', textAlign: 'center', background: 'var(--color-accent-fill)', marginBottom: 24 }}>
           <div style={{ fontSize: 20, fontWeight: 700, color: '#1a7a3f' }}>✓ Erfolgreich kassiert</div>
         </div>
 
-        <div style={{ display: 'flex', gap: 20, flexWrap: 'wrap', marginBottom: 24 }}>
+        <div className="kasse-print-area" style={{ display: 'flex', gap: 20, flexWrap: 'wrap', marginBottom: 24 }}>
           {receiptCard('salon')}
           {receiptCard('artist')}
         </div>
@@ -1122,7 +1128,10 @@ export default function Kasse() {
           <div style={{ fontSize: 36, fontWeight: 700, fontFamily: 'var(--font-heading)' }}>{chf(receipt?.total || 0)}</div>
         </div>
 
-        <div style={{ textAlign: 'center' }}>
+        <div className="kasse-no-print" style={{ textAlign: 'center', display: 'flex', gap: 10, justifyContent: 'center' }}>
+          <button className="btn btn-secondary" onClick={() => window.print()}>
+            Quittungen drucken
+          </button>
           <button className="btn btn-primary" onClick={() => navigate('/kalender')}>
             Zurück zum Kalender
           </button>
