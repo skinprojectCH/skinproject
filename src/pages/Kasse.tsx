@@ -1021,16 +1021,19 @@ export default function Kasse() {
     function receiptCard(variant: 'salon' | 'artist') {
       const rows = (receipt?.items || [])
         .map((i) => {
+          const gross = i.qty * i.unitPrice;
           const full = lineItemTotal(i);
+          const hasDiscount = !!i.discountType && !!i.discountValue;
+          const discountLabel = hasDiscount ? (i.discountType === 'percent' ? `−${i.discountValue}%` : `−CHF ${i.discountValue}`) : null;
           if (i.kind === 'service') {
-            const amount = variant === 'salon' ? full * (sharePct / 100) : full * (1 - sharePct / 100);
-            return { label: i.label, amount };
+            const factor = variant === 'salon' ? sharePct / 100 : 1 - sharePct / 100;
+            return { label: i.label, amount: full * factor, grossAmount: gross * factor, discountLabel };
           }
           // Artikel & Gutscheine gehören 100% dem Salon, erscheinen nicht auf der Artist-Quittung.
           if (variant === 'artist') return null;
-          return { label: i.label, amount: full };
+          return { label: i.label, amount: full, grossAmount: gross, discountLabel };
         })
-        .filter((r): r is { label: string; amount: number } => !!r);
+        .filter((r): r is { label: string; amount: number; grossAmount: number; discountLabel: string | null } => !!r);
       const cardTotal = rows.reduce((s, r) => s + r.amount, 0);
       const mwstAmount = mwstActive && location?.mwst_prozent ? cardTotal - cardTotal / (1 + location.mwst_prozent / 100) : 0;
 
@@ -1064,9 +1067,15 @@ export default function Kasse() {
               <div style={{ fontSize: 12, color: '#999' }}>—</div>
             ) : (
               rows.map((r, i) => (
-                <div key={i} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13 }}>
-                  <div>{r.label}</div>
-                  <div>{chf(r.amount)}</div>
+                <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', fontSize: 13, gap: 8 }}>
+                  <div>
+                    {r.label}
+                    {r.discountLabel && <span style={{ color: 'var(--color-accent)', fontSize: 11, fontWeight: 600, marginLeft: 6 }}>{r.discountLabel}</span>}
+                  </div>
+                  <div style={{ textAlign: 'right', flexShrink: 0 }}>
+                    {r.discountLabel && <span style={{ color: '#999', textDecoration: 'line-through', fontSize: 11, marginRight: 6 }}>{chf(r.grossAmount)}</span>}
+                    {chf(r.amount)}
+                  </div>
                 </div>
               ))
             )}
