@@ -360,7 +360,38 @@ export default function Produkte() {
   const categoryName = (id: string | null) => categories.find((c) => c.id === id)?.name || '—';
 
   return (
-    <div style={{ display: 'flex', gap: 24 }}>
+    <div>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
+        <h1 style={{ fontSize: 24 }}>Produkte · Artikel</h1>
+        <button className="btn btn-primary" onClick={() => setCreatingProduct(true)}>
+          + Neuer Artikel
+        </button>
+      </div>
+
+      <div style={{ display: 'flex', gap: 10, marginBottom: 16 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, border: '1px solid var(--color-border)', padding: '8px 14px', fontSize: 12, borderRadius: 4, width: 220, color: '#555' }}>
+          <SearchIcon />
+          <input
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Artikel suchen…"
+            style={{ border: 'none', outline: 'none', fontSize: 12, width: '100%', fontFamily: 'var(--font-body)' }}
+          />
+        </div>
+        <div style={{ display: 'flex', border: '1px solid var(--color-border)', borderRadius: 4, overflow: 'hidden', fontSize: 12 }}>
+          {(['alle', 'aktiv', 'inaktiv'] as const).map((f) => (
+            <button
+              key={f}
+              onClick={() => setStatusFilter(f)}
+              style={{ padding: '8px 14px', background: statusFilter === f ? '#111' : 'transparent', color: statusFilter === f ? '#fff' : '#555', border: 'none', textTransform: 'capitalize', cursor: 'pointer' }}
+            >
+              {f}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div style={{ display: 'flex', gap: 24 }}>
       <div style={{ width: 200, flexShrink: 0 }}>
         <div style={{ border: '1px solid var(--color-border)', borderRadius: 6, padding: 14, background: 'var(--color-surface)' }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
@@ -425,36 +456,6 @@ export default function Produkte() {
       </div>
 
       <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
-          <h1 style={{ fontSize: 24 }}>Produkte · Artikel</h1>
-          <button className="btn btn-primary" onClick={() => setCreatingProduct(true)}>
-            + Neuer Artikel
-          </button>
-        </div>
-
-        <div style={{ display: 'flex', gap: 10, marginBottom: 16 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6, border: '1px solid var(--color-border)', padding: '8px 14px', fontSize: 12, borderRadius: 4, width: 220, color: '#555' }}>
-            <SearchIcon />
-            <input
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="Artikel suchen…"
-              style={{ border: 'none', outline: 'none', fontSize: 12, width: '100%', fontFamily: 'var(--font-body)' }}
-            />
-          </div>
-          <div style={{ display: 'flex', border: '1px solid var(--color-border)', borderRadius: 4, overflow: 'hidden', fontSize: 12 }}>
-            {(['alle', 'aktiv', 'inaktiv'] as const).map((f) => (
-              <button
-                key={f}
-                onClick={() => setStatusFilter(f)}
-                style={{ padding: '8px 14px', background: statusFilter === f ? '#111' : 'transparent', color: statusFilter === f ? '#fff' : '#555', border: 'none', textTransform: 'capitalize', cursor: 'pointer' }}
-              >
-                {f}
-              </button>
-            ))}
-          </div>
-        </div>
-
         {loading && <div style={{ fontSize: 13, color: '#999' }}>Lädt…</div>}
         {error && <div style={{ fontSize: 13, color: 'var(--color-destructive)' }}>Fehler: {error}</div>}
 
@@ -540,6 +541,7 @@ export default function Produkte() {
             {filtered.length > 0 && <div style={{ fontSize: 11, color: '#999', marginTop: 10 }}>Klick auf eine Zeile öffnet die Bearbeitung.</div>}
           </>
         )}
+      </div>
       </div>
 
       {editingProduct && (
