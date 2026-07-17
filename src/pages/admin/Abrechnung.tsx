@@ -440,10 +440,23 @@ export default function Abrechnung() {
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 16, marginBottom: 24 }}>
             <div style={summaryCardStyle}>
               <div style={{ fontSize: 11, color: '#999', textTransform: 'uppercase', marginBottom: 8, fontWeight: 600 }}>Umsatz Salon</div>
-              <div style={{ fontFamily: 'var(--font-heading)', fontSize: 22, fontWeight: 700 }}>
-                {formatCHF(billing.salonRevenue - billing.artistRows.reduce((s, r) => s + r.payout, 0))}
+              <div style={{ fontFamily: 'var(--font-heading)', fontSize: 22, fontWeight: 700, marginBottom: 8 }}>
+                {formatCHF(billing.salonServiceRevenue + billing.productRevenue + billing.voucherRevenue)}
               </div>
-              <div style={{ fontSize: 10, color: '#bbb', marginTop: 2 }}>nach Auszahlung an Artists</div>
+              <div style={{ fontSize: 11, color: '#777', display: 'flex', flexDirection: 'column', gap: 2 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                  <span>Dienstleistungen (Anteil)</span>
+                  <span>{formatCHF(billing.salonServiceRevenue)}</span>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                  <span>Produkte</span>
+                  <span>{formatCHF(billing.productRevenue)}</span>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                  <span>Gutscheine</span>
+                  <span>{formatCHF(billing.voucherRevenue)}</span>
+                </div>
+              </div>
             </div>
             <div style={summaryCardStyle}>
               <div style={{ fontSize: 11, color: '#999', textTransform: 'uppercase', marginBottom: 8, fontWeight: 600 }}>Umsatz Artists</div>

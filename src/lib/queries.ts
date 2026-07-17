@@ -851,6 +851,9 @@ export interface LocationBilling {
   orderCount: number;
   avgOrderValue: number;
   artistRows: LocationBillingArtistRow[];
+  salonServiceRevenue: number; // Salon-Anteil an Dienstleistungen (Miet- & Serviceanteil, summiert über alle Artists)
+  productRevenue: number; // 100% Salon
+  voucherRevenue: number; // 100% Salon
 }
 
 export async function fetchLocationBilling(locationId: string, startDateISO: string, endDateISO: string): Promise<LocationBilling> {
@@ -878,7 +881,7 @@ export async function fetchLocationBilling(locationId: string, startDateISO: str
   // sich nicht über Termine finden, daher separat über Bestelldatum.
   const { data: walkInOrders, error: walkInError } = await supabase
     .from('orders')
-    .select('id, total, status')
+    .select('id, total, subtotal, status, order_line_items(service_id, product_id, line_total)')
     .eq('location_id', locationId)
     .is('appointment_id', null)
     .eq('status', 'bezahlt')
@@ -891,6 +894,19 @@ export async function fetchLocationBilling(locationId: string, startDateISO: str
   const salonRevenue = apptRevenue + walkInRevenue;
   const orderCount = paidApptOrders.length + walkInRows.length;
   const avgOrderValue = orderCount > 0 ? salonRevenue / orderCount : 0;
+
+  // Produkte & Gutscheine gehören zu 100% dem Salon -- über alle Bestellungen (Termine +
+  // Laufkunden) hinweg summiert, inkl. anteiligem Bestell-Rabatt (subtotal/total-Faktor).
+  let productRevenue = 0;
+  let voucherRevenue = 0;
+  for (const order of [...paidApptOrders, ...walkInRows]) {
+    const lineItems = order.order_line_items || [];
+    const discountFactor = Number(order.subtotal) > 0 ? Number(order.total) / Number(order.subtotal) : 1;
+    for (const li of lineItems) {
+      if (li.product_id) productRevenue += Number(li.line_total) * discountFactor;
+      else if (!li.service_id) voucherRevenue += Number(li.line_total) * discountFactor;
+    }
+  }
 
   // Pro-Artist-Umsatz: aus denselben Terminen berechnet, exakt dieselbe Methode wie
   // fetchArtistEarnings in der Artist-PWA, damit "Dein Anteil" dort und die Abrechnung
@@ -916,8 +932,9 @@ export async function fetchLocationBilling(locationId: string, startDateISO: str
     .map((r) => ({ ...r, payout: r.revenue * (1 - r.sharePct / 100) }))
     .sort((a, b) => b.revenue - a.revenue);
   const artistRevenue = artistRows.reduce((s, r) => s + r.revenue, 0);
+  const salonServiceRevenue = artistRows.reduce((s, r) => s + r.revenue * (r.sharePct / 100), 0);
 
-  return { salonRevenue, artistRevenue, orderCount, avgOrderValue, artistRows };
+  return { salonRevenue, artistRevenue, orderCount, avgOrderValue, artistRows, salonServiceRevenue, productRevenue, voucherRevenue };
 }
 
 export interface LocationArtistBillingEntry {
