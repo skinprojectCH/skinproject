@@ -1038,7 +1038,7 @@ export default function Kasse() {
       const mwstAmount = mwstActive && location?.mwst_prozent ? cardTotal - cardTotal / (1 + location.mwst_prozent / 100) : 0;
 
       return (
-        <div style={{ border: '1px solid var(--color-border)', borderRadius: 6, padding: 18, background: '#fff', flex: 1, minWidth: 260 }}>
+        <div className="kasse-receipt-card" style={{ border: '1px solid var(--color-border)', borderRadius: 6, padding: 18, background: '#fff', width: '100%', maxWidth: 380 }}>
           <div style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: 0.5, color: '#999', fontWeight: 700, marginBottom: 4 }}>
             Quittung {variant === 'salon' ? 'Salon' : 'Artist'}
           </div>
@@ -1109,8 +1109,26 @@ export default function Kasse() {
       <div style={{ maxWidth: 720 }}>
         <style>{`
           @media print {
+            @page { size: 80mm auto; margin: 3mm; }
             .kasse-no-print { display: none !important; }
-            .kasse-print-area { max-width: none !important; }
+            .kasse-print-area {
+              max-width: none !important;
+              width: 100% !important;
+            }
+            .kasse-receipt-card {
+              background: #fff !important;
+              border: 1px solid #000 !important;
+              box-shadow: none !important;
+              max-width: none !important;
+              width: 100% !important;
+              color: #000 !important;
+              page-break-inside: avoid;
+            }
+            .kasse-receipt-card * {
+              background: transparent !important;
+              color: #000 !important;
+              text-shadow: none !important;
+            }
           }
         `}</style>
         <h2 className="kasse-no-print" style={{ fontSize: 26, marginBottom: 12 }}>Kasse</h2>
@@ -1118,9 +1136,9 @@ export default function Kasse() {
           <div style={{ fontSize: 20, fontWeight: 700, color: '#1a7a3f' }}>✓ Erfolgreich kassiert</div>
         </div>
 
-        <div className="kasse-print-area" style={{ display: 'flex', gap: 20, flexWrap: 'wrap', marginBottom: 24 }}>
-          {receiptCard('salon')}
+        <div className="kasse-print-area" style={{ display: 'flex', flexDirection: 'column', gap: 20, maxWidth: 380, marginBottom: 24 }}>
           {receiptCard('artist')}
+          {receiptCard('salon')}
         </div>
 
         <div style={{ textAlign: 'center', marginBottom: 28 }}>
