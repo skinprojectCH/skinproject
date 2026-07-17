@@ -27,6 +27,7 @@ import {
   type Customer,
   type Location,
   type CustomerDocument,
+  type Artist,
 } from '../lib/queries';
 
 const PAYMENT_METHODS = ['Karte', 'Bar', 'Rechnung', 'Gutschein'];
@@ -695,9 +696,12 @@ export default function Kasse() {
     customerLabel: string;
     contextLabel: string | null;
     date: string;
+    artist: Artist | null;
+    location: Location | null;
   } | null>(null);
 
   const [contextLabel, setContextLabel] = useState<string | null>(null);
+  const [activeArtist, setActiveArtist] = useState<Artist | null>(null);
   const [contextError, setContextError] = useState<string | null>(null);
   const [alreadyKassiert, setAlreadyKassiert] = useState(false);
   const [customers, setCustomers] = useState<Customer[]>([]);
@@ -747,6 +751,7 @@ export default function Kasse() {
       try {
         const [appt, lineItems, allArtists] = await Promise.all([fetchAppointment(appointmentId), fetchAppointmentLineItems(appointmentId), fetchArtists()]);
         const artist = allArtists.find((a) => a.id === appt.artist_id);
+        setActiveArtist(artist || null);
         if (appt.status === 'kassiert') {
           setAlreadyKassiert(true);
           return;
@@ -916,6 +921,8 @@ export default function Kasse() {
       customerLabel: customers.find((c) => c.id === selectedCustomerId) ? `${customers.find((c) => c.id === selectedCustomerId)!.vorname} ${customers.find((c) => c.id === selectedCustomerId)!.name}` : 'Laufkunde',
       contextLabel,
       date: new Date().toLocaleString('de-CH', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }),
+      artist: activeArtist,
+      location: locations.find((l) => l.id === selectedLocationId) || null,
     });
     setShowCheckout(false);
     setCompleted(true);
@@ -976,39 +983,87 @@ export default function Kasse() {
   }
 
   if (completed) {
-    const receiptCard = (label: string) => (
-      <div style={{ border: '1px solid var(--color-border)', borderRadius: 6, padding: 18, background: '#fff', flex: 1, minWidth: 240 }}>
-        <div style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: 0.5, color: '#999', fontWeight: 700, marginBottom: 4 }}>{label}</div>
-        <div style={{ fontSize: 12, color: '#777', marginBottom: 12 }}>
-          {receipt?.date}
-          {receipt?.contextLabel ? ` · ${receipt.contextLabel.replace('Termin: ', '')}` : ''}
-          {' · '}
-          {receipt?.customerLabel}
-        </div>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 12 }}>
-          {receipt?.items.map((i) => (
-            <div key={i.id} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13 }}>
+    const sharePct = receipt?.artist ? receipt.artist.revenue_share_pct ?? 0 : 100; // ohne Artist (Laufkunde) bleibt alles beim Salon
+    const location = receipt?.location;
+    const mwstActive = !!(location?.vat_number && location?.mwst_prozent);
+
+    function receiptCard(variant: 'salon' | 'artist') {
+      const rows = (receipt?.items || [])
+        .map((i) => {
+          const full = lineItemTotal(i);
+          if (i.kind === 'service') {
+            const amount = variant === 'salon' ? full * (sharePct / 100) : full * (1 - sharePct / 100);
+            return { label: i.label, amount };
+          }
+          // Artikel & Gutscheine gehören 100% dem Salon, erscheinen nicht auf der Artist-Quittung.
+          if (variant === 'artist') return null;
+          return { label: i.label, amount: full };
+        })
+        .filter((r): r is { label: string; amount: number } => !!r);
+      const cardTotal = rows.reduce((s, r) => s + r.amount, 0);
+      const mwstAmount = mwstActive && location?.mwst_prozent ? cardTotal - cardTotal / (1 + location.mwst_prozent / 100) : 0;
+
+      return (
+        <div style={{ border: '1px solid var(--color-border)', borderRadius: 6, padding: 18, background: '#fff', flex: 1, minWidth: 260 }}>
+          <div style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: 0.5, color: '#999', fontWeight: 700, marginBottom: 4 }}>
+            Quittung {variant === 'salon' ? 'Salon' : 'Artist'}
+          </div>
+          <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 1 }}>{variant === 'salon' ? location?.name || '—' : receipt?.artist?.kuenstlername || receipt?.artist?.name || '—'}</div>
+          <div style={{ fontSize: 11, color: '#999', marginBottom: 10 }}>
+            {variant === 'salon' ? (
+              <>
+                {location?.strasse ? `${location.strasse}, ` : ''}
+                {location?.plz_ort || ''}
+              </>
+            ) : (
+              <>
+                {receipt?.artist?.strasse ? `${receipt.artist.strasse}, ` : ''}
+                {receipt?.artist?.plz_ort || ''}
+              </>
+            )}
+          </div>
+          <div style={{ fontSize: 12, color: '#777', marginBottom: 12 }}>
+            {receipt?.date}
+            {receipt?.contextLabel ? ` · ${receipt.contextLabel.replace('Termin: ', '')}` : ''}
+            {' · '}
+            {receipt?.customerLabel}
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 12 }}>
+            {rows.length === 0 ? (
+              <div style={{ fontSize: 12, color: '#999' }}>—</div>
+            ) : (
+              rows.map((r, i) => (
+                <div key={i} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13 }}>
+                  <div>{r.label}</div>
+                  <div>{chf(r.amount)}</div>
+                </div>
+              ))
+            )}
+          </div>
+          <div style={{ borderTop: '1px solid var(--color-border)', paddingTop: 10, display: 'flex', justifyContent: 'space-between', fontWeight: 700, fontSize: 14, marginBottom: 8 }}>
+            <div>Total</div>
+            <div>{chf(cardTotal)}</div>
+          </div>
+          {variant === 'salon' && mwstActive && (
+            <div style={{ fontSize: 11, color: '#777', marginBottom: 8 }}>
               <div>
-                {i.label}
-                {i.qty > 1 ? ` × ${i.qty}` : ''}
+                MWST {location!.mwst_prozent}% (inkl.): {chf(mwstAmount)}
               </div>
-              <div>{chf(lineItemTotal(i))}</div>
+              <div>MWST-Nr.: {location!.vat_number}</div>
             </div>
-          ))}
-        </div>
-        <div style={{ borderTop: '1px solid var(--color-border)', paddingTop: 10, display: 'flex', justifyContent: 'space-between', fontWeight: 700, fontSize: 14, marginBottom: 8 }}>
-          <div>Total</div>
-          <div>{chf(receipt?.total || 0)}</div>
-        </div>
-        <div style={{ fontSize: 12, color: '#777' }}>
-          {receipt?.payments.map((p, i) => (
-            <div key={i}>
-              {p.method}: {chf(p.amount)}
+          )}
+          {variant === 'salon' && (
+            <div style={{ fontSize: 12, color: '#777' }}>
+              {receipt?.payments.map((p, i) => (
+                <div key={i}>
+                  {p.method}: {chf(p.amount)}
+                </div>
+              ))}
             </div>
-          ))}
+          )}
         </div>
-      </div>
-    );
+      );
+    }
 
     return (
       <div style={{ maxWidth: 720 }}>
@@ -1018,8 +1073,8 @@ export default function Kasse() {
         </div>
 
         <div style={{ display: 'flex', gap: 20, flexWrap: 'wrap', marginBottom: 24 }}>
-          {receiptCard('Quittung Salon')}
-          {receiptCard('Quittung Artist')}
+          {receiptCard('salon')}
+          {receiptCard('artist')}
         </div>
 
         <div style={{ textAlign: 'center', marginBottom: 28 }}>
