@@ -74,7 +74,7 @@ export default function EditTerminModal({ appointmentId, onClose }: Props) {
       .then((appt) => {
         if (appt.status === 'kassiert') {
           onClose();
-          navigate(`/kasse?appointmentId=${appointmentId}`);
+          navigate('/kasse', { state: { appointmentId } });
           return null;
         }
         return Promise.all([Promise.resolve(appt), fetchAppointmentLineItems(appointmentId), fetchArtists(), fetchCustomers(), fetchServices(), fetchServiceCategories()]);
