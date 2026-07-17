@@ -361,7 +361,8 @@ export default function Produkte() {
 
   return (
     <div style={{ display: 'flex', gap: 24 }}>
-      <div style={{ width: 180, flexShrink: 0 }}>
+      <div style={{ width: 200, flexShrink: 0 }}>
+        <div style={{ border: '1px solid var(--color-border)', borderRadius: 6, padding: 14, background: 'var(--color-surface)' }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
           <div className="label-uppercase">Kategorien</div>
           <button onClick={() => setCreatingCategory(true)} style={{ background: 'none', border: 'none', fontSize: 11, color: 'var(--color-accent)', fontWeight: 600, cursor: 'pointer', padding: 0 }}>
@@ -419,6 +420,7 @@ export default function Produkte() {
               </button>
             </div>
           ))}
+        </div>
         </div>
       </div>
 
