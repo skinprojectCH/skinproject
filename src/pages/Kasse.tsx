@@ -40,6 +40,15 @@ interface LineItem {
   qty: number;
   unitPrice: number;
   voucherCode?: string;
+  discountType?: 'percent' | 'chf' | null;
+  discountValue?: number | null;
+}
+
+function lineItemTotal(item: LineItem): number {
+  const gross = item.qty * item.unitPrice;
+  if (!item.discountType || !item.discountValue) return gross;
+  if (item.discountType === 'percent') return Math.max(0, gross * (1 - item.discountValue / 100));
+  return Math.max(0, gross - item.discountValue);
 }
 
 interface SplitPayment {
@@ -851,7 +860,7 @@ export default function Kasse() {
     }
   }
 
-  const subtotal = useMemo(() => items.reduce((sum, i) => sum + i.qty * i.unitPrice, 0), [items]);
+  const subtotal = useMemo(() => items.reduce((sum, i) => sum + lineItemTotal(i), 0), [items]);
 
   function removeItem(id: string) {
     setItems((prev) => prev.filter((i) => i.id !== id));
@@ -860,6 +869,8 @@ export default function Kasse() {
   function changeQty(id: string, delta: number) {
     setItems((prev) => prev.map((i) => (i.id === id ? { ...i, qty: Math.max(1, i.qty + delta) } : i)));
   }
+
+  const [expandedDiscountId, setExpandedDiscountId] = useState<string | null>(null);
 
   function changePrice(id: string, value: string) {
     const parsed = parseFloat(value.replace(',', '.'));
@@ -881,7 +892,9 @@ export default function Kasse() {
         description: i.label,
         quantity: i.qty,
         unit_price: i.unitPrice,
-        line_total: i.qty * i.unitPrice,
+        discount_type: i.discountType || null,
+        discount_value: i.discountValue || null,
+        line_total: lineItemTotal(i),
       })),
       payments: payments.map((p) => ({ ...p, method: p.method.toLowerCase() })),
       vouchersToCreate: items
@@ -1022,45 +1035,106 @@ export default function Kasse() {
             <div />
           </div>
 
-          {items.map((item) => (
-            <div key={item.id} style={{ display: 'grid', gridTemplateColumns: '1fr 100px 90px 28px', padding: '14px 12px', fontSize: 13, borderBottom: '1px solid #ddd', alignItems: 'center' }}>
-              <div>{item.label}</div>
-              <div>
-                {item.kind === 'product' && (
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <button onClick={() => changeQty(item.id, -1)} style={stepperBtnStyle}>
-                      −
-                    </button>
-                    <div>{item.qty}</div>
-                    <button onClick={() => changeQty(item.id, 1)} style={stepperBtnStyle}>
-                      +
-                    </button>
+          {items.map((item) => {
+            const gross = item.qty * item.unitPrice;
+            const discounted = lineItemTotal(item);
+            const hasDiscount = !!item.discountType && !!item.discountValue;
+            const expanded = expandedDiscountId === item.id;
+            return (
+              <div key={item.id} style={{ borderBottom: '1px solid #ddd' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 100px 90px 28px', padding: '14px 12px', fontSize: 13, alignItems: 'center' }}>
+                  <div>{item.label}</div>
+                  <div>
+                    {item.kind === 'product' && (
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                        <button onClick={() => changeQty(item.id, -1)} style={stepperBtnStyle}>
+                          −
+                        </button>
+                        <div>{item.qty}</div>
+                        <button onClick={() => changeQty(item.id, 1)} style={stepperBtnStyle}>
+                          +
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                  <div style={{ textAlign: 'right' }}>
+                    {item.kind === 'service' ? (
+                      <div>
+                        <div style={{ display: 'flex', alignItems: 'baseline', gap: 3, justifyContent: 'flex-end' }}>
+                          CHF
+                          <input
+                            type="number"
+                            step="0.05"
+                            min="0"
+                            value={item.unitPrice}
+                            onChange={(e) => changePrice(item.id, e.target.value)}
+                            title="Preis nur für diesen Kassiervorgang anpassen — der Standardpreis der Dienstleistung bleibt unverändert."
+                            style={{ width: 64, border: '1px solid var(--color-border)', borderRadius: 4, padding: '4px 6px', fontSize: 13, textAlign: 'right', fontFamily: 'var(--font-body)' }}
+                          />
+                        </div>
+                        {hasDiscount && <div style={{ fontSize: 12, fontWeight: 600, marginTop: 2 }}>= {chf(discounted)}</div>}
+                      </div>
+                    ) : hasDiscount ? (
+                      <div>
+                        <div style={{ fontSize: 11, color: '#999', textDecoration: 'line-through' }}>{chf(gross)}</div>
+                        <div>{chf(discounted)}</div>
+                      </div>
+                    ) : (
+                      chf(gross)
+                    )}
+                  </div>
+                  <button onClick={() => removeItem(item.id)} style={{ background: 'none', border: 'none', color: '#999', display: 'flex', justifyContent: 'flex-end', width: '100%' }}>
+                    <TrashIcon />
+                  </button>
+                </div>
+
+                {item.kind !== 'voucher' && (
+                  <div style={{ padding: '0 12px 10px', display: 'flex', justifyContent: 'flex-end' }}>
+                    {!expanded ? (
+                      <div onClick={() => setExpandedDiscountId(item.id)} style={{ fontSize: 11, color: hasDiscount ? 'var(--color-accent)' : '#999', fontWeight: 600, cursor: 'pointer' }}>
+                        {hasDiscount ? `Rabatt: ${item.discountValue}${item.discountType === 'percent' ? '%' : ' CHF'} bearbeiten` : '+ Rabatt'}
+                      </div>
+                    ) : (
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                        <input
+                          type="number"
+                          step="0.5"
+                          min="0"
+                          value={item.discountValue ?? ''}
+                          onChange={(e) => setItems((prev) => prev.map((i) => (i.id === item.id ? { ...i, discountValue: e.target.value ? parseFloat(e.target.value) : null, discountType: i.discountType || 'percent' } : i)))}
+                          placeholder="0"
+                          style={{ width: 60, border: '1px solid var(--color-border)', borderRadius: 4, padding: '4px 6px', fontSize: 12, textAlign: 'right', fontFamily: 'var(--font-body)' }}
+                        />
+                        <div style={{ display: 'flex', border: '1px solid var(--color-border)', borderRadius: 4, overflow: 'hidden', fontSize: 11 }}>
+                          {(['percent', 'chf'] as const).map((t) => (
+                            <div
+                              key={t}
+                              onClick={() => setItems((prev) => prev.map((i) => (i.id === item.id ? { ...i, discountType: t } : i)))}
+                              style={{ padding: '4px 8px', cursor: 'pointer', background: item.discountType === t ? '#111' : 'transparent', color: item.discountType === t ? '#fff' : '#777' }}
+                            >
+                              {t === 'percent' ? '%' : 'CHF'}
+                            </div>
+                          ))}
+                        </div>
+                        <div
+                          onClick={() => {
+                            setItems((prev) => prev.map((i) => (i.id === item.id ? { ...i, discountType: null, discountValue: null } : i)));
+                            setExpandedDiscountId(null);
+                          }}
+                          style={{ fontSize: 11, color: '#999', cursor: 'pointer' }}
+                        >
+                          Entfernen
+                        </div>
+                        <div onClick={() => setExpandedDiscountId(null)} style={{ fontSize: 11, color: 'var(--color-accent)', fontWeight: 600, cursor: 'pointer' }}>
+                          Fertig
+                        </div>
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
-              <div>
-                {item.kind === 'service' ? (
-                  <div style={{ display: 'flex', alignItems: 'baseline', gap: 3, justifyContent: 'flex-end' }}>
-                    CHF
-                    <input
-                      type="number"
-                      step="0.05"
-                      min="0"
-                      value={item.unitPrice}
-                      onChange={(e) => changePrice(item.id, e.target.value)}
-                      title="Preis nur für diesen Kassiervorgang anpassen — der Standardpreis der Dienstleistung bleibt unverändert."
-                      style={{ width: 64, border: '1px solid var(--color-border)', borderRadius: 4, padding: '4px 6px', fontSize: 13, textAlign: 'right', fontFamily: 'var(--font-body)' }}
-                    />
-                  </div>
-                ) : (
-                  chf(item.qty * item.unitPrice)
-                )}
-              </div>
-              <button onClick={() => removeItem(item.id)} style={{ background: 'none', border: 'none', color: '#999', display: 'flex', justifyContent: 'flex-end', width: '100%' }}>
-                <TrashIcon />
-              </button>
-            </div>
-          ))}
+            );
+          })}
           {items.length === 0 && <div style={{ padding: '20px 12px', fontSize: 13, color: '#999' }}>Warenkorb leer — Service oder Artikel hinzufügen.</div>}
 
           <div style={{ display: 'flex', gap: 10, marginTop: 14, marginBottom: 20, flexWrap: 'wrap' }}>

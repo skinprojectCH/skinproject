@@ -564,7 +564,7 @@ export async function checkoutOrder(input: {
   discountType: 'percent' | 'chf' | null;
   discountValue: number | null;
   total: number;
-  lineItems: { service_id?: string | null; product_id?: string | null; description: string; quantity: number; unit_price: number; line_total: number }[];
+  lineItems: { service_id?: string | null; product_id?: string | null; description: string; quantity: number; unit_price: number; discount_type?: 'percent' | 'chf' | null; discount_value?: number | null; line_total: number }[];
   payments: { method: string; amount: number; voucher_id?: string | null }[];
   vouchersToCreate?: { code: string; value: number; buyer_customer_id?: string | null }[];
 }) {
