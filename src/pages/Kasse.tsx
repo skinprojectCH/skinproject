@@ -688,6 +688,14 @@ export default function Kasse() {
   const [showProductModal, setShowProductModal] = useState(false);
   const [showCheckout, setShowCheckout] = useState(false);
   const [completed, setCompleted] = useState(false);
+  const [receipt, setReceipt] = useState<{
+    items: LineItem[];
+    total: number;
+    payments: { method: string; amount: number }[];
+    customerLabel: string;
+    contextLabel: string | null;
+    date: string;
+  } | null>(null);
 
   const [contextLabel, setContextLabel] = useState<string | null>(null);
   const [contextError, setContextError] = useState<string | null>(null);
@@ -901,6 +909,14 @@ export default function Kasse() {
         .filter((i) => i.kind === 'voucher')
         .map((i) => ({ code: i.voucherCode || i.refId, value: i.unitPrice, buyer_customer_id: selectedCustomerId || null })),
     });
+    setReceipt({
+      items: [...items],
+      total,
+      payments,
+      customerLabel: customers.find((c) => c.id === selectedCustomerId) ? `${customers.find((c) => c.id === selectedCustomerId)!.vorname} ${customers.find((c) => c.id === selectedCustomerId)!.name}` : 'Laufkunde',
+      contextLabel,
+      date: new Date().toLocaleString('de-CH', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }),
+    });
     setShowCheckout(false);
     setCompleted(true);
     setItems([]);
@@ -960,13 +976,60 @@ export default function Kasse() {
   }
 
   if (completed) {
+    const receiptCard = (label: string) => (
+      <div style={{ border: '1px solid var(--color-border)', borderRadius: 6, padding: 18, background: '#fff', flex: 1, minWidth: 240 }}>
+        <div style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: 0.5, color: '#999', fontWeight: 700, marginBottom: 4 }}>{label}</div>
+        <div style={{ fontSize: 12, color: '#777', marginBottom: 12 }}>
+          {receipt?.date}
+          {receipt?.contextLabel ? ` · ${receipt.contextLabel.replace('Termin: ', '')}` : ''}
+          {' · '}
+          {receipt?.customerLabel}
+        </div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 12 }}>
+          {receipt?.items.map((i) => (
+            <div key={i.id} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13 }}>
+              <div>
+                {i.label}
+                {i.qty > 1 ? ` × ${i.qty}` : ''}
+              </div>
+              <div>{chf(lineItemTotal(i))}</div>
+            </div>
+          ))}
+        </div>
+        <div style={{ borderTop: '1px solid var(--color-border)', paddingTop: 10, display: 'flex', justifyContent: 'space-between', fontWeight: 700, fontSize: 14, marginBottom: 8 }}>
+          <div>Total</div>
+          <div>{chf(receipt?.total || 0)}</div>
+        </div>
+        <div style={{ fontSize: 12, color: '#777' }}>
+          {receipt?.payments.map((p, i) => (
+            <div key={i}>
+              {p.method}: {chf(p.amount)}
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+
     return (
-      <div>
+      <div style={{ maxWidth: 720 }}>
         <h2 style={{ fontSize: 26, marginBottom: 12 }}>Kasse</h2>
-        <div style={{ border: '1px solid #eee', borderRadius: 6, padding: 40, textAlign: 'center' }}>
-          <div style={{ fontSize: 18, fontWeight: 700, color: '#1a7a3f', marginBottom: 8 }}>✓ Kassiert & in Supabase gespeichert</div>
-          <button className="btn btn-secondary" onClick={() => setCompleted(false)}>
-            Zurück zur Kasse
+        <div style={{ border: '1px solid var(--color-border)', borderRadius: 6, padding: '28px 32px', textAlign: 'center', background: 'var(--color-accent-fill)', marginBottom: 24 }}>
+          <div style={{ fontSize: 20, fontWeight: 700, color: '#1a7a3f' }}>✓ Erfolgreich kassiert</div>
+        </div>
+
+        <div style={{ display: 'flex', gap: 20, flexWrap: 'wrap', marginBottom: 24 }}>
+          {receiptCard('Quittung Salon')}
+          {receiptCard('Quittung Artist')}
+        </div>
+
+        <div style={{ textAlign: 'center', marginBottom: 28 }}>
+          <div style={{ fontSize: 12, textTransform: 'uppercase', letterSpacing: 0.5, color: '#999', marginBottom: 4 }}>Total kassiert</div>
+          <div style={{ fontSize: 36, fontWeight: 700, fontFamily: 'var(--font-heading)' }}>{chf(receipt?.total || 0)}</div>
+        </div>
+
+        <div style={{ textAlign: 'center' }}>
+          <button className="btn btn-primary" onClick={() => navigate('/kalender')}>
+            Zurück zum Kalender
           </button>
         </div>
       </div>
@@ -983,7 +1046,7 @@ export default function Kasse() {
           ) : (
             <>
               {contextLabel && <div style={{ fontSize: 12, color: 'var(--color-accent)', fontWeight: 600, marginBottom: 10 }}>{contextLabel}</div>}
-              <div style={{ border: '1px solid var(--color-border)', borderRadius: 6, padding: 14, marginBottom: 20, background: 'var(--color-surface)', display: 'flex', gap: 16, flexWrap: 'wrap' }}>
+              <div style={{ border: '1px solid var(--color-warn-border)', borderRadius: 6, padding: 14, marginBottom: 20, background: 'var(--color-accent-fill)', display: 'flex', gap: 16, flexWrap: 'wrap' }}>
                 <div>
                   <div className="label-uppercase" style={{ marginBottom: 4 }}>
                     Kunde
