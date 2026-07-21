@@ -3,63 +3,12 @@ import { useLocationContext } from '../../lib/locationContext';
 import {
   fetchCustomerStatsForMonth,
   fetchServiceProductPerformance,
-  fetchMonthlyRevenueSeries,
-  fetchYearlyRevenueSeries,
+  fetchMonthlyRevenueSeriesMulti,
+  fetchYearlyRevenueSeriesMulti,
   type CustomerStats,
   type ServiceProductPerformance,
-  type RevenuePoint,
 } from '../../lib/queries';
 import { formatCHF } from '../../lib/format';
-
-function BarChart({ data }: { data: RevenuePoint[] }) {
-  const max = Math.max(1, ...data.map((d) => d.total));
-  const [hovered, setHovered] = useState<number | null>(null);
-
-  return (
-    <div style={{ border: '1px solid var(--color-border)', borderRadius: 6, background: 'var(--color-surface)', padding: '20px 16px 12px' }}>
-      <div style={{ display: 'flex', alignItems: 'flex-end', gap: data.length > 20 ? 3 : 10, height: 220 }}>
-        {data.map((d, i) => (
-          <div
-            key={i}
-            onMouseEnter={() => setHovered(i)}
-            onMouseLeave={() => setHovered(null)}
-            style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'flex-end', height: '100%', position: 'relative', cursor: 'default' }}
-          >
-            {hovered === i && (
-              <div
-                style={{
-                  position: 'absolute',
-                  bottom: `${Math.max(4, (d.total / max) * 180) + 8}px`,
-                  background: 'var(--color-primary)',
-                  color: 'var(--color-surface)',
-                  fontSize: 11,
-                  fontWeight: 600,
-                  padding: '4px 8px',
-                  borderRadius: 4,
-                  whiteSpace: 'nowrap',
-                  zIndex: 1,
-                }}
-              >
-                {formatCHF(d.total)}
-              </div>
-            )}
-            <div
-              style={{
-                width: '100%',
-                maxWidth: 36,
-                height: `${Math.max(2, (d.total / max) * 180)}px`,
-                background: hovered === i ? 'var(--color-primary)' : 'var(--color-accent)',
-                borderRadius: '3px 3px 0 0',
-                transition: 'background 0.15s ease',
-              }}
-            />
-            <div style={{ fontSize: 10, color: 'var(--color-text-muted)', marginTop: 6, whiteSpace: 'nowrap' }}>{d.label}</div>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
 
 const MONTH_NAMES = ['Januar', 'Februar', 'März', 'April', 'Mai', 'Juni', 'Juli', 'August', 'September', 'Oktober', 'November', 'Dezember'];
 
@@ -74,6 +23,78 @@ const navBtnStyle: React.CSSProperties = {
 };
 
 const kpiCardStyle: React.CSSProperties = { border: '1px solid var(--color-border)', background: 'var(--color-surface)', borderRadius: 6, padding: 16, flex: 1 };
+
+const LOCATION_COLORS = ['var(--color-accent)', 'var(--color-slate)', 'var(--color-destructive)', 'var(--color-taupe)', '#5B8A72', '#7A6FB0'];
+
+function MultiLocationBarChart({
+  data,
+  locations,
+}: {
+  data: { label: string; values: Record<string, number> }[];
+  locations: { id: string; name: string }[];
+}) {
+  const max = Math.max(1, ...data.flatMap((d) => locations.map((l) => d.values[l.id] || 0)));
+  const [hovered, setHovered] = useState<{ i: number; locId: string } | null>(null);
+
+  return (
+    <div style={{ border: '1px solid var(--color-border)', borderRadius: 6, background: 'var(--color-surface)', padding: '20px 16px 12px' }}>
+      <div style={{ display: 'flex', gap: 14, marginBottom: 16, flexWrap: 'wrap' }}>
+        {locations.map((l, li) => (
+          <div key={l.id} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, color: 'var(--color-text-muted)' }}>
+            <span style={{ width: 9, height: 9, borderRadius: 2, background: LOCATION_COLORS[li % LOCATION_COLORS.length], display: 'inline-block' }} />
+            {l.name}
+          </div>
+        ))}
+      </div>
+      <div style={{ display: 'flex', alignItems: 'flex-end', gap: data.length > 20 ? 6 : 16, height: 220 }}>
+        {data.map((d, i) => (
+          <div key={i} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'flex-end', height: '100%' }}>
+            <div style={{ display: 'flex', alignItems: 'flex-end', gap: 3, height: 180, position: 'relative' }}>
+              {locations.map((l, li) => {
+                const val = d.values[l.id] || 0;
+                const isHovered = hovered?.i === i && hovered.locId === l.id;
+                return (
+                  <div key={l.id} style={{ position: 'relative' }} onMouseEnter={() => setHovered({ i, locId: l.id })} onMouseLeave={() => setHovered(null)}>
+                    {isHovered && (
+                      <div
+                        style={{
+                          position: 'absolute',
+                          bottom: `${Math.max(4, (val / max) * 180) + 8}px`,
+                          left: '50%',
+                          transform: 'translateX(-50%)',
+                          background: 'var(--color-primary)',
+                          color: 'var(--color-surface)',
+                          fontSize: 11,
+                          fontWeight: 600,
+                          padding: '4px 8px',
+                          borderRadius: 4,
+                          whiteSpace: 'nowrap',
+                          zIndex: 1,
+                        }}
+                      >
+                        {l.name}: {formatCHF(val)}
+                      </div>
+                    )}
+                    <div
+                      style={{
+                        width: data.length > 20 ? 5 : 12,
+                        height: `${Math.max(2, (val / max) * 180)}px`,
+                        background: LOCATION_COLORS[li % LOCATION_COLORS.length],
+                        borderRadius: '2px 2px 0 0',
+                        opacity: hovered && !isHovered ? 0.5 : 1,
+                      }}
+                    />
+                  </div>
+                );
+              })}
+            </div>
+            <div style={{ fontSize: 10, color: 'var(--color-text-muted)', marginTop: 6, whiteSpace: 'nowrap' }}>{d.label}</div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
 
 function useScopedLocation() {
   const { locations, locationsLoaded, isLocationLocked, accountLocationId } = useLocationContext();
@@ -337,31 +358,33 @@ function PerformanceStatistik() {
 }
 
 function UmsatzStatistik() {
-  const { locations, locationId, setLocationId, isLocationLocked } = useScopedLocation();
-  const [monthly, setMonthly] = useState<RevenuePoint[] | null>(null);
-  const [yearly, setYearly] = useState<RevenuePoint[] | null>(null);
+  const { locations, locationsLoaded, isLocationLocked, accountLocationId } = useLocationContext();
+  const [monthly, setMonthly] = useState<{ label: string; values: Record<string, number> }[] | null>(null);
+  const [yearly, setYearly] = useState<{ label: string; values: Record<string, number> }[] | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  // Location-Manager sehen weiterhin nur ihren eigenen Standort (Datenschutz) -- der
+  // Standort-Vergleich mit mehreren Farben ist nur für den Hauptadmin sinnvoll/erlaubt.
+  const scopedLocations = isLocationLocked && accountLocationId ? locations.filter((l) => l.id === accountLocationId) : locations;
+
   useEffect(() => {
-    if (!locationId) return;
+    if (!locationsLoaded || scopedLocations.length === 0) return;
     setLoading(true);
     setError(null);
-    Promise.all([fetchMonthlyRevenueSeries(locationId, 12), fetchYearlyRevenueSeries(locationId, 5)])
+    const ids = scopedLocations.map((l) => l.id);
+    Promise.all([fetchMonthlyRevenueSeriesMulti(ids, 12), fetchYearlyRevenueSeriesMulti(ids, 5)])
       .then(([m, y]) => {
         setMonthly(m);
         setYearly(y);
       })
       .catch((e) => setError(e.message))
       .finally(() => setLoading(false));
-  }, [locationId]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [locationsLoaded, scopedLocations.map((l) => l.id).join(',')]);
 
   return (
     <div>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', marginBottom: 20 }}>
-        <LocationPicker locations={locations} locationId={locationId} setLocationId={setLocationId} isLocationLocked={isLocationLocked} />
-      </div>
-
       {loading ? (
         <div style={{ fontSize: 13, color: '#999' }}>Lädt…</div>
       ) : error ? (
@@ -369,10 +392,10 @@ function UmsatzStatistik() {
       ) : (
         <>
           <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 10 }}>Umsatz pro Monat (letzte 12 Monate)</div>
-          {monthly && <BarChart data={monthly} />}
+          {monthly && <MultiLocationBarChart data={monthly} locations={scopedLocations} />}
 
           <div style={{ fontSize: 13, fontWeight: 700, margin: '28px 0 10px' }}>Umsatz pro Jahr (letzte 5 Jahre)</div>
-          {yearly && <BarChart data={yearly} />}
+          {yearly && <MultiLocationBarChart data={yearly} locations={scopedLocations} />}
         </>
       )}
     </div>

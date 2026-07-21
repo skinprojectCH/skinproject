@@ -1243,3 +1243,34 @@ export async function fetchYearlyRevenueSeries(locationId: string, yearsBack = 5
     .sort(([a], [b]) => Number(a) - Number(b))
     .map(([y, total]) => ({ label: y, total }));
 }
+
+// Für den Standort-Vergleich (Hauptadmin): dieselben Serien für mehrere Locations parallel,
+// als eine Reihe pro Zeitpunkt mit den Werten je Location.
+export interface MultiLocationRevenuePoint {
+  label: string;
+  values: Record<string, number>; // locationId -> total
+}
+
+export async function fetchMonthlyRevenueSeriesMulti(locationIds: string[], monthsBack = 12): Promise<MultiLocationRevenuePoint[]> {
+  const perLocation = await Promise.all(locationIds.map((id) => fetchMonthlyRevenueSeries(id, monthsBack)));
+  const labels = perLocation[0]?.map((p) => p.label) || [];
+  return labels.map((label, i) => {
+    const values: Record<string, number> = {};
+    locationIds.forEach((id, li) => {
+      values[id] = perLocation[li][i]?.total || 0;
+    });
+    return { label, values };
+  });
+}
+
+export async function fetchYearlyRevenueSeriesMulti(locationIds: string[], yearsBack = 5): Promise<MultiLocationRevenuePoint[]> {
+  const perLocation = await Promise.all(locationIds.map((id) => fetchYearlyRevenueSeries(id, yearsBack)));
+  const labels = perLocation[0]?.map((p) => p.label) || [];
+  return labels.map((label, i) => {
+    const values: Record<string, number> = {};
+    locationIds.forEach((id, li) => {
+      values[id] = perLocation[li][i]?.total || 0;
+    });
+    return { label, values };
+  });
+}
