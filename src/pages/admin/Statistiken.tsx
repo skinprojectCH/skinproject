@@ -8,8 +8,10 @@ import {
   fetchMonthlyArtistRevenueSeriesMulti,
   fetchYearlyArtistRevenueSeriesMulti,
   fetchArtists,
+  fetchDiscountStats,
   type CustomerStats,
   type ServiceProductPerformance,
+  type DiscountStats,
 } from '../../lib/queries';
 import { formatCHF } from '../../lib/format';
 
@@ -96,6 +98,22 @@ function MultiLocationBarChart({
         ))}
       </div>
     </div>
+  );
+}
+
+function PieChart({ discountPct, size = 160 }: { discountPct: number; size?: number }) {
+  const pct = Math.max(0, Math.min(100, discountPct));
+  return (
+    <div
+      style={{
+        width: size,
+        height: size,
+        borderRadius: '50%',
+        background: `conic-gradient(var(--color-destructive) 0deg ${pct * 3.6}deg, var(--color-accent) ${pct * 3.6}deg 360deg)`,
+        flexShrink: 0,
+        boxShadow: '0 0 0 1px var(--color-border)',
+      }}
+    />
   );
 }
 
@@ -453,14 +471,116 @@ function ArtistUmsatzStatistik() {
   );
 }
 
+function RabattStatistik() {
+  const now = new Date();
+  const [month, setMonth] = useState(now.getMonth());
+  const [monthYear, setMonthYear] = useState(now.getFullYear());
+  const [year, setYear] = useState(now.getFullYear());
+
+  const [monthStats, setMonthStats] = useState<DiscountStats | null>(null);
+  const [yearStats, setYearStats] = useState<DiscountStats | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  function shiftMonth(delta: number) {
+    let m = month + delta;
+    let y = monthYear;
+    if (m < 0) { m = 11; y -= 1; }
+    if (m > 11) { m = 0; y += 1; }
+    setMonth(m);
+    setMonthYear(y);
+  }
+
+  useEffect(() => {
+    setLoading(true);
+    setError(null);
+    const monthStart = `${monthYear}-${String(month + 1).padStart(2, '0')}-01`;
+    const monthEnd = `${monthYear}-${String(month + 1).padStart(2, '0')}-${String(new Date(monthYear, month + 1, 0).getDate()).padStart(2, '0')}`;
+    Promise.all([fetchDiscountStats(monthStart, monthEnd), fetchDiscountStats(`${year}-01-01`, `${year}-12-31`)])
+      .then(([m, y]) => {
+        setMonthStats(m);
+        setYearStats(y);
+      })
+      .catch((e) => setError(e.message))
+      .finally(() => setLoading(false));
+  }, [month, monthYear, year]);
+
+  function StatsBlock({ title, stats, nav }: { title: string; stats: DiscountStats | null; nav: React.ReactNode }) {
+    return (
+      <div style={{ border: '1px solid var(--color-border)', borderRadius: 6, background: 'var(--color-surface)', padding: 20, flex: 1, minWidth: 300 }}>
+        <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 4 }}>{title}</div>
+        <div style={{ marginBottom: 16 }}>{nav}</div>
+        {stats && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 24 }}>
+            <PieChart discountPct={stats.discountPct} />
+            <div style={{ fontSize: 12 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8 }}>
+                <span style={{ width: 9, height: 9, borderRadius: 2, background: 'var(--color-accent)', display: 'inline-block' }} />
+                Umsatz: <strong>{formatCHF(stats.netRevenue)}</strong>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8 }}>
+                <span style={{ width: 9, height: 9, borderRadius: 2, background: 'var(--color-destructive)', display: 'inline-block' }} />
+                Rabatt: <strong>{formatCHF(stats.discountAmount)}</strong>
+              </div>
+              <div style={{ fontSize: 20, fontWeight: 700, marginTop: 10 }}>{stats.discountPct.toFixed(1)}%</div>
+              <div style={{ color: 'var(--color-text-muted)' }}>vom Bruttoumsatz</div>
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  return (
+    <div>
+      <div style={{ fontSize: 12, color: 'var(--color-text-muted)', marginBottom: 20 }}>
+        Anteil des gewährten Rabatts (Positions- + Bestell-Rabatt) am Bruttoumsatz, über alle Standorte hinweg.
+      </div>
+
+      {loading ? (
+        <div style={{ fontSize: 13, color: '#999' }}>Lädt…</div>
+      ) : error ? (
+        <div style={{ fontSize: 13, color: 'var(--color-destructive)' }}>Fehler: {error}</div>
+      ) : (
+        <div style={{ display: 'flex', gap: 20, flexWrap: 'wrap' }}>
+          <StatsBlock
+            title="Monat"
+            stats={monthStats}
+            nav={
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                <button onClick={() => shiftMonth(-1)} style={navBtnStyle}>‹</button>
+                <div style={{ fontSize: 13, fontWeight: 700, minWidth: 110, textAlign: 'center' }}>
+                  {MONTH_NAMES[month]} {monthYear}
+                </div>
+                <button onClick={() => shiftMonth(1)} style={navBtnStyle}>›</button>
+              </div>
+            }
+          />
+          <StatsBlock
+            title="Jahr"
+            stats={yearStats}
+            nav={
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                <button onClick={() => setYear((y) => y - 1)} style={navBtnStyle}>‹</button>
+                <div style={{ fontSize: 13, fontWeight: 700, minWidth: 60, textAlign: 'center' }}>{year}</div>
+                <button onClick={() => setYear((y) => y + 1)} style={navBtnStyle}>›</button>
+              </div>
+            }
+          />
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function Statistiken() {
-  const [tab, setTab] = useState<'kunden' | 'performance' | 'umsatz' | 'artists'>('kunden');
+  const [tab, setTab] = useState<'kunden' | 'performance' | 'umsatz' | 'artists' | 'rabatt'>('kunden');
 
   return (
     <div>
       <h1 style={{ fontSize: 24, marginBottom: 4 }}>Statistiken</h1>
-      <div style={{ display: 'flex', borderBottom: '1px solid var(--color-border)', marginBottom: 20, fontSize: 13 }}>
-        {(['kunden', 'performance', 'umsatz', 'artists'] as const).map((t) => (
+      <div style={{ display: 'flex', borderBottom: '1px solid var(--color-border)', marginBottom: 20, fontSize: 13, flexWrap: 'wrap' }}>
+        {(['kunden', 'performance', 'umsatz', 'artists', 'rabatt'] as const).map((t) => (
           <div
             key={t}
             onClick={() => setTab(t)}
@@ -472,12 +592,22 @@ export default function Statistiken() {
               cursor: 'pointer',
             }}
           >
-            {t === 'kunden' ? 'Kunden' : t === 'performance' ? 'Dienstleistungen & Produkte' : t === 'umsatz' ? 'Umsatzverlauf' : 'Artist-Umsatz'}
+            {t === 'kunden' ? 'Kunden' : t === 'performance' ? 'Dienstleistungen & Produkte' : t === 'umsatz' ? 'Umsatzverlauf' : t === 'artists' ? 'Artist-Umsatz' : 'Rabatte'}
           </div>
         ))}
       </div>
 
-      {tab === 'kunden' ? <KundenStatistik /> : tab === 'performance' ? <PerformanceStatistik /> : tab === 'umsatz' ? <UmsatzStatistik /> : <ArtistUmsatzStatistik />}
+      {tab === 'kunden' ? (
+        <KundenStatistik />
+      ) : tab === 'performance' ? (
+        <PerformanceStatistik />
+      ) : tab === 'umsatz' ? (
+        <UmsatzStatistik />
+      ) : tab === 'artists' ? (
+        <ArtistUmsatzStatistik />
+      ) : (
+        <RabattStatistik />
+      )}
     </div>
   );
 }

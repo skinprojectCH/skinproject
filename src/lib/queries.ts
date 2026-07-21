@@ -1333,3 +1333,37 @@ export async function fetchMonthlyArtistRevenueSeriesMulti(artistIds: string[], 
 export async function fetchYearlyArtistRevenueSeriesMulti(artistIds: string[], yearsBack = 5): Promise<MultiLocationRevenuePoint[]> {
   return fetchArtistRevenueSeriesMulti(artistIds, 'year', yearsBack);
 }
+
+export interface DiscountStats {
+  grossRevenue: number; // Summe Positionen vor jeglichem Rabatt (Menge × Einzelpreis)
+  netRevenue: number; // tatsächlich kassiert (orders.total)
+  discountAmount: number;
+  discountPct: number;
+}
+
+// Rabatt-Anteil am Umsatz für einen Zeitraum, über alle Standorte hinweg. Vergleicht die
+// Summe aller Positionen zum vollen Einzelpreis (vor Positions- UND Bestell-Rabatt) mit dem
+// tatsächlich kassierten Total.
+export async function fetchDiscountStats(startDateISO: string, endDateISO: string): Promise<DiscountStats> {
+  const start = `${startDateISO}T00:00:00`;
+  const end = `${endDateISO}T23:59:59`;
+  const { data, error } = await supabase
+    .from('orders')
+    .select('total, order_line_items(quantity, unit_price)')
+    .eq('status', 'bezahlt')
+    .gte('created_at', start)
+    .lte('created_at', end);
+  if (error) throw error;
+
+  let grossRevenue = 0;
+  let netRevenue = 0;
+  for (const o of (data as any[]) || []) {
+    netRevenue += Number(o.total);
+    for (const li of o.order_line_items || []) {
+      grossRevenue += Number(li.quantity) * Number(li.unit_price);
+    }
+  }
+  const discountAmount = Math.max(0, grossRevenue - netRevenue);
+  const discountPct = grossRevenue > 0 ? (discountAmount / grossRevenue) * 100 : 0;
+  return { grossRevenue, netRevenue, discountAmount, discountPct };
+}
