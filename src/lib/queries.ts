@@ -1075,6 +1075,7 @@ export interface CustomerStats {
   totalCustomers: number;
   newCustomers: number;
   returningCustomers: number;
+  walkInCount: number; // Laufkunden-Verkäufe ohne Kundenprofil in diesem Zeitraum
   rows: CustomerStatsRow[];
 }
 
@@ -1091,6 +1092,16 @@ export async function fetchCustomerStatsForMonth(locationId: string, year: numbe
     .gte('created_at', start)
     .lt('created_at', end);
   if (error) throw error;
+
+  const { count: walkInCount, error: walkInError } = await supabase
+    .from('orders')
+    .select('id', { count: 'exact', head: true })
+    .eq('location_id', locationId)
+    .eq('status', 'bezahlt')
+    .is('customer_id', null)
+    .gte('created_at', start)
+    .lt('created_at', end);
+  if (walkInError) throw walkInError;
 
   const orderRows = (orders as any[]) || [];
   const byCustomer: Record<string, { name: string; visits: number; total: number }> = {};
@@ -1132,6 +1143,7 @@ export async function fetchCustomerStatsForMonth(locationId: string, year: numbe
     totalCustomers: rows.length,
     newCustomers,
     returningCustomers: rows.length - newCustomers,
+    walkInCount: walkInCount || 0,
     rows,
   };
 }

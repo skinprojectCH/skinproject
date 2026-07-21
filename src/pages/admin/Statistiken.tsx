@@ -227,6 +227,11 @@ function KundenStatistik() {
               <div style={{ fontSize: 11, color: '#999', textTransform: 'uppercase', marginBottom: 8, fontWeight: 600 }}>Wiederkehrende Kunden</div>
               <div style={{ fontFamily: 'var(--font-heading)', fontSize: 22, fontWeight: 700 }}>{stats.returningCustomers}</div>
             </div>
+            <div style={kpiCardStyle}>
+              <div style={{ fontSize: 11, color: '#999', textTransform: 'uppercase', marginBottom: 8, fontWeight: 600 }}>Laufkunden</div>
+              <div style={{ fontFamily: 'var(--font-heading)', fontSize: 22, fontWeight: 700 }}>{stats.walkInCount}</div>
+              <div style={{ fontSize: 10, color: 'var(--color-text-muted)', marginTop: 2 }}>ohne Kundenprofil</div>
+            </div>
           </div>
 
           <div style={{ border: '1px solid var(--color-border)', borderRadius: 6, background: 'var(--color-surface)', overflow: 'hidden' }}>
