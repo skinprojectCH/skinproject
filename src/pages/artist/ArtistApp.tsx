@@ -643,7 +643,7 @@ function AppointmentDetail({ appt, artistId, locationId, onClose }: { appt: any;
                     </button>
                     <button
                       className="btn btn-destructive"
-                      style={{ flex: 1, justifyContent: 'center', background: 'var(--color-destructive)', color: 'var(--color-surface)' }}
+                      style={{ flex: 1, justifyContent: 'center' }}
                       onClick={() => setConfirmDelete(true)}
                     >
                       Löschen
