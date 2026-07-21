@@ -1281,7 +1281,7 @@ export default function Kalender() {
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 22, flexWrap: 'wrap', gap: 10, flexShrink: 0 }}>
         <h1 style={{ fontSize: 26 }}>
           Kalender
-          {view === 'woche' && weekViewArtistName && <span style={{ color: '#999', fontWeight: 400 }}> · {weekViewArtistName}</span>}
+          {view === 'woche' && weekViewArtistName && <span style={{ color: 'var(--color-accent)', fontWeight: 700 }}> · {weekViewArtistName}</span>}
         </h1>
         <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
           <ViewToggle view={view} onChange={setView} />
