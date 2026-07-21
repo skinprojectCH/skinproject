@@ -41,7 +41,7 @@ function shiftISO(dateISO: string, days: number) {
 }
 
 const STATUS_LABELS: Record<string, { label: string; color: string }> = {
-  gebucht: { label: 'Gebucht', color: '#777' },
+  gebucht: { label: 'Gebucht', color: 'var(--color-text-muted)' },
   kassiert: { label: 'Kassiert', color: 'var(--color-accent)' },
   storniert: { label: 'Abgesagt', color: 'var(--color-destructive)' },
   nicht_erschienen: { label: 'Nicht erschienen', color: 'var(--color-destructive)' },
@@ -73,7 +73,7 @@ function PinPad({ pin, setPin, onSubmit, loading, maxLen = 6 }: { pin: string; s
               height: 14,
               borderRadius: '50%',
               border: '1.5px solid rgba(255,255,255,0.5)',
-              background: i < pin.length ? '#fff' : 'transparent',
+              background: i < pin.length ? 'var(--color-surface)' : 'transparent',
             }}
           />
         ))}
@@ -90,7 +90,7 @@ function PinPad({ pin, setPin, onSubmit, loading, maxLen = 6 }: { pin: string; s
               borderRadius: '50%',
               border: '1px solid rgba(255,255,255,0.25)',
               background: 'rgba(255,255,255,0.06)',
-              color: '#fff',
+              color: 'var(--color-surface)',
               fontSize: 20,
               fontFamily: 'var(--font-heading)',
               cursor: 'pointer',
@@ -173,7 +173,7 @@ function ArtistLoginScreen({ artistId, onLoggedIn }: { artistId: string; onLogge
       }}
     >
       <img src="/logo-skinproject.png" alt="SkinProject" style={{ width: 96, height: 96, marginBottom: 20 }} />
-      <div style={{ fontSize: 20, fontWeight: 700, color: '#fff', marginBottom: 32, textAlign: 'center' }}>
+      <div style={{ fontSize: 20, fontWeight: 700, color: 'var(--color-surface)', marginBottom: 32, textAlign: 'center' }}>
         {name ? `Hallo ${name}` : '\u00A0'}
       </div>
 
@@ -196,7 +196,7 @@ function Lightbox({ url, onClose }: { url: string; onClose: () => void }) {
   return (
     <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.8)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
       <img src={url} onClick={(e) => e.stopPropagation()} style={{ maxWidth: '92vw', maxHeight: '85vh', borderRadius: 6 }} />
-      <div onClick={onClose} style={{ position: 'fixed', top: 20, right: 20, color: '#fff', fontSize: 26 }}>✕</div>
+      <div onClick={onClose} style={{ position: 'fixed', top: 20, right: 20, color: 'var(--color-surface)', fontSize: 26 }}>✕</div>
     </div>
   );
 }
@@ -329,7 +329,7 @@ function TerminForm({
     }
   }
 
-  if (loading) return <div style={{ fontSize: 13, color: '#999' }}>Lädt…</div>;
+  if (loading) return <div style={{ fontSize: 13, color: 'var(--color-text-muted)' }}>Lädt…</div>;
 
   return (
     <>
@@ -362,7 +362,7 @@ function TerminForm({
 
       <div style={{ marginBottom: 10 }}>
         {formFieldLabel('Services')}
-        <select value={categoryFilter} onChange={(e) => setCategoryFilter(e.target.value)} style={{ ...formBoxStyle, marginBottom: 8, color: categoryFilter ? '#111' : '#777' }}>
+        <select value={categoryFilter} onChange={(e) => setCategoryFilter(e.target.value)} style={{ ...formBoxStyle, marginBottom: 8, color: categoryFilter ? 'var(--color-primary)' : 'var(--color-text-muted)' }}>
           <option value="">Alle Kategorien</option>
           {categories.map((c) => (
             <option key={c.id} value={c.id}>
@@ -379,7 +379,7 @@ function TerminForm({
               <select
                 value={id}
                 onChange={(e) => setSelectedServices((prev) => prev.map((sid, i) => (i === index ? e.target.value : sid)))}
-                style={{ ...formBoxStyle, flex: 1, color: id ? '#111' : '#777' }}
+                style={{ ...formBoxStyle, flex: 1, color: id ? 'var(--color-primary)' : 'var(--color-text-muted)' }}
               >
                 <option value="">Service wählen…</option>
                 {optionsForRow.map((s) => (
@@ -388,7 +388,7 @@ function TerminForm({
                   </option>
                 ))}
               </select>
-              <button onClick={() => setSelectedServices((prev) => prev.filter((_, i) => i !== index))} style={{ background: 'none', border: 'none', fontSize: 14, color: '#999' }}>
+              <button onClick={() => setSelectedServices((prev) => prev.filter((_, i) => i !== index))} style={{ background: 'none', border: 'none', fontSize: 14, color: 'var(--color-text-muted)' }}>
                 ✕
               </button>
             </div>
@@ -405,9 +405,9 @@ function TerminForm({
         </div>
       </div>
 
-      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, color: '#777', marginBottom: 16, borderTop: '1px solid var(--color-border)', paddingTop: 10 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, color: 'var(--color-text-muted)', marginBottom: 16, borderTop: '1px solid var(--color-border)', paddingTop: 10 }}>
         <div>Gesamtdauer: {totalDuration} min</div>
-        <div style={{ fontWeight: 600, color: '#111' }}>Total: {formatCHF(totalPrice)}</div>
+        <div style={{ fontWeight: 600, color: 'var(--color-primary)' }}>Total: {formatCHF(totalPrice)}</div>
       </div>
 
       {error && <div style={{ fontSize: 12, color: 'var(--color-destructive)', marginBottom: 12 }}>{error}</div>}
@@ -569,7 +569,7 @@ function AppointmentDetail({ appt, artistId, locationId, onClose }: { appt: any;
           <div style={{ fontSize: 15, fontWeight: 700, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
             {appt.customers ? `${appt.customers.vorname} ${appt.customers.name}` : 'Laufkunde'}
           </div>
-          <div style={{ fontSize: 12, color: '#777' }}>
+          <div style={{ fontSize: 12, color: 'var(--color-text-muted)' }}>
             {new Date(appt.start_time).toLocaleTimeString('de-CH', { hour: '2-digit', minute: '2-digit' })} · {services.join(', ') || '—'}
             {appt.locations?.name ? ` · ${appt.locations.name}` : ''}
           </div>
@@ -596,33 +596,33 @@ function AppointmentDetail({ appt, artistId, locationId, onClose }: { appt: any;
 
                 <div style={{ marginTop: 12, paddingTop: 12, borderTop: '1px solid var(--color-border)', fontSize: 13, display: 'flex', flexDirection: 'column', gap: 6 }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                    <div style={{ color: '#777' }}>Kunde</div>
+                    <div style={{ color: 'var(--color-text-muted)' }}>Kunde</div>
                     <div style={{ fontWeight: 600 }}>{appt.customers ? `${appt.customers.vorname} ${appt.customers.name}` : 'Laufkunde'}</div>
                   </div>
                   <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                    <div style={{ color: '#777' }}>Salon</div>
+                    <div style={{ color: 'var(--color-text-muted)' }}>Salon</div>
                     <div style={{ fontWeight: 600 }}>{appt.locations?.name || '—'}</div>
                   </div>
                   <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                    <div style={{ color: '#777' }}>Datum</div>
+                    <div style={{ color: 'var(--color-text-muted)' }}>Datum</div>
                     <div style={{ fontWeight: 600 }}>{new Date(appt.start_time).toLocaleDateString('de-CH', { weekday: 'short', day: '2-digit', month: '2-digit', year: 'numeric' })}</div>
                   </div>
                   <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                    <div style={{ color: '#777' }}>Zeit</div>
+                    <div style={{ color: 'var(--color-text-muted)' }}>Zeit</div>
                     <div style={{ fontWeight: 600 }}>
                       {new Date(appt.start_time).toLocaleTimeString('de-CH', { hour: '2-digit', minute: '2-digit' })}
                       {appt.end_time ? ` – ${new Date(appt.end_time).toLocaleTimeString('de-CH', { hour: '2-digit', minute: '2-digit' })}` : ''}
                     </div>
                   </div>
                   <div style={{ borderTop: '1px solid var(--color-border)', marginTop: 4, paddingTop: 8 }}>
-                    <div style={{ color: '#777', marginBottom: 4 }}>Services</div>
+                    <div style={{ color: 'var(--color-text-muted)', marginBottom: 4 }}>Services</div>
                     {(appt.appointment_line_items || []).length === 0 ? (
-                      <div style={{ color: '#999' }}>—</div>
+                      <div style={{ color: 'var(--color-text-muted)' }}>—</div>
                     ) : (
                       (appt.appointment_line_items || []).map((li: any, i: number) => (
                         <div key={i} style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 2 }}>
                           <div>{li.services?.name || '—'}</div>
-                          <div style={{ color: '#777' }}>{formatCHF(li.unit_price)}</div>
+                          <div style={{ color: 'var(--color-text-muted)' }}>{formatCHF(li.unit_price)}</div>
                         </div>
                       ))
                     )}
@@ -643,7 +643,7 @@ function AppointmentDetail({ appt, artistId, locationId, onClose }: { appt: any;
                     </button>
                     <button
                       className="btn btn-destructive"
-                      style={{ flex: 1, justifyContent: 'center', background: 'var(--color-destructive)', color: '#fff' }}
+                      style={{ flex: 1, justifyContent: 'center', background: 'var(--color-destructive)', color: 'var(--color-surface)' }}
                       onClick={() => setConfirmDelete(true)}
                     >
                       Löschen
@@ -653,14 +653,14 @@ function AppointmentDetail({ appt, artistId, locationId, onClose }: { appt: any;
 
                 {confirmDelete && (
                   <div style={{ marginTop: 12, paddingTop: 12, borderTop: '1px solid var(--color-border)' }}>
-                    <div style={{ fontSize: 12, color: '#555', marginBottom: 10 }}>Termin wirklich löschen? Das kann nicht rückgängig gemacht werden.</div>
+                    <div style={{ fontSize: 12, color: 'var(--color-text-muted)', marginBottom: 10 }}>Termin wirklich löschen? Das kann nicht rückgängig gemacht werden.</div>
                     <div style={{ display: 'flex', gap: 10 }}>
                       <button className="btn btn-secondary" style={{ flex: 1, justifyContent: 'center' }} onClick={() => setConfirmDelete(false)}>
                         Doch nicht
                       </button>
                       <button
                         className="btn btn-destructive"
-                        style={{ flex: 1, justifyContent: 'center', background: 'var(--color-destructive)', color: '#fff', opacity: deleting ? 0.6 : 1 }}
+                        style={{ flex: 1, justifyContent: 'center', background: 'var(--color-destructive)', color: 'var(--color-surface)', opacity: deleting ? 0.6 : 1 }}
                         disabled={deleting}
                         onClick={handleDeleteAppointment}
                       >
@@ -684,21 +684,21 @@ function AppointmentDetail({ appt, artistId, locationId, onClose }: { appt: any;
             style={{ border: '1px solid var(--color-border)', borderRadius: 4, padding: '9px 10px', fontSize: 13, width: '100%', minHeight: 70, fontFamily: 'var(--font-body)' }}
             placeholder="z.B. Beobachtungen, Nachbehandlung, nächste Session…"
           />
-          {saving && <div style={{ fontSize: 11, color: '#999', marginTop: 6 }}>Speichert…</div>}
-          {saved && <div style={{ fontSize: 11, color: '#1a7a3f', marginTop: 6 }}>✓ Gespeichert.</div>}
+          {saving && <div style={{ fontSize: 11, color: 'var(--color-text-muted)', marginTop: 6 }}>Speichert…</div>}
+          {saved && <div style={{ fontSize: 11, color: 'var(--color-accent)', marginTop: 6 }}>✓ Gespeichert.</div>}
         </div>
 
         <div style={{ border: '1px solid var(--color-border)', borderRadius: 6, padding: 14, marginBottom: 16, background: 'var(--color-surface)' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
             <div style={{ fontSize: 13, fontWeight: 700 }}>Fotos</div>
             {!loadingFiles && appt.customer_id && (
-              <div style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 11, fontWeight: 700, color: photos.length > 0 ? '#1a7a3f' : 'var(--color-destructive)' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 11, fontWeight: 700, color: photos.length > 0 ? 'var(--color-accent)' : 'var(--color-destructive)' }}>
                 {photos.length > 0 ? '✓ Fotos ok' : '⚠ Fotos fehlen'}
               </div>
             )}
           </div>
           {!appt.customer_id ? (
-            <div style={{ fontSize: 12, color: '#999' }}>Laufkunde ohne Kundenprofil — Fotodokumentation nicht erforderlich.</div>
+            <div style={{ fontSize: 12, color: 'var(--color-text-muted)' }}>Laufkunde ohne Kundenprofil — Fotodokumentation nicht erforderlich.</div>
           ) : (
             <>
               {!loadingFiles && photos.length > 0 && (
@@ -707,13 +707,13 @@ function AppointmentDetail({ appt, artistId, locationId, onClose }: { appt: any;
                     <div key={p.id} style={{ position: 'relative' }}>
                       <div
                         onClick={() => setLightboxUrl(photoUrls[p.id] || null)}
-                        style={{ aspectRatio: '1', background: 'var(--color-bg)', borderRadius: 4, overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 9, color: '#999', cursor: 'pointer' }}
+                        style={{ aspectRatio: '1', background: 'var(--color-bg)', borderRadius: 4, overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 9, color: 'var(--color-text-muted)', cursor: 'pointer' }}
                       >
                         {photoUrls[p.id] ? <img src={photoUrls[p.id]} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : 'Foto'}
                       </div>
                       <div
                         onClick={(e) => { e.stopPropagation(); handleDelete(p); }}
-                        style={{ position: 'absolute', top: 2, right: 2, background: 'rgba(0,0,0,0.5)', color: '#fff', borderRadius: '50%', width: 16, height: 16, fontSize: 10, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}
+                        style={{ position: 'absolute', top: 2, right: 2, background: 'rgba(0,0,0,0.5)', color: 'var(--color-surface)', borderRadius: '50%', width: 16, height: 16, fontSize: 10, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}
                       >
                         ✕
                       </div>
@@ -721,7 +721,7 @@ function AppointmentDetail({ appt, artistId, locationId, onClose }: { appt: any;
                   ))}
                 </div>
               )}
-              {!loadingFiles && photos.length === 0 && <div style={{ fontSize: 12, color: '#999', marginBottom: 10 }}>Noch keine Fotos.</div>}
+              {!loadingFiles && photos.length === 0 && <div style={{ fontSize: 12, color: 'var(--color-text-muted)', marginBottom: 10 }}>Noch keine Fotos.</div>}
               <input ref={photoInputRef} type="file" accept="image/*" style={{ position: 'absolute', width: 1, height: 1, opacity: 0, overflow: 'hidden', pointerEvents: 'none' }} onChange={(e) => { handleFile(e.target.files?.[0]); e.target.value = ''; }} />
               <button className="btn btn-outline" style={{ width: '100%', justifyContent: 'center' }} onClick={() => photoInputRef.current?.click()} disabled={uploadingPhoto}>
                 {uploadingPhoto ? 'Lädt hoch…' : 'Foto hinzufügen'}
@@ -804,7 +804,7 @@ function TermineTab({ artistId, locationId, artistColor }: { artistId: string; l
   function cardStyleFor(status: string): React.CSSProperties {
     let background = hexToRgba(artistColor, 0.1);
     if (status === 'kassiert') background = hexToRgba(artistColor, 0.24);
-    else if (status === 'nicht_erschienen') background = hexToRgba('#8B5A5A', 0.12);
+    else if (status === 'nicht_erschienen') background = hexToRgba('var(--color-destructive)', 0.12);
     return { border: '1px solid var(--color-border)', borderRadius: 8, padding: '14px 16px', background, cursor: 'pointer' };
   }
 
@@ -838,9 +838,9 @@ function TermineTab({ artistId, locationId, artistColor }: { artistId: string; l
         </div>
       </div>
 
-      {loading && <div style={{ fontSize: 13, color: '#999' }}>Lädt…</div>}
+      {loading && <div style={{ fontSize: 13, color: 'var(--color-text-muted)' }}>Lädt…</div>}
       {error && <div style={{ fontSize: 13, color: 'var(--color-destructive)' }}>{error}</div>}
-      {!loading && !error && appointments.length === 0 && <div style={{ fontSize: 13, color: '#999' }}>Keine Termine in diesem Zeitraum.</div>}
+      {!loading && !error && appointments.length === 0 && <div style={{ fontSize: 13, color: 'var(--color-text-muted)' }}>Keine Termine in diesem Zeitraum.</div>}
 
       {!loading &&
         grouped.map(([dateKey, appts]) => (
@@ -851,7 +851,7 @@ function TermineTab({ artistId, locationId, artistColor }: { artistId: string; l
                 fontWeight: 700,
                 textTransform: 'uppercase',
                 letterSpacing: 0.5,
-                color: dateKey === today ? 'var(--color-accent)' : '#999',
+                color: dateKey === today ? 'var(--color-accent)' : 'var(--color-text-muted)',
                 marginBottom: 8,
               }}
             >
@@ -876,12 +876,12 @@ function TermineTab({ artistId, locationId, artistColor }: { artistId: string; l
                           {new Date(appt.start_time).toLocaleTimeString('de-CH', { hour: '2-digit', minute: '2-digit' })}
                           {appt.end_time ? `–${new Date(appt.end_time).toLocaleTimeString('de-CH', { hour: '2-digit', minute: '2-digit' })}` : ''} · {appt.customers ? `${appt.customers.vorname} ${appt.customers.name}` : 'Laufkunde'}
                         </div>
-                        <div style={{ fontSize: 12, color: '#777', marginTop: 2 }}>
+                        <div style={{ fontSize: 12, color: 'var(--color-text-muted)', marginTop: 2 }}>
                           {services.join(', ') || '—'}
                           {appt.locations?.name ? ` · ${appt.locations.name}` : ''}
                         </div>
                         {appt.status !== 'storniert' && appt.customer_id && (
-                          <div style={{ fontSize: 11, fontWeight: 600, marginTop: 4, color: idsWithPhotos.has(appt.id) ? '#1a7a3f' : 'var(--color-destructive)' }}>
+                          <div style={{ fontSize: 11, fontWeight: 600, marginTop: 4, color: idsWithPhotos.has(appt.id) ? 'var(--color-accent)' : 'var(--color-destructive)' }}>
                             {idsWithPhotos.has(appt.id) ? '✓ Fotos ok' : '⚠ Fotos fehlen'}
                           </div>
                         )}
@@ -988,19 +988,19 @@ function UmsatzTag({ artistId, sharePct }: { artistId: string; sharePct: number 
       </div>
 
       <div style={{ border: '1px solid var(--color-border)', borderRadius: 8, padding: '16px 18px', background: 'var(--color-surface)', marginBottom: 16 }}>
-        <div style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: 0.5, color: '#999', marginBottom: 6 }}>Dein Anteil (alle Standorte)</div>
+        <div style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: 0.5, color: 'var(--color-text-muted)', marginBottom: 6 }}>Dein Anteil (alle Standorte)</div>
         <div style={{ fontSize: 22, fontWeight: 700, fontFamily: 'var(--font-heading)' }}>{formatCHF(total)}</div>
         {byLocation.length > 1 && (
-          <div style={{ fontSize: 11, color: '#999', marginTop: 4 }}>
+          <div style={{ fontSize: 11, color: 'var(--color-text-muted)', marginTop: 4 }}>
             Achtung: unterschiedliche Standorte sind separate Firmen — siehe Aufteilung unten.
           </div>
         )}
       </div>
 
       {loading ? (
-        <div style={{ fontSize: 13, color: '#999' }}>Lädt…</div>
+        <div style={{ fontSize: 13, color: 'var(--color-text-muted)' }}>Lädt…</div>
       ) : entries.length === 0 ? (
-        <div style={{ fontSize: 13, color: '#999' }}>Keine Einträge an diesem Tag.</div>
+        <div style={{ fontSize: 13, color: 'var(--color-text-muted)' }}>Keine Einträge an diesem Tag.</div>
       ) : (
         byLocation.map(([locationName, locEntries]) => {
           const locTotal = locEntries.reduce((s, e) => s + e.amount, 0);
@@ -1015,7 +1015,7 @@ function UmsatzTag({ artistId, sharePct }: { artistId: string; sharePct: number 
                   <div key={e.appointmentId} style={{ border: '1px solid var(--color-border)', borderRadius: 6, padding: '10px 14px', background: 'var(--color-surface)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 13 }}>
                     <div>
                       <div style={{ fontWeight: 600 }}>{e.customerLabel}</div>
-                      <div style={{ fontSize: 11, color: '#777' }}>{e.services.join(', ') || '—'}</div>
+                      <div style={{ fontSize: 11, color: 'var(--color-text-muted)' }}>{e.services.join(', ') || '—'}</div>
                     </div>
                     <div style={{ fontWeight: 700 }}>{formatCHF(e.amount)}</div>
                   </div>
@@ -1081,17 +1081,17 @@ function UmsatzMonat({ artistId, artistName, sharePct }: { artistId: string; art
       </div>
 
       <div style={{ border: '1px solid var(--color-border)', borderRadius: 8, padding: '16px 18px', background: 'var(--color-surface)', marginBottom: 16 }}>
-        <div style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: 0.5, color: '#999', marginBottom: 6 }}>Dein Anteil diesen Monat (alle Standorte)</div>
+        <div style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: 0.5, color: 'var(--color-text-muted)', marginBottom: 6 }}>Dein Anteil diesen Monat (alle Standorte)</div>
         <div style={{ fontSize: 22, fontWeight: 700, fontFamily: 'var(--font-heading)' }}>{formatCHF(total)}</div>
         {byLocation.length > 1 && (
-          <div style={{ fontSize: 11, color: '#999', marginTop: 4 }}>Standorte sind separate Firmen — je eigene Aufstellung + PDF unten.</div>
+          <div style={{ fontSize: 11, color: 'var(--color-text-muted)', marginTop: 4 }}>Standorte sind separate Firmen — je eigene Aufstellung + PDF unten.</div>
         )}
       </div>
 
       {loading ? (
-        <div style={{ fontSize: 13, color: '#999' }}>Lädt…</div>
+        <div style={{ fontSize: 13, color: 'var(--color-text-muted)' }}>Lädt…</div>
       ) : byLocation.length === 0 ? (
-        <div style={{ fontSize: 13, color: '#999' }}>Keine Einträge in diesem Monat.</div>
+        <div style={{ fontSize: 13, color: 'var(--color-text-muted)' }}>Keine Einträge in diesem Monat.</div>
       ) : (
         byLocation.map(([locationName, locEntries]) => {
           const locByDay = (() => {
@@ -1167,17 +1167,17 @@ function UmsatzJahr({ artistId, artistName, sharePct }: { artistId: string; arti
       </div>
 
       <div style={{ border: '1px solid var(--color-border)', borderRadius: 8, padding: '16px 18px', background: 'var(--color-surface)', marginBottom: 16 }}>
-        <div style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: 0.5, color: '#999', marginBottom: 6 }}>Dein Anteil {year} (alle Standorte)</div>
+        <div style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: 0.5, color: 'var(--color-text-muted)', marginBottom: 6 }}>Dein Anteil {year} (alle Standorte)</div>
         <div style={{ fontSize: 22, fontWeight: 700, fontFamily: 'var(--font-heading)' }}>{formatCHF(total)}</div>
         {byLocation.length > 1 && (
-          <div style={{ fontSize: 11, color: '#999', marginTop: 4 }}>Standorte sind separate Firmen — je eigene Aufstellung + PDF unten.</div>
+          <div style={{ fontSize: 11, color: 'var(--color-text-muted)', marginTop: 4 }}>Standorte sind separate Firmen — je eigene Aufstellung + PDF unten.</div>
         )}
       </div>
 
       {loading ? (
-        <div style={{ fontSize: 13, color: '#999' }}>Lädt…</div>
+        <div style={{ fontSize: 13, color: 'var(--color-text-muted)' }}>Lädt…</div>
       ) : byLocation.length === 0 ? (
-        <div style={{ fontSize: 13, color: '#999' }}>Keine Einträge in diesem Jahr.</div>
+        <div style={{ fontSize: 13, color: 'var(--color-text-muted)' }}>Keine Einträge in diesem Jahr.</div>
       ) : (
         byLocation.map(([locationName, locEntries]) => {
           const locByMonth = (() => {
@@ -1262,7 +1262,7 @@ function UmsatzTab({ artist }: { artist: Artist }) {
       {period === 'monat' && <UmsatzMonat artistId={artist.id} artistName={artistName} sharePct={sharePct} />}
       {period === 'jahr' && <UmsatzJahr artistId={artist.id} artistName={artistName} sharePct={sharePct} />}
 
-      <div style={{ fontSize: 11, color: '#999', lineHeight: 1.5, marginTop: 16 }}>
+      <div style={{ fontSize: 11, color: 'var(--color-text-muted)', lineHeight: 1.5, marginTop: 16 }}>
         Zeigt deinen eigenen Anteil (Miet- & Serviceanteil {sharePct}%) auf bezahlte Dienstleistungen zu deinen Terminen. Artikelverkäufe sind nicht enthalten.
       </div>
     </div>
@@ -1373,7 +1373,7 @@ function ProfilTab({ artist, onUpdated, onLogout }: { artist: Artist; onUpdated:
   }
 
   const fieldBox: React.CSSProperties = { border: '1px solid var(--color-border)', borderRadius: 4, padding: '9px 10px', fontSize: 13, width: '100%', fontFamily: 'var(--font-body)' };
-  const label: React.CSSProperties = { fontSize: 10, textTransform: 'uppercase', color: '#999', marginBottom: 4, fontWeight: 600 };
+  const label: React.CSSProperties = { fontSize: 10, textTransform: 'uppercase', color: 'var(--color-text-muted)', marginBottom: 4, fontWeight: 600 };
 
   return (
     <div>
@@ -1409,15 +1409,15 @@ function ProfilTab({ artist, onUpdated, onLogout }: { artist: Artist; onUpdated:
         </div>
 
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderTop: '1px solid var(--color-border)', paddingTop: 12, marginBottom: 4 }}>
-          <div style={{ fontSize: 12, color: '#777' }}>Miet- &amp; Serviceanteil</div>
+          <div style={{ fontSize: 12, color: 'var(--color-text-muted)' }}>Miet- &amp; Serviceanteil</div>
           <div style={{ textAlign: 'right' }}>
             <div style={{ fontSize: 13, fontWeight: 700 }}>{artist.revenue_share_pct}%</div>
-            <div style={{ fontSize: 10, color: '#bbb' }}>nur durch Admin änderbar</div>
+            <div style={{ fontSize: 10, color: 'var(--color-text-muted)' }}>nur durch Admin änderbar</div>
           </div>
         </div>
 
         {error && <div style={{ fontSize: 11, color: 'var(--color-destructive)', marginTop: 10 }}>{error}</div>}
-        {saved && <div style={{ fontSize: 11, color: '#1a7a3f', marginTop: 10 }}>✓ Gespeichert.</div>}
+        {saved && <div style={{ fontSize: 11, color: 'var(--color-accent)', marginTop: 10 }}>✓ Gespeichert.</div>}
 
         <button className="btn btn-primary" style={{ width: '100%', justifyContent: 'center', marginTop: 14, opacity: saving ? 0.6 : 1 }} disabled={saving} onClick={handleSave}>
           {saving ? 'Speichert…' : 'Speichern'}
@@ -1439,7 +1439,7 @@ function ProfilTab({ artist, onUpdated, onLogout }: { artist: Artist; onUpdated:
           </button>
         </div>
         {pinError && <div style={{ fontSize: 11, color: 'var(--color-destructive)', marginTop: 6 }}>{pinError}</div>}
-        {pinSuccess && <div style={{ fontSize: 11, color: '#1a7a3f', marginTop: 6 }}>✓ PIN geändert.</div>}
+        {pinSuccess && <div style={{ fontSize: 11, color: 'var(--color-accent)', marginTop: 6 }}>✓ PIN geändert.</div>}
       </div>
 
       <button className="btn btn-secondary" style={{ width: '100%', justifyContent: 'center' }} onClick={onLogout}>
@@ -1470,7 +1470,7 @@ function ArtistDashboard({ artist: initialArtist, onLogout }: { artist: Artist; 
         <img src="/logo-skinproject.png" alt="" style={{ width: 36, height: 36, flexShrink: 0 }} />
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ fontSize: 9, textTransform: 'uppercase', letterSpacing: 0.5, color: 'var(--color-accent)' }}>SkinProject</div>
-          <div style={{ fontSize: 15, fontWeight: 700, color: '#fff', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{artist.kuenstlername || artist.name}</div>
+          <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--color-surface)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{artist.kuenstlername || artist.name}</div>
         </div>
       </div>
 
@@ -1518,7 +1518,7 @@ function ArtistDashboard({ artist: initialArtist, onLogout }: { artist: Artist; 
               alignItems: 'center',
               gap: 3,
               padding: '10px 0 8px',
-              color: tab === item.key ? 'var(--color-accent)' : '#999',
+              color: tab === item.key ? 'var(--color-accent)' : 'var(--color-text-muted)',
               cursor: 'pointer',
             }}
           >
