@@ -5,6 +5,9 @@ import {
   fetchServiceProductPerformance,
   fetchMonthlyRevenueSeriesMulti,
   fetchYearlyRevenueSeriesMulti,
+  fetchMonthlyArtistRevenueSeriesMulti,
+  fetchYearlyArtistRevenueSeriesMulti,
+  fetchArtists,
   type CustomerStats,
   type ServiceProductPerformance,
 } from '../../lib/queries';
@@ -402,14 +405,62 @@ function UmsatzStatistik() {
   );
 }
 
+function ArtistUmsatzStatistik() {
+  const [artists, setArtists] = useState<{ id: string; name: string }[]>([]);
+  const [monthly, setMonthly] = useState<{ label: string; values: Record<string, number> }[] | null>(null);
+  const [yearly, setYearly] = useState<{ label: string; values: Record<string, number> }[] | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    setLoading(true);
+    setError(null);
+    fetchArtists()
+      .then((all) => {
+        const active = all.filter((a) => a.status === 'active').map((a) => ({ id: a.id, name: a.kuenstlername || a.name }));
+        setArtists(active);
+        const ids = active.map((a) => a.id);
+        return Promise.all([fetchMonthlyArtistRevenueSeriesMulti(ids, 12), fetchYearlyArtistRevenueSeriesMulti(ids, 5)]);
+      })
+      .then(([m, y]) => {
+        setMonthly(m);
+        setYearly(y);
+      })
+      .catch((e) => setError(e.message))
+      .finally(() => setLoading(false));
+  }, []);
+
+  return (
+    <div>
+      <div style={{ fontSize: 12, color: 'var(--color-text-muted)', marginBottom: 20 }}>Dienstleistungs-Bruttoumsatz pro Artist, über alle Standorte hinweg zusammengefasst.</div>
+
+      {loading ? (
+        <div style={{ fontSize: 13, color: '#999' }}>Lädt…</div>
+      ) : error ? (
+        <div style={{ fontSize: 13, color: 'var(--color-destructive)' }}>Fehler: {error}</div>
+      ) : artists.length === 0 ? (
+        <div style={{ fontSize: 13, color: '#999' }}>Noch keine aktiven Artists erfasst.</div>
+      ) : (
+        <>
+          <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 10 }}>Umsatz pro Monat (letzte 12 Monate)</div>
+          {monthly && <MultiLocationBarChart data={monthly} locations={artists} />}
+
+          <div style={{ fontSize: 13, fontWeight: 700, margin: '28px 0 10px' }}>Umsatz pro Jahr (letzte 5 Jahre)</div>
+          {yearly && <MultiLocationBarChart data={yearly} locations={artists} />}
+        </>
+      )}
+    </div>
+  );
+}
+
 export default function Statistiken() {
-  const [tab, setTab] = useState<'kunden' | 'performance' | 'umsatz'>('kunden');
+  const [tab, setTab] = useState<'kunden' | 'performance' | 'umsatz' | 'artists'>('kunden');
 
   return (
     <div>
       <h1 style={{ fontSize: 24, marginBottom: 4 }}>Statistiken</h1>
       <div style={{ display: 'flex', borderBottom: '1px solid var(--color-border)', marginBottom: 20, fontSize: 13 }}>
-        {(['kunden', 'performance', 'umsatz'] as const).map((t) => (
+        {(['kunden', 'performance', 'umsatz', 'artists'] as const).map((t) => (
           <div
             key={t}
             onClick={() => setTab(t)}
@@ -421,12 +472,12 @@ export default function Statistiken() {
               cursor: 'pointer',
             }}
           >
-            {t === 'kunden' ? 'Kunden' : t === 'performance' ? 'Dienstleistungen & Produkte' : 'Umsatzverlauf'}
+            {t === 'kunden' ? 'Kunden' : t === 'performance' ? 'Dienstleistungen & Produkte' : t === 'umsatz' ? 'Umsatzverlauf' : 'Artist-Umsatz'}
           </div>
         ))}
       </div>
 
-      {tab === 'kunden' ? <KundenStatistik /> : tab === 'performance' ? <PerformanceStatistik /> : <UmsatzStatistik />}
+      {tab === 'kunden' ? <KundenStatistik /> : tab === 'performance' ? <PerformanceStatistik /> : tab === 'umsatz' ? <UmsatzStatistik /> : <ArtistUmsatzStatistik />}
     </div>
   );
 }

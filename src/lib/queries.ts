@@ -1274,3 +1274,62 @@ export async function fetchYearlyRevenueSeriesMulti(locationIds: string[], years
     return { label, values };
   });
 }
+
+// Artist-Umsatz über ALLE Locations hinweg (bewusst ohne Location-Aufteilung) -- Umsatz =
+// Dienstleistungs-Bruttoumsatz, den der Artist erwirtschaftet hat (vor Miet-&Serviceanteil-Split).
+async function fetchArtistRevenueSeriesMulti(artistIds: string[], granularity: 'month' | 'year', periodsBack: number): Promise<MultiLocationRevenuePoint[]> {
+  if (artistIds.length === 0) return [];
+  const now = new Date();
+  const start = granularity === 'month' ? new Date(now.getFullYear(), now.getMonth() - (periodsBack - 1), 1) : new Date(now.getFullYear() - (periodsBack - 1), 0, 1);
+  const end = granularity === 'month' ? new Date(now.getFullYear(), now.getMonth() + 1, 1) : new Date(now.getFullYear() + 1, 0, 1);
+
+  const { data, error } = await supabase
+    .from('appointments')
+    .select('artist_id, start_time, orders(subtotal, total, status, order_line_items(service_id, line_total))')
+    .in('artist_id', artistIds)
+    .eq('type', 'termin')
+    .gte('start_time', start.toISOString())
+    .lt('start_time', end.toISOString());
+  if (error) throw error;
+
+  const keys: string[] = [];
+  const buckets: Record<string, Record<string, number>> = {};
+  for (let i = 0; i < periodsBack; i++) {
+    let key: string;
+    if (granularity === 'month') {
+      const d = new Date(start.getFullYear(), start.getMonth() + i, 1);
+      key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+    } else {
+      key = `${start.getFullYear() + i}`;
+    }
+    keys.push(key);
+    buckets[key] = {};
+    artistIds.forEach((id) => (buckets[key][id] = 0));
+  }
+
+  for (const appt of (data as any[]) || []) {
+    const order = appt.orders?.[0];
+    if (!order || order.status !== 'bezahlt') continue;
+    const lineItems = order.order_line_items || [];
+    const serviceSubtotal = lineItems.filter((li: any) => li.service_id).reduce((s: number, li: any) => s + Number(li.line_total), 0);
+    if (serviceSubtotal <= 0) continue;
+    const discountFactor = Number(order.subtotal) > 0 ? Number(order.total) / Number(order.subtotal) : 1;
+    const revenue = serviceSubtotal * discountFactor;
+    const d = new Date(appt.start_time);
+    const key = granularity === 'month' ? `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}` : `${d.getFullYear()}`;
+    if (buckets[key] && appt.artist_id in buckets[key]) buckets[key][appt.artist_id] += revenue;
+  }
+
+  return keys.map((key) => ({
+    label: granularity === 'month' ? `${MONTH_SHORT[Number(key.slice(5, 7)) - 1]} ${key.slice(2, 4)}` : key,
+    values: buckets[key],
+  }));
+}
+
+export async function fetchMonthlyArtistRevenueSeriesMulti(artistIds: string[], monthsBack = 12): Promise<MultiLocationRevenuePoint[]> {
+  return fetchArtistRevenueSeriesMulti(artistIds, 'month', monthsBack);
+}
+
+export async function fetchYearlyArtistRevenueSeriesMulti(artistIds: string[], yearsBack = 5): Promise<MultiLocationRevenuePoint[]> {
+  return fetchArtistRevenueSeriesMulti(artistIds, 'year', yearsBack);
+}
