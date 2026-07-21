@@ -8,6 +8,7 @@ import {
   createLocationManager,
   updateLocationManager,
   deleteLocationManager,
+  setMainLocation,
   type Location,
 } from '../../lib/queries';
 
@@ -165,6 +166,7 @@ export default function Locations() {
   const [saveError, setSaveError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
   const [attempted, setAttempted] = useState(false);
+  const [settingMain, setSettingMain] = useState(false);
 
   function reload(selectAfterId?: string) {
     setLoading(true);
@@ -306,7 +308,14 @@ export default function Locations() {
             onKeyDown={(e) => e.key === 'Enter' && setSelectedId(l.id)}
             style={{ border: l.id === selectedId ? '1.5px solid var(--color-accent)' : '1px solid var(--color-border)', borderRadius: 6, padding: 12, marginBottom: 8, cursor: 'pointer', background: 'var(--color-surface)' }}
           >
-            <div style={{ fontWeight: 700, fontSize: 13 }}>{l.name}</div>
+            <div style={{ fontWeight: 700, fontSize: 13, display: 'flex', alignItems: 'center', gap: 6 }}>
+              {l.name}
+              {l.is_main && (
+                <span style={{ border: '1px solid var(--color-accent)', color: 'var(--color-accent)', borderRadius: 10, padding: '1px 8px', fontSize: 9, fontWeight: 700, textTransform: 'uppercase' }}>
+                  Haupt
+                </span>
+              )}
+            </div>
             <div style={{ fontSize: 12, color: '#777' }}>
               {[l.strasse, l.plz_ort].filter(Boolean).join(', ') || l.address || '—'}
             </div>
@@ -322,6 +331,42 @@ export default function Locations() {
       {selectedId && (
         <div style={{ flex: 1, minWidth: 0 }}>
           <h2 style={{ fontSize: 19, marginBottom: 16 }}>{name || '—'}</h2>
+
+          {(() => {
+            const currentLocation = locations.find((l) => l.id === selectedId);
+            return (
+              <div style={{ border: '1px solid var(--color-border)', borderRadius: 6, padding: 14, marginBottom: 14, background: 'var(--color-surface)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 14 }}>
+                <div>
+                  <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 2 }}>Haupt-Location</div>
+                  <div style={{ fontSize: 11, color: '#999' }}>Hier werden Umsätze ohne eigene Location-Zuordnung gutgeschrieben (z.B. online verkaufte Gutscheine).</div>
+                </div>
+                {currentLocation?.is_main ? (
+                  <span style={{ border: '1px solid var(--color-accent)', color: 'var(--color-accent)', borderRadius: 10, padding: '4px 12px', fontSize: 11, fontWeight: 700, whiteSpace: 'nowrap' }}>
+                    ✓ Aktuelle Haupt-Location
+                  </span>
+                ) : (
+                  <button
+                    className="btn btn-outline"
+                    style={{ whiteSpace: 'nowrap', opacity: settingMain ? 0.6 : 1 }}
+                    disabled={settingMain}
+                    onClick={async () => {
+                      setSettingMain(true);
+                      try {
+                        await setMainLocation(selectedId);
+                        await reload(selectedId);
+                      } catch (e: any) {
+                        setSaveError(e.message);
+                      } finally {
+                        setSettingMain(false);
+                      }
+                    }}
+                  >
+                    Als Haupt-Location festlegen
+                  </button>
+                )}
+              </div>
+            );
+          })()}
 
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14, marginBottom: 14 }}>
             <div>

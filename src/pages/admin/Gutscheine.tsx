@@ -31,10 +31,13 @@ export default function Gutscheine() {
     { label: 'Eingelöst diesen Monat', value: '—' },
   ];
 
-  function buyerName(id: string | null) {
-    if (!id) return '—';
-    const c = customers.find((c) => c.id === id);
-    return c ? `${c.vorname} ${c.name}` : '—';
+  function buyerName(v: import('../../lib/queries').Voucher) {
+    if (v.buyer_customer_id) {
+      const c = customers.find((c) => c.id === v.buyer_customer_id);
+      if (c) return `${c.vorname} ${c.name}`;
+    }
+    if (v.buyer_name) return v.buyer_name;
+    return '—';
   }
 
   return (
@@ -42,7 +45,7 @@ export default function Gutscheine() {
       <div style={{ marginBottom: 6 }}>
         <h1 style={{ fontSize: 24 }}>Gutscheine</h1>
         <div style={{ fontSize: 12, color: '#999', marginTop: 4 }}>
-          Reine Übersicht — neue Gutscheine werden über "+ Gutschein verkaufen" in der Kasse ausgestellt (echter Verkauf mit Zahlung).
+          Reine Übersicht — neue Gutscheine werden über "+ Gutschein verkaufen" in der Kasse oder online unter /gutschein-kaufen ausgestellt (echter Verkauf mit Zahlung).
         </div>
       </div>
 
@@ -73,25 +76,33 @@ export default function Gutscheine() {
       {!loading && !error && (
         <>
           <div style={{ border: '1px solid var(--color-border)', borderRadius: 6, background: 'var(--color-surface)', overflow: 'hidden' }}>
-          <div style={{ display: 'grid', gridTemplateColumns: '120px 1fr 110px 90px 100px 90px', gap: 10, padding: '10px 12px', fontSize: 11, textTransform: 'uppercase', letterSpacing: 0.5, color: '#999', borderBottom: '1px solid var(--color-border)', fontWeight: 600 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: '110px 1fr 100px 90px 90px 80px 90px', gap: 10, padding: '10px 12px', fontSize: 11, textTransform: 'uppercase', letterSpacing: 0.5, color: '#999', borderBottom: '1px solid var(--color-border)', fontWeight: 600 }}>
             <div>Code</div>
             <div>Käufer</div>
             <div>Verkaufswert</div>
             <div>Restwert</div>
             <div>Verkauft am</div>
+            <div>Herkunft</div>
             <div>Status</div>
           </div>
 
           {filtered.map((v) => (
             <div
               key={v.id}
-              style={{ display: 'grid', gridTemplateColumns: '120px 1fr 110px 90px 100px 90px', gap: 10, padding: '14px 12px', fontSize: 13, borderBottom: '1px solid #eee', alignItems: 'center', color: v.status === 'eingelöst' ? '#999' : '#111' }}
+              style={{ display: 'grid', gridTemplateColumns: '110px 1fr 100px 90px 90px 80px 90px', gap: 10, padding: '14px 12px', fontSize: 13, borderBottom: '1px solid #eee', alignItems: 'center', color: v.status === 'eingelöst' ? '#999' : '#111' }}
             >
               <div style={{ fontFamily: 'monospace' }}>{v.code}</div>
-              <div>{buyerName(v.buyer_customer_id)}</div>
+              <div>{buyerName(v)}</div>
               <div>{formatCHF(v.value)}</div>
               <div>{formatCHF(v.remaining_value)}</div>
               <div>{new Date(v.created_at).toLocaleDateString('de-CH')}</div>
+              <div>
+                {v.source === 'online' ? (
+                  <span style={{ border: '1px solid var(--color-accent)', color: 'var(--color-accent)', borderRadius: 10, padding: '2px 8px', fontSize: 10, fontWeight: 600 }}>Online</span>
+                ) : (
+                  <span style={{ border: '1px solid var(--color-border)', color: '#999', borderRadius: 10, padding: '2px 8px', fontSize: 10, fontWeight: 600 }}>Kasse</span>
+                )}
+              </div>
               <div
                 style={{
                   border: `1px solid ${v.status === 'aktiv' ? 'var(--color-accent)' : '#ddd'}`,

@@ -88,6 +88,7 @@ export interface Location {
   email: string | null;
   mwst_prozent: number | null;
   saldosteuersatz: number | null;
+  is_main: boolean;
 }
 
 export interface LocationManager {
@@ -125,6 +126,16 @@ export async function updateLocation(id: string, patch: Partial<Location>) {
   if (error) throw error;
 }
 
+// Setzt eine Location als Haupt-Location (für Umsätze ohne eigene Location-Zuordnung,
+// z.B. online verkaufte Gutscheine). Alle anderen werden zuerst zurückgesetzt, da nur
+// eine Location gleichzeitig "Haupt" sein darf (unique partial index in der DB).
+export async function setMainLocation(id: string) {
+  const { error: unsetError } = await supabase.from('locations').update({ is_main: false }).eq('is_main', true);
+  if (unsetError) throw unsetError;
+  const { error } = await supabase.from('locations').update({ is_main: true }).eq('id', id);
+  if (error) throw error;
+}
+
 // ---------- Location-Manager ----------
 export async function fetchLocationManagers(locationId: string) {
   const { data, error } = await supabase.from('location_managers').select('*').eq('location_id', locationId);
@@ -156,6 +167,9 @@ export interface Voucher {
   buyer_customer_id: string | null;
   status: 'aktiv' | 'eingelöst' | 'abgelaufen';
   created_at: string;
+  source: 'kasse' | 'online';
+  buyer_name: string | null;
+  buyer_email: string | null;
 }
 
 // ---------- Artists ----------

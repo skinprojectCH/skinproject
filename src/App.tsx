@@ -19,6 +19,8 @@ import Locations from './pages/admin/Locations';
 import Gutscheine from './pages/admin/Gutscheine';
 import ArtistApp from './pages/artist/ArtistApp';
 import RegisterCustomer from './pages/register/RegisterCustomer';
+import GutscheinKaufen from './pages/public/GutscheinKaufen';
+import GutscheinErfolg from './pages/public/GutscheinErfolg';
 
 export default function App() {
   return (
@@ -26,6 +28,8 @@ export default function App() {
       <Route path="/login" element={<Login />} />
       <Route path="/artist/:artistId" element={<ArtistApp />} />
       <Route path="/register/:locationId" element={<RegisterCustomer />} />
+      <Route path="/gutschein-kaufen" element={<GutscheinKaufen />} />
+      <Route path="/gutschein-kaufen/erfolg" element={<GutscheinErfolg />} />
 
       <Route element={<RequireAuth />}>
         <Route element={<AppLayout />}>
