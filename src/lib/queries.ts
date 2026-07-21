@@ -1189,3 +1189,57 @@ export async function fetchServiceProductPerformance(locationId: string, startDa
     productTotal: productRows.reduce((s, r) => s + r.revenue, 0),
   };
 }
+
+export interface RevenuePoint {
+  label: string;
+  total: number;
+}
+
+const MONTH_SHORT = ['Jan', 'Feb', 'Mär', 'Apr', 'Mai', 'Jun', 'Jul', 'Aug', 'Sep', 'Okt', 'Nov', 'Dez'];
+
+export async function fetchMonthlyRevenueSeries(locationId: string, monthsBack = 12): Promise<RevenuePoint[]> {
+  const now = new Date();
+  const startDate = new Date(now.getFullYear(), now.getMonth() - (monthsBack - 1), 1);
+  const start = startDate.toISOString();
+  const end = new Date(now.getFullYear(), now.getMonth() + 1, 1).toISOString();
+
+  const { data, error } = await supabase.from('orders').select('total, created_at').eq('location_id', locationId).eq('status', 'bezahlt').gte('created_at', start).lt('created_at', end);
+  if (error) throw error;
+
+  const buckets: Record<string, number> = {};
+  for (let i = 0; i < monthsBack; i++) {
+    const d = new Date(startDate.getFullYear(), startDate.getMonth() + i, 1);
+    buckets[`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`] = 0;
+  }
+  for (const o of (data as any[]) || []) {
+    const d = new Date(o.created_at);
+    const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+    if (key in buckets) buckets[key] += Number(o.total);
+  }
+  return Object.entries(buckets)
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([key, total]) => {
+      const [y, m] = key.split('-').map(Number);
+      return { label: `${MONTH_SHORT[m - 1]} ${String(y).slice(2)}`, total };
+    });
+}
+
+export async function fetchYearlyRevenueSeries(locationId: string, yearsBack = 5): Promise<RevenuePoint[]> {
+  const now = new Date();
+  const startYear = now.getFullYear() - (yearsBack - 1);
+  const start = `${startYear}-01-01T00:00:00`;
+  const end = `${now.getFullYear() + 1}-01-01T00:00:00`;
+
+  const { data, error } = await supabase.from('orders').select('total, created_at').eq('location_id', locationId).eq('status', 'bezahlt').gte('created_at', start).lt('created_at', end);
+  if (error) throw error;
+
+  const buckets: Record<number, number> = {};
+  for (let y = startYear; y <= now.getFullYear(); y++) buckets[y] = 0;
+  for (const o of (data as any[]) || []) {
+    const y = new Date(o.created_at).getFullYear();
+    if (y in buckets) buckets[y] += Number(o.total);
+  }
+  return Object.entries(buckets)
+    .sort(([a], [b]) => Number(a) - Number(b))
+    .map(([y, total]) => ({ label: y, total }));
+}

@@ -1,7 +1,65 @@
 import { useEffect, useState } from 'react';
 import { useLocationContext } from '../../lib/locationContext';
-import { fetchCustomerStatsForMonth, fetchServiceProductPerformance, type CustomerStats, type ServiceProductPerformance } from '../../lib/queries';
+import {
+  fetchCustomerStatsForMonth,
+  fetchServiceProductPerformance,
+  fetchMonthlyRevenueSeries,
+  fetchYearlyRevenueSeries,
+  type CustomerStats,
+  type ServiceProductPerformance,
+  type RevenuePoint,
+} from '../../lib/queries';
 import { formatCHF } from '../../lib/format';
+
+function BarChart({ data }: { data: RevenuePoint[] }) {
+  const max = Math.max(1, ...data.map((d) => d.total));
+  const [hovered, setHovered] = useState<number | null>(null);
+
+  return (
+    <div style={{ border: '1px solid var(--color-border)', borderRadius: 6, background: 'var(--color-surface)', padding: '20px 16px 12px' }}>
+      <div style={{ display: 'flex', alignItems: 'flex-end', gap: data.length > 20 ? 3 : 10, height: 220 }}>
+        {data.map((d, i) => (
+          <div
+            key={i}
+            onMouseEnter={() => setHovered(i)}
+            onMouseLeave={() => setHovered(null)}
+            style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'flex-end', height: '100%', position: 'relative', cursor: 'default' }}
+          >
+            {hovered === i && (
+              <div
+                style={{
+                  position: 'absolute',
+                  bottom: `${Math.max(4, (d.total / max) * 180) + 8}px`,
+                  background: 'var(--color-primary)',
+                  color: 'var(--color-surface)',
+                  fontSize: 11,
+                  fontWeight: 600,
+                  padding: '4px 8px',
+                  borderRadius: 4,
+                  whiteSpace: 'nowrap',
+                  zIndex: 1,
+                }}
+              >
+                {formatCHF(d.total)}
+              </div>
+            )}
+            <div
+              style={{
+                width: '100%',
+                maxWidth: 36,
+                height: `${Math.max(2, (d.total / max) * 180)}px`,
+                background: hovered === i ? 'var(--color-primary)' : 'var(--color-accent)',
+                borderRadius: '3px 3px 0 0',
+                transition: 'background 0.15s ease',
+              }}
+            />
+            <div style={{ fontSize: 10, color: 'var(--color-text-muted)', marginTop: 6, whiteSpace: 'nowrap' }}>{d.label}</div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
 
 const MONTH_NAMES = ['Januar', 'Februar', 'März', 'April', 'Mai', 'Juni', 'Juli', 'August', 'September', 'Oktober', 'November', 'Dezember'];
 
@@ -278,14 +336,57 @@ function PerformanceStatistik() {
   );
 }
 
+function UmsatzStatistik() {
+  const { locations, locationId, setLocationId, isLocationLocked } = useScopedLocation();
+  const [monthly, setMonthly] = useState<RevenuePoint[] | null>(null);
+  const [yearly, setYearly] = useState<RevenuePoint[] | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!locationId) return;
+    setLoading(true);
+    setError(null);
+    Promise.all([fetchMonthlyRevenueSeries(locationId, 12), fetchYearlyRevenueSeries(locationId, 5)])
+      .then(([m, y]) => {
+        setMonthly(m);
+        setYearly(y);
+      })
+      .catch((e) => setError(e.message))
+      .finally(() => setLoading(false));
+  }, [locationId]);
+
+  return (
+    <div>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', marginBottom: 20 }}>
+        <LocationPicker locations={locations} locationId={locationId} setLocationId={setLocationId} isLocationLocked={isLocationLocked} />
+      </div>
+
+      {loading ? (
+        <div style={{ fontSize: 13, color: '#999' }}>Lädt…</div>
+      ) : error ? (
+        <div style={{ fontSize: 13, color: 'var(--color-destructive)' }}>Fehler: {error}</div>
+      ) : (
+        <>
+          <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 10 }}>Umsatz pro Monat (letzte 12 Monate)</div>
+          {monthly && <BarChart data={monthly} />}
+
+          <div style={{ fontSize: 13, fontWeight: 700, margin: '28px 0 10px' }}>Umsatz pro Jahr (letzte 5 Jahre)</div>
+          {yearly && <BarChart data={yearly} />}
+        </>
+      )}
+    </div>
+  );
+}
+
 export default function Statistiken() {
-  const [tab, setTab] = useState<'kunden' | 'performance'>('kunden');
+  const [tab, setTab] = useState<'kunden' | 'performance' | 'umsatz'>('kunden');
 
   return (
     <div>
       <h1 style={{ fontSize: 24, marginBottom: 4 }}>Statistiken</h1>
       <div style={{ display: 'flex', borderBottom: '1px solid var(--color-border)', marginBottom: 20, fontSize: 13 }}>
-        {(['kunden', 'performance'] as const).map((t) => (
+        {(['kunden', 'performance', 'umsatz'] as const).map((t) => (
           <div
             key={t}
             onClick={() => setTab(t)}
@@ -297,12 +398,12 @@ export default function Statistiken() {
               cursor: 'pointer',
             }}
           >
-            {t === 'kunden' ? 'Kunden' : 'Dienstleistungen & Produkte'}
+            {t === 'kunden' ? 'Kunden' : t === 'performance' ? 'Dienstleistungen & Produkte' : 'Umsatzverlauf'}
           </div>
         ))}
       </div>
 
-      {tab === 'kunden' ? <KundenStatistik /> : <PerformanceStatistik />}
+      {tab === 'kunden' ? <KundenStatistik /> : tab === 'performance' ? <PerformanceStatistik /> : <UmsatzStatistik />}
     </div>
   );
 }
