@@ -592,25 +592,7 @@ function AppointmentDetail({ appt, artistId, locationId, onClose }: { appt: any;
               />
             ) : (
               <div>
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                  <div style={{ fontSize: 13, fontWeight: 700 }}>Termin</div>
-                  <div style={{ display: 'flex', gap: 14 }}>
-                    <div
-                      onClick={() => {
-                        setEditing(true);
-                        setConfirmDelete(false);
-                      }}
-                      style={{ fontSize: 12, color: 'var(--color-accent)', fontWeight: 600, cursor: 'pointer' }}
-                    >
-                      Bearbeiten
-                    </div>
-                    {!confirmDelete && (
-                      <div onClick={() => setConfirmDelete(true)} style={{ fontSize: 12, color: 'var(--color-destructive)', fontWeight: 600, cursor: 'pointer' }}>
-                        Löschen
-                      </div>
-                    )}
-                  </div>
-                </div>
+                <div style={{ fontSize: 13, fontWeight: 700 }}>Termin</div>
 
                 <div style={{ marginTop: 12, paddingTop: 12, borderTop: '1px solid var(--color-border)', fontSize: 13, display: 'flex', flexDirection: 'column', gap: 6 }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between' }}>
@@ -646,6 +628,28 @@ function AppointmentDetail({ appt, artistId, locationId, onClose }: { appt: any;
                     )}
                   </div>
                 </div>
+
+                {!confirmDelete && (
+                  <div style={{ display: 'flex', gap: 10, marginTop: 14 }}>
+                    <button
+                      className="btn btn-secondary"
+                      style={{ flex: 1, justifyContent: 'center' }}
+                      onClick={() => {
+                        setEditing(true);
+                        setConfirmDelete(false);
+                      }}
+                    >
+                      Bearbeiten
+                    </button>
+                    <button
+                      className="btn btn-destructive"
+                      style={{ flex: 1, justifyContent: 'center', background: 'var(--color-destructive)', color: '#fff' }}
+                      onClick={() => setConfirmDelete(true)}
+                    >
+                      Löschen
+                    </button>
+                  </div>
+                )}
 
                 {confirmDelete && (
                   <div style={{ marginTop: 12, paddingTop: 12, borderTop: '1px solid var(--color-border)' }}>
