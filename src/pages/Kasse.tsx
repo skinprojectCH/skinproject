@@ -1380,6 +1380,8 @@ export default function Kasse() {
 
               {apptFilesLoading ? (
                 <div style={{ fontSize: 12, color: '#999', marginBottom: 10 }}>Lädt…</div>
+              ) : !selectedCustomerId ? (
+                <div style={{ fontSize: 12, color: '#999', marginBottom: 10 }}>Laufkunde ohne Kundenprofil — Dokumentation nicht erforderlich.</div>
               ) : (
                 <>
                   <div

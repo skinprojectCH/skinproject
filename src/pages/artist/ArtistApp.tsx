@@ -687,37 +687,43 @@ function AppointmentDetail({ appt, artistId, locationId, onClose }: { appt: any;
         <div style={{ border: '1px solid var(--color-border)', borderRadius: 6, padding: 14, marginBottom: 16, background: 'var(--color-surface)' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
             <div style={{ fontSize: 13, fontWeight: 700 }}>Fotos</div>
-            {!loadingFiles && (
+            {!loadingFiles && appt.customer_id && (
               <div style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 11, fontWeight: 700, color: photos.length > 0 ? '#1a7a3f' : 'var(--color-destructive)' }}>
                 {photos.length > 0 ? '✓ Fotos ok' : '⚠ Fotos fehlen'}
               </div>
             )}
           </div>
-          {!loadingFiles && photos.length > 0 && (
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 6, marginBottom: 10 }}>
-              {photos.map((p) => (
-                <div key={p.id} style={{ position: 'relative' }}>
-                  <div
-                    onClick={() => setLightboxUrl(photoUrls[p.id] || null)}
-                    style={{ aspectRatio: '1', background: 'var(--color-bg)', borderRadius: 4, overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 9, color: '#999', cursor: 'pointer' }}
-                  >
-                    {photoUrls[p.id] ? <img src={photoUrls[p.id]} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : 'Foto'}
-                  </div>
-                  <div
-                    onClick={(e) => { e.stopPropagation(); handleDelete(p); }}
-                    style={{ position: 'absolute', top: 2, right: 2, background: 'rgba(0,0,0,0.5)', color: '#fff', borderRadius: '50%', width: 16, height: 16, fontSize: 10, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}
-                  >
-                    ✕
-                  </div>
+          {!appt.customer_id ? (
+            <div style={{ fontSize: 12, color: '#999' }}>Laufkunde ohne Kundenprofil — Fotodokumentation nicht erforderlich.</div>
+          ) : (
+            <>
+              {!loadingFiles && photos.length > 0 && (
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 6, marginBottom: 10 }}>
+                  {photos.map((p) => (
+                    <div key={p.id} style={{ position: 'relative' }}>
+                      <div
+                        onClick={() => setLightboxUrl(photoUrls[p.id] || null)}
+                        style={{ aspectRatio: '1', background: 'var(--color-bg)', borderRadius: 4, overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 9, color: '#999', cursor: 'pointer' }}
+                      >
+                        {photoUrls[p.id] ? <img src={photoUrls[p.id]} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : 'Foto'}
+                      </div>
+                      <div
+                        onClick={(e) => { e.stopPropagation(); handleDelete(p); }}
+                        style={{ position: 'absolute', top: 2, right: 2, background: 'rgba(0,0,0,0.5)', color: '#fff', borderRadius: '50%', width: 16, height: 16, fontSize: 10, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}
+                      >
+                        ✕
+                      </div>
+                    </div>
+                  ))}
                 </div>
-              ))}
-            </div>
+              )}
+              {!loadingFiles && photos.length === 0 && <div style={{ fontSize: 12, color: '#999', marginBottom: 10 }}>Noch keine Fotos.</div>}
+              <input ref={photoInputRef} type="file" accept="image/*" style={{ position: 'absolute', width: 1, height: 1, opacity: 0, overflow: 'hidden', pointerEvents: 'none' }} onChange={(e) => { handleFile(e.target.files?.[0]); e.target.value = ''; }} />
+              <button className="btn btn-outline" style={{ width: '100%', justifyContent: 'center' }} onClick={() => photoInputRef.current?.click()} disabled={uploadingPhoto}>
+                {uploadingPhoto ? 'Lädt hoch…' : 'Foto hinzufügen'}
+              </button>
+            </>
           )}
-          {!loadingFiles && photos.length === 0 && <div style={{ fontSize: 12, color: '#999', marginBottom: 10 }}>Noch keine Fotos.</div>}
-          <input ref={photoInputRef} type="file" accept="image/*" style={{ position: 'absolute', width: 1, height: 1, opacity: 0, overflow: 'hidden', pointerEvents: 'none' }} onChange={(e) => { handleFile(e.target.files?.[0]); e.target.value = ''; }} />
-          <button className="btn btn-outline" style={{ width: '100%', justifyContent: 'center' }} onClick={() => photoInputRef.current?.click()} disabled={uploadingPhoto}>
-            {uploadingPhoto ? 'Lädt hoch…' : 'Foto hinzufügen'}
-          </button>
         </div>
 
         {fileError && <div style={{ fontSize: 12, color: 'var(--color-destructive)' }}>{fileError}</div>}
@@ -870,7 +876,7 @@ function TermineTab({ artistId, locationId, artistColor }: { artistId: string; l
                           {services.join(', ') || '—'}
                           {appt.locations?.name ? ` · ${appt.locations.name}` : ''}
                         </div>
-                        {appt.status !== 'storniert' && (
+                        {appt.status !== 'storniert' && appt.customer_id && (
                           <div style={{ fontSize: 11, fontWeight: 600, marginTop: 4, color: idsWithPhotos.has(appt.id) ? '#1a7a3f' : 'var(--color-destructive)' }}>
                             {idsWithPhotos.has(appt.id) ? '✓ Fotos ok' : '⚠ Fotos fehlen'}
                           </div>
