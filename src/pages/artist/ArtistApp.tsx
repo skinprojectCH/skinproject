@@ -506,14 +506,27 @@ function AppointmentDetail({ appt, artistId, locationId, onClose }: { appt: any;
   }
 
   async function handleFile(file: File | undefined) {
-    if (!file || !appt.customer_id) return;
+    if (!file) return;
+    if (!appt.customer_id) {
+      setFileError('Diesem Termin ist kein Kundenprofil zugeordnet — Foto kann nicht gespeichert werden.');
+      return;
+    }
     setFileError(null);
     setUploadingPhoto(true);
     try {
       await uploadCustomerFile(appt.customer_id, file, 'photo', appt.id);
-      reload();
+      await new Promise<void>((resolve) => {
+        setLoadingFiles(true);
+        fetchDocumentsForAppointment(appt.id)
+          .then((all) => setPhotos(all.filter((d) => d.type === 'photo')))
+          .catch((e) => setFileError(e.message))
+          .finally(() => {
+            setLoadingFiles(false);
+            resolve();
+          });
+      });
     } catch (e: any) {
-      setFileError(e.message);
+      setFileError(e.message || 'Foto konnte nicht hochgeladen werden.');
     } finally {
       setUploadingPhoto(false);
     }
