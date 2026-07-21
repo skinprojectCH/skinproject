@@ -18,7 +18,7 @@ async function downloadVoucherPdf(voucher: VoucherInfo) {
   // Rahmen
   doc.setDrawColor(176, 141, 61);
   doc.setLineWidth(1);
-  doc.rect(12, 12, 186, 100);
+  doc.rect(12, 12, 186, 105);
 
   doc.setFontSize(20);
   doc.setFont('helvetica', 'bold');
@@ -39,8 +39,10 @@ async function downloadVoucherPdf(voucher: VoucherInfo) {
   doc.text(`Code: ${voucher.code}`, 105, 88, { align: 'center' });
 
   doc.setFontSize(9);
+  doc.text(`Gekauft am: ${new Date(voucher.created_at).toLocaleDateString('de-CH')}`, 105, 96, { align: 'center' });
+
   doc.setTextColor(120);
-  doc.text('Einlösbar an jedem SkinProject-Standort.', 105, 100, { align: 'center' });
+  doc.text('Einlösbar an jedem SkinProject-Standort.', 105, 104, { align: 'center' });
 
   doc.save(`SkinProject_Gutschein_${voucher.code}.pdf`);
 }
