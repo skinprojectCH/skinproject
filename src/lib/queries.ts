@@ -1135,3 +1135,57 @@ export async function fetchCustomerStatsForMonth(locationId: string, year: numbe
     rows,
   };
 }
+
+export interface PerformanceRow {
+  id: string;
+  name: string;
+  qty: number;
+  revenue: number;
+}
+
+export interface ServiceProductPerformance {
+  services: PerformanceRow[];
+  products: PerformanceRow[];
+  serviceTotal: number;
+  productTotal: number;
+}
+
+export async function fetchServiceProductPerformance(locationId: string, startDateISO: string, endDateISO: string): Promise<ServiceProductPerformance> {
+  const start = `${startDateISO}T00:00:00`;
+  const end = `${endDateISO}T23:59:59`;
+
+  const { data, error } = await supabase
+    .from('order_line_items')
+    .select('quantity, line_total, service_id, product_id, services(name), products(name), orders!inner(location_id, status, created_at)')
+    .eq('orders.location_id', locationId)
+    .eq('orders.status', 'bezahlt')
+    .gte('orders.created_at', start)
+    .lte('orders.created_at', end);
+  if (error) throw error;
+
+  const services: Record<string, PerformanceRow> = {};
+  const products: Record<string, PerformanceRow> = {};
+  for (const li of (data as any[]) || []) {
+    if (li.service_id) {
+      const key = li.service_id;
+      if (!services[key]) services[key] = { id: key, name: li.services?.name || '—', qty: 0, revenue: 0 };
+      services[key].qty += li.quantity;
+      services[key].revenue += Number(li.line_total);
+    } else if (li.product_id) {
+      const key = li.product_id;
+      if (!products[key]) products[key] = { id: key, name: li.products?.name || '—', qty: 0, revenue: 0 };
+      products[key].qty += li.quantity;
+      products[key].revenue += Number(li.line_total);
+    }
+  }
+
+  const serviceRows = Object.values(services).sort((a, b) => b.revenue - a.revenue);
+  const productRows = Object.values(products).sort((a, b) => b.revenue - a.revenue);
+
+  return {
+    services: serviceRows,
+    products: productRows,
+    serviceTotal: serviceRows.reduce((s, r) => s + r.revenue, 0),
+    productTotal: productRows.reduce((s, r) => s + r.revenue, 0),
+  };
+}
