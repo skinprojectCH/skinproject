@@ -52,7 +52,7 @@ export default async function handler(req: any, res: any) {
         res.status(400).json({ error: listError.message });
         return;
       }
-      const existing = listData.users.find((u) => u.email?.toLowerCase() === email.toLowerCase());
+      const existing = listData.users.find((u: any) => u.email?.toLowerCase() === email.toLowerCase());
       if (!existing) {
         res.status(400).json({ error: 'E-Mail ist laut Supabase bereits vergeben, aber der Account wurde nicht gefunden.' });
         return;
