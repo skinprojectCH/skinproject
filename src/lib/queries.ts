@@ -445,6 +445,23 @@ export async function fetchAppointmentsForDay(dateISO: string, locationId?: stri
   return data;
 }
 
+// Für den "Offene vergangene Termine"-Filter in der Listenansicht: alle Termine, die schon
+// vorbei sind, aber noch nicht kassiert/storniert/nicht-erschienen gesetzt wurden.
+export async function fetchUnresolvedPastAppointments(locationId?: string) {
+  const nowIso = new Date().toISOString();
+  let query = supabase
+    .from('appointments')
+    .select('*, customers(vorname, name, phone), artists(name, kuenstlername, calendar_color), appointment_line_items(service_id, services(name))')
+    .eq('type', 'termin')
+    .eq('status', 'gebucht')
+    .lt('start_time', nowIso)
+    .order('start_time', { ascending: false });
+  if (locationId) query = query.eq('location_id', locationId);
+  const { data, error } = await query;
+  if (error) throw error;
+  return data;
+}
+
 export async function addAppointmentLineItems(appointmentId: string, items: { service_id: string; quantity: number; unit_price: number }[]) {
   if (items.length === 0) return;
   const { error } = await supabase.from('appointment_line_items').insert(items.map((i) => ({ ...i, appointment_id: appointmentId })));

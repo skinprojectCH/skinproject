@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import TerminModal from '../components/TerminModal';
 import EditTerminModal from '../components/EditTerminModal';
 import Modal from '../components/Modal';
-import { fetchAppointmentsForDay, fetchArtists, fetchShiftsForDate, fetchArtistIdsWithAnyShifts, fetchAbsencesForDate, fetchWalkInOrdersForDay, deleteAbsence, type Artist, type Shift, type Absence } from '../lib/queries';
+import { fetchAppointmentsForDay, fetchUnresolvedPastAppointments, fetchArtists, fetchShiftsForDate, fetchArtistIdsWithAnyShifts, fetchAbsencesForDate, fetchWalkInOrdersForDay, deleteAbsence, type Artist, type Shift, type Absence } from '../lib/queries';
 import { useLocationContext } from '../lib/locationContext';
 import { formatCHF } from '../lib/format';
 
@@ -892,6 +892,7 @@ function ListView({
   absences,
   walkInOrders,
   artists,
+  locationId,
   onSelectAppointment,
   onSelectAbsence,
 }: {
@@ -899,6 +900,7 @@ function ListView({
   absences: Absence[];
   walkInOrders: any[];
   artists: Artist[];
+  locationId?: string;
   onSelectAppointment: (a: LoadedAppointment) => void;
   onSelectAbsence: (absence: Absence, artistName: string) => void;
 }) {
@@ -907,8 +909,129 @@ function ListView({
   const navigate = useNavigate();
   const artistName = (id: string) => artistDisplayName(artists.find((a) => a.id === id));
 
+  const [showUnresolved, setShowUnresolved] = useState(false);
+  const [unresolved, setUnresolved] = useState<LoadedAppointment[]>([]);
+  const [unresolvedLoading, setUnresolvedLoading] = useState(false);
+  const [unresolvedError, setUnresolvedError] = useState<string | null>(null);
+
+  function loadUnresolved() {
+    setUnresolvedLoading(true);
+    setUnresolvedError(null);
+    fetchUnresolvedPastAppointments(locationId)
+      .then((rows) => setUnresolved((rows as any[]).map((a) => mapAppointmentRow(a, a.start_time.slice(0, 10)))))
+      .catch((e) => setUnresolvedError(e.message))
+      .finally(() => setUnresolvedLoading(false));
+  }
+
+  function toggleUnresolved() {
+    if (showUnresolved) {
+      setShowUnresolved(false);
+      return;
+    }
+    setShowUnresolved(true);
+    loadUnresolved();
+  }
+
+  if (showUnresolved) {
+    return (
+      <div>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
+          <h3 style={{ fontSize: 15 }}>Offene vergangene Termine</h3>
+          <div onClick={() => setShowUnresolved(false)} style={{ fontSize: 12, color: 'var(--color-accent)', fontWeight: 600, cursor: 'pointer' }}>
+            ← Zurück zur Tagesliste
+          </div>
+        </div>
+        <div style={{ fontSize: 12, color: '#999', marginBottom: 14 }}>
+          Termine, die in der Vergangenheit liegen, aber noch nicht kassiert, storniert oder als "nicht erschienen" markiert wurden.
+        </div>
+
+        {unresolvedLoading && <div style={{ fontSize: 13, color: '#999' }}>Lädt…</div>}
+        {unresolvedError && <div style={{ fontSize: 13, color: 'var(--color-destructive)' }}>Fehler: {unresolvedError}</div>}
+        {!unresolvedLoading && !unresolvedError && unresolved.length === 0 && (
+          <div style={{ fontSize: 13, color: '#999' }}>Keine offenen vergangenen Termine — alles sauber abgeschlossen.</div>
+        )}
+
+        {!unresolvedLoading && unresolved.length > 0 && (
+          <div style={{ border: '1px solid var(--color-border)', borderRadius: 6, background: 'var(--color-surface)', overflow: 'hidden' }}>
+            <div
+              style={{
+                display: 'grid',
+                gridTemplateColumns: '110px 1fr 1fr 1.4fr 90px',
+                padding: '10px 12px',
+                fontSize: 11,
+                textTransform: 'uppercase',
+                letterSpacing: 0.5,
+                color: '#999',
+                borderBottom: '1px solid var(--color-border)',
+                fontWeight: 600,
+              }}
+            >
+              <div>Datum</div>
+              <div>Kunde</div>
+              <div>Artist</div>
+              <div>Dienstleistungen</div>
+              <div />
+            </div>
+            {unresolved.map((a, i) => (
+              <div
+                key={a.id}
+                onClick={() => onSelectAppointment(a)}
+                onMouseEnter={() => setHoveredRow(a.id)}
+                onMouseLeave={() => setHoveredRow(null)}
+                role="button"
+                tabIndex={0}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') onSelectAppointment(a);
+                }}
+                style={{
+                  display: 'grid',
+                  gridTemplateColumns: '110px 1fr 1fr 1.4fr 90px',
+                  padding: '14px 12px',
+                  fontSize: 13,
+                  borderBottom: i < unresolved.length - 1 ? '1px solid #eee' : 'none',
+                  alignItems: 'center',
+                  cursor: 'pointer',
+                  background: hoveredRow === a.id ? '#fbfaf8' : 'transparent',
+                }}
+              >
+                <div>
+                  {new Date(a.dateISO).toLocaleDateString('de-CH', { day: '2-digit', month: '2-digit', year: 'numeric' })}
+                  <div style={{ fontSize: 11, color: '#999' }}>{a.time}</div>
+                </div>
+                <div>
+                  {a.customer}
+                  {a.customerPhone && <div style={{ fontSize: 11, color: '#999' }}>{a.customerPhone}</div>}
+                </div>
+                <div>{a.artistName}</div>
+                <div style={{ color: a.services.length ? '#111' : '#999' }}>{a.services.length ? a.services.join(', ') : '—'}</div>
+                <div style={{ color: 'var(--color-destructive)', fontSize: 11, fontWeight: 600 }}>⚠ offen</div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    );
+  }
+
   return (
     <div>
+      <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 14 }}>
+        <button
+          onClick={toggleUnresolved}
+          style={{
+            border: '1px solid var(--color-destructive)',
+            background: '#F6ECEC',
+            color: 'var(--color-destructive)',
+            padding: '8px 14px',
+            fontSize: 12,
+            fontWeight: 600,
+            borderRadius: 4,
+            cursor: 'pointer',
+          }}
+        >
+          ⚠ Offene vergangene Termine
+        </button>
+      </div>
       <div style={{ border: '1px solid var(--color-border)', borderRadius: 6, background: 'var(--color-surface)', overflow: 'hidden' }}>
       <div
         style={{
@@ -1213,6 +1336,7 @@ export default function Kalender() {
                 absences={absences}
                 walkInOrders={walkInOrders}
                 artists={artists}
+                locationId={selectedLocationId}
                 onSelectAppointment={setSelectedAppointment}
                 onSelectAbsence={(absence, artistName) => setSelectedAbsence({ absence, artistName })}
               />
