@@ -1060,3 +1060,78 @@ export async function fetchCustomerIdsWithMissingDocs(): Promise<Set<string>> {
   }
   return customerIds;
 }
+
+// ---------- Statistiken (Analytik) ----------
+export interface CustomerStatsRow {
+  customerId: string;
+  name: string;
+  visits: number;
+  total: number;
+  avg: number;
+  isNew: boolean;
+}
+
+export interface CustomerStats {
+  totalCustomers: number;
+  newCustomers: number;
+  returningCustomers: number;
+  rows: CustomerStatsRow[];
+}
+
+export async function fetchCustomerStatsForMonth(locationId: string, year: number, month: number): Promise<CustomerStats> {
+  const start = new Date(year, month, 1).toISOString();
+  const end = new Date(year, month + 1, 1).toISOString();
+
+  const { data: orders, error } = await supabase
+    .from('orders')
+    .select('customer_id, total, created_at, customers(vorname, name)')
+    .eq('location_id', locationId)
+    .eq('status', 'bezahlt')
+    .not('customer_id', 'is', null)
+    .gte('created_at', start)
+    .lt('created_at', end);
+  if (error) throw error;
+
+  const orderRows = (orders as any[]) || [];
+  const byCustomer: Record<string, { name: string; visits: number; total: number }> = {};
+  for (const o of orderRows) {
+    const id = o.customer_id;
+    if (!byCustomer[id]) {
+      byCustomer[id] = { name: o.customers ? `${o.customers.vorname} ${o.customers.name}` : '—', visits: 0, total: 0 };
+    }
+    byCustomer[id].visits += 1;
+    byCustomer[id].total += Number(o.total);
+  }
+  const customerIds = Object.keys(byCustomer);
+
+  // Für jeden Kunden dieses Monats prüfen, ob er an dieser Location schon VOR diesem Monat
+  // eine bezahlte Bestellung hatte -> neu vs. wiederkehrend.
+  let priorCustomerIds = new Set<string>();
+  if (customerIds.length > 0) {
+    const { data: priorOrders, error: priorError } = await supabase
+      .from('orders')
+      .select('customer_id')
+      .eq('location_id', locationId)
+      .eq('status', 'bezahlt')
+      .in('customer_id', customerIds)
+      .lt('created_at', start);
+    if (priorError) throw priorError;
+    priorCustomerIds = new Set(((priorOrders as any[]) || []).map((o) => o.customer_id));
+  }
+
+  const rows: CustomerStatsRow[] = customerIds
+    .map((id) => {
+      const c = byCustomer[id];
+      return { customerId: id, name: c.name, visits: c.visits, total: c.total, avg: c.total / c.visits, isNew: !priorCustomerIds.has(id) };
+    })
+    .sort((a, b) => b.total - a.total);
+
+  const newCustomers = rows.filter((r) => r.isNew).length;
+
+  return {
+    totalCustomers: rows.length,
+    newCustomers,
+    returningCustomers: rows.length - newCustomers,
+    rows,
+  };
+}
