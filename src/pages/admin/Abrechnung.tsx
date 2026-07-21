@@ -74,6 +74,79 @@ async function downloadBillingPdf(opts: { title: string; subtitle: string; artis
   doc.save(`${opts.title.replace(/[^\w-]+/g, '_')}.pdf`);
 }
 
+async function downloadLocationSummaryPdf(opts: { locationName: string; periodLabel: string; billing: LocationBilling }) {
+  const { jsPDF } = await import('jspdf');
+  const doc = new jsPDF();
+  let y = 20;
+
+  doc.setFontSize(16);
+  doc.text('Abrechnung', 14, y);
+  y += 7;
+  doc.setFontSize(10);
+  doc.setTextColor(120);
+  doc.text(`${opts.locationName} · ${opts.periodLabel}`, 14, y);
+  y += 12;
+  doc.setTextColor(0);
+
+  const b = opts.billing;
+  const salonTotal = b.salonServiceRevenue + b.productRevenue + b.voucherRevenue;
+  const artistTotal = b.artistRows.reduce((s, r) => s + r.payout, 0);
+
+  doc.setFontSize(12);
+  doc.text('Übersicht', 14, y);
+  y += 8;
+  doc.setFontSize(10);
+  const summaryRows: [string, string][] = [
+    ['Umsatz Salon (Total)', formatCHF(salonTotal)],
+    ['  davon Dienstleistungen (Anteil)', formatCHF(b.salonServiceRevenue)],
+    ['  davon Produkte', formatCHF(b.productRevenue)],
+    ['  davon Gutscheine', formatCHF(b.voucherRevenue)],
+    ['Umsatz Artists (Auszahlungen)', formatCHF(artistTotal)],
+    ['Termine', String(b.orderCount)],
+    ['Umsatz gesamt (Salon + Artists)', formatCHF(salonTotal + artistTotal)],
+  ];
+  for (const [label, value] of summaryRows) {
+    doc.text(label, 14, y);
+    doc.text(value, 196, y, { align: 'right' });
+    y += 6;
+  }
+
+  y += 6;
+  doc.setDrawColor(200);
+  doc.line(14, y, 196, y);
+  y += 10;
+
+  doc.setFontSize(12);
+  doc.text('Pro Artist', 14, y);
+  y += 8;
+  doc.setFontSize(9);
+  doc.setTextColor(120);
+  doc.text('Artist', 14, y);
+  doc.text('Umsatz', 110, y, { align: 'right' });
+  doc.text('Anteil', 150, y, { align: 'right' });
+  doc.text('Auszahlung', 196, y, { align: 'right' });
+  y += 6;
+  doc.setTextColor(0);
+  doc.setFontSize(10);
+  for (const row of b.artistRows) {
+    if (y > 280) {
+      doc.addPage();
+      y = 20;
+    }
+    doc.text(row.artistName, 14, y);
+    doc.text(formatCHF(row.revenue), 110, y, { align: 'right' });
+    doc.text(`${row.sharePct}%`, 150, y, { align: 'right' });
+    doc.text(formatCHF(row.payout), 196, y, { align: 'right' });
+    y += 7;
+  }
+  if (b.artistRows.length === 0) {
+    doc.setTextColor(150);
+    doc.text('Keine Dienstleistungsumsätze in diesem Zeitraum.', 14, y);
+  }
+
+  doc.save(`Abrechnung_${opts.locationName.replace(/[^\w-]+/g, '_')}_${opts.periodLabel.replace(/[^\w-]+/g, '_')}.pdf`);
+}
+
 function ArtistDetailModal({
   row,
   locationId,
@@ -437,6 +510,20 @@ export default function Abrechnung() {
         <div style={{ fontSize: 13, color: 'var(--color-destructive)' }}>Fehler: {error}</div>
       ) : billing ? (
         <>
+          <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 14 }}>
+            <button
+              className="btn btn-outline"
+              onClick={() =>
+                downloadLocationSummaryPdf({
+                  locationName: currentLocationName,
+                  periodLabel: periodLabel(period, day, month, year),
+                  billing,
+                })
+              }
+            >
+              PDF herunterladen
+            </button>
+          </div>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 16, marginBottom: 24 }}>
             <div style={summaryCardStyle}>
               <div style={{ fontSize: 11, color: '#999', textTransform: 'uppercase', marginBottom: 8, fontWeight: 600 }}>Umsatz Salon</div>
