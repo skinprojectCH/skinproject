@@ -598,6 +598,7 @@ function WeekView({
   onSelectAppointment,
   onCreateAtSlot,
   onSelectAbsence,
+  onArtistChange,
 }: {
   artists: Artist[];
   locationId: string;
@@ -606,8 +607,13 @@ function WeekView({
   onSelectAppointment: (a: LoadedAppointment) => void;
   onCreateAtSlot: (artistId: string, dateISO: string, time: string) => void;
   onSelectAbsence: (absence: Absence, artistName: string) => void;
+  onArtistChange?: (artistId: string) => void;
 }) {
-  const [artistId, setArtistId] = useState(artists[0]?.id || '');
+  const [artistId, setArtistIdRaw] = useState(artists[0]?.id || '');
+  const setArtistId = (id: string) => {
+    setArtistIdRaw(id);
+    onArtistChange?.(id);
+  };
   const [weekAppointments, setWeekAppointments] = useState<Record<string, LoadedAppointment[]>>({});
   const [weekShifts, setWeekShifts] = useState<Record<string, Shift[]>>({});
   const [weekAbsences, setWeekAbsences] = useState<Record<string, Absence[]>>({});
@@ -619,6 +625,11 @@ function WeekView({
   useEffect(() => {
     if (artists.length && !artists.some((a) => a.id === artistId)) setArtistId(artists[0].id);
   }, [artists, artistId]);
+
+  useEffect(() => {
+    if (artistId) onArtistChange?.(artistId);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const monday = startOfWeekISO(baseDate);
   const days = Array.from({ length: 7 }, (_, i) => {
@@ -1198,9 +1209,11 @@ export default function Kalender() {
   const [showNewTermin, setShowNewTermin] = useState(false);
   const [newTerminPrefill, setNewTerminPrefill] = useState<{ artistId?: string; time?: string; date?: string }>({});
   const [selectedAppointment, setSelectedAppointment] = useState<LoadedAppointment | null>(null);
+  const [weekViewArtistId, setWeekViewArtistId] = useState<string | null>(null);
   const [selectedAbsence, setSelectedAbsence] = useState<{ absence: Absence; artistName: string } | null>(null);
   const [appointments, setAppointments] = useState<LoadedAppointment[]>([]);
   const [artists, setArtists] = useState<Artist[]>([]);
+  const weekViewArtistName = weekViewArtistId ? artistDisplayName(artists.find((a) => a.id === weekViewArtistId)) : null;
   const [shifts, setShifts] = useState<Shift[]>([]);
   const [absences, setAbsences] = useState<Absence[]>([]);
   const [walkInOrders, setWalkInOrders] = useState<any[]>([]);
@@ -1266,7 +1279,10 @@ export default function Kalender() {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: 'calc(100vh - 64px)' }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 22, flexWrap: 'wrap', gap: 10, flexShrink: 0 }}>
-        <h1 style={{ fontSize: 26 }}>Kalender</h1>
+        <h1 style={{ fontSize: 26 }}>
+          Kalender
+          {view === 'woche' && weekViewArtistName && <span style={{ color: '#999', fontWeight: 400 }}> · {weekViewArtistName}</span>}
+        </h1>
         <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
           <ViewToggle view={view} onChange={setView} />
           <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
@@ -1327,6 +1343,7 @@ export default function Kalender() {
                 setShowNewTermin(true);
               }}
               onSelectAbsence={(absence, artistName) => setSelectedAbsence({ absence, artistName })}
+              onArtistChange={setWeekViewArtistId}
             />
           )}
           {view === 'liste' && (
