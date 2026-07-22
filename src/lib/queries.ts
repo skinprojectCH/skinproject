@@ -1030,6 +1030,7 @@ export interface LocationBilling {
   productRevenue: number; // 100% Salon
   voucherRevenue: number; // 100% Salon
   anzahlungRevenue: number; // Anzahlungs-Verkäufe -- Geld geflossen, zählt bewusst NICHT zum Umsatz
+  anzahlungRedeemedRevenue: number; // wie viel vom heutigen Umsatz mit einer früher verkauften Anzahlung beglichen wurde (informativ, bereits in Dienstleistungen/Produkte enthalten)
 }
 
 export async function fetchLocationBilling(locationId: string, startDateISO: string, endDateISO: string): Promise<LocationBilling> {
@@ -1085,6 +1086,21 @@ export async function fetchLocationBilling(locationId: string, startDateISO: str
   if (anzahlungError) throw anzahlungError;
   const anzahlungRevenue = ((anzahlungOrders as any[]) || []).reduce((s, o) => s + Number(o.total), 0);
 
+  // Wie viel vom heutigen Umsatz wurde mit einer früher verkauften Anzahlung beglichen
+  // (informativ -- ist bereits in Dienstleistungen/Produkte enthalten, keine zusätzliche
+  // Summe, sondern nur zur Einordnung "Bargeld heute" vs. "früher schon kassiert").
+  const { data: anzahlungPayments, error: anzahlungPayError } = await supabase
+    .from('payments')
+    .select('amount, orders!inner(location_id, status, is_anzahlung, created_at)')
+    .eq('method', 'anzahlung')
+    .eq('orders.location_id', locationId)
+    .eq('orders.status', 'bezahlt')
+    .eq('orders.is_anzahlung', false)
+    .gte('orders.created_at', start)
+    .lte('orders.created_at', end);
+  if (anzahlungPayError) throw anzahlungPayError;
+  const anzahlungRedeemedRevenue = ((anzahlungPayments as any[]) || []).reduce((s, p) => s + Number(p.amount), 0);
+
   // Produkte & Gutscheine gehören zu 100% dem Salon -- über alle Bestellungen (Termine +
   // Laufkunden) hinweg summiert, inkl. anteiligem Bestell-Rabatt (subtotal/total-Faktor).
   let productRevenue = 0;
@@ -1124,7 +1140,7 @@ export async function fetchLocationBilling(locationId: string, startDateISO: str
   const artistRevenue = artistRows.reduce((s, r) => s + r.revenue, 0);
   const salonServiceRevenue = artistRows.reduce((s, r) => s + r.revenue * (r.sharePct / 100), 0);
 
-  return { salonRevenue, artistRevenue, orderCount, avgOrderValue, artistRows, salonServiceRevenue, productRevenue, voucherRevenue, anzahlungRevenue };
+  return { salonRevenue, artistRevenue, orderCount, avgOrderValue, artistRows, salonServiceRevenue, productRevenue, voucherRevenue, anzahlungRevenue, anzahlungRedeemedRevenue };
 }
 
 export interface LocationArtistBillingEntry {

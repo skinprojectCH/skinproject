@@ -507,6 +507,12 @@ export default function Abrechnung() {
                   <span>Gutscheine</span>
                   <span>{formatCHF(billing.voucherRevenue)}</span>
                 </div>
+                {billing.anzahlungRedeemedRevenue > 0 && (
+                  <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 2, paddingTop: 4, borderTop: '1px solid var(--color-border)' }}>
+                    <span>davon mit Anzahlung bezahlt</span>
+                    <span>{formatCHF(billing.anzahlungRedeemedRevenue)}</span>
+                  </div>
+                )}
               </div>
             </div>
             <div style={summaryCardStyle}>
