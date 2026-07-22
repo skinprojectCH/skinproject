@@ -12,6 +12,8 @@ import {
   fetchCurrentUserLocationId,
   checkoutOrder,
   fetchVoucherByCode,
+  fetchActiveAnzahlungForCustomer,
+  sellAnzahlung,
   fetchAppointment,
   fetchAppointmentLineItems,
   fetchOrderForAppointment,
@@ -31,10 +33,11 @@ import {
   type Location,
   type CustomerDocument,
   type Artist,
+  type Voucher,
 } from '../lib/queries';
 
-const PAYMENT_METHODS = ['Karte', 'Bar', 'Rechnung', 'Gutschein'];
-const SIMPLE_PAYMENT_METHODS = ['Karte', 'Bar', 'Rechnung']; // Gutschein braucht Code-Eingabe -> nur im Split-Dialog
+const PAYMENT_METHODS = ['Karte', 'Bar', 'Rechnung', 'Gutschein', 'Anzahlung'];
+const SIMPLE_PAYMENT_METHODS = ['Karte', 'Bar', 'Rechnung']; // Gutschein/Anzahlung brauchen Zusatzschritt -> nur im Split-Dialog
 
 interface LineItem {
   id: string;
@@ -343,31 +346,158 @@ function SellVoucherModal({ onClose, onAdd }: { onClose: () => void; onAdd: (ite
   );
 }
 
+function SellAnzahlungModal({
+  customerId,
+  customerName,
+  locationId,
+  onClose,
+  onSold,
+}: {
+  customerId: string;
+  customerName: string;
+  locationId: string | null;
+  onClose: () => void;
+  onSold: () => void;
+}) {
+  const [value, setValue] = useState('');
+  const [method, setMethod] = useState('Karte');
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [done, setDone] = useState(false);
+
+  const numValue = parseFloat(value);
+  const valid = !isNaN(numValue) && numValue > 0;
+
+  async function handleConfirm() {
+    if (!valid) {
+      setError('Bitte einen gültigen Betrag eingeben.');
+      return;
+    }
+    setSaving(true);
+    setError(null);
+    try {
+      await sellAnzahlung({ customerId, locationId, amount: numValue, paymentMethod: method });
+      setDone(true);
+    } catch (e: any) {
+      setError(e.message);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  if (done) {
+    return (
+      <Modal title="Anzahlung erfasst" onClose={onSold} width={380}>
+        <div style={{ textAlign: 'center', padding: '10px 0' }}>
+          <div style={{ fontSize: 15, fontWeight: 700, color: '#1a7a3f', marginBottom: 8 }}>✓ CHF {numValue.toFixed(2)} erfasst</div>
+          <div style={{ fontSize: 12, color: '#777', marginBottom: 20 }}>
+            Gutgeschrieben für {customerName}. Zählt nicht als Umsatz, ist im Tagesabschluss unter "Anzahlung" sichtbar und kann bei einem künftigen Termin als Zahlungsart verwendet werden.
+          </div>
+          <button className="btn btn-primary" style={{ width: '100%', justifyContent: 'center' }} onClick={onSold}>
+            Schliessen
+          </button>
+        </div>
+      </Modal>
+    );
+  }
+
+  return (
+    <Modal title="Anzahlung erfassen" onClose={onClose} width={380}>
+      <div style={{ fontSize: 12, color: '#999', marginBottom: 16 }}>
+        Für <strong style={{ color: 'var(--color-primary)' }}>{customerName}</strong>. Der Betrag zählt beim Verkauf bewusst nicht als Umsatz — erst wenn er später als Zahlungsart eingesetzt wird.
+      </div>
+      <div style={{ marginBottom: 14 }}>
+        <div className="label-uppercase" style={{ marginBottom: 4 }}>
+          Betrag (CHF)
+        </div>
+        <input
+          value={value}
+          onChange={(e) => setValue(e.target.value)}
+          style={{ border: '1px solid #ddd', borderRadius: 4, padding: '9px 10px', fontSize: 13, width: '100%' }}
+          placeholder="z.B. 200"
+          inputMode="decimal"
+          autoFocus
+        />
+      </div>
+      <div style={{ marginBottom: 20 }}>
+        <div className="label-uppercase" style={{ marginBottom: 4 }}>
+          Erhalten als
+        </div>
+        <div style={{ display: 'flex', border: '1px solid var(--color-border)', borderRadius: 4, overflow: 'hidden', fontSize: 12 }}>
+          {['Karte', 'Bar', 'Rechnung'].map((m) => (
+            <button
+              key={m}
+              onClick={() => setMethod(m)}
+              style={{ flex: 1, padding: '9px 0', background: method === m ? '#111' : 'transparent', color: method === m ? '#fff' : '#555', border: 'none', cursor: 'pointer' }}
+            >
+              {m}
+            </button>
+          ))}
+        </div>
+      </div>
+      {error && <div style={{ fontSize: 12, color: 'var(--color-destructive)', marginBottom: 12 }}>{error}</div>}
+      <div style={{ display: 'flex', gap: 10 }}>
+        <button className="btn btn-secondary" style={{ flex: 1, justifyContent: 'center' }} onClick={onClose}>
+          Abbrechen
+        </button>
+        <button className="btn btn-primary" style={{ flex: 1, justifyContent: 'center', opacity: valid && !saving ? 1 : 0.5 }} disabled={!valid || saving} onClick={handleConfirm}>
+          {saving ? 'Speichert…' : 'Erfassen'}
+        </button>
+      </div>
+    </Modal>
+  );
+}
+
 function CheckoutModal({
   subtotal,
   initialMethod,
+  customerId,
+  initialAnzahlung,
   onClose,
   onComplete,
 }: {
   subtotal: number;
   initialMethod?: string | null;
+  customerId?: string | null;
+  initialAnzahlung?: Voucher | null;
   onClose: () => void;
   onComplete: (payments: { method: string; amount: number; voucher_id?: string | null }[], total: number, discountType: 'percent' | 'chf' | null, discountValue: number) => Promise<void>;
 }) {
   const [discountMode, setDiscountMode] = useState<'percent' | 'chf'>('percent');
   const [discountInput, setDiscountInput] = useState('');
   const [appliedDiscountPct, setAppliedDiscountPct] = useState(0);
-  const [payments, setPayments] = useState<SplitPayment[]>(() =>
-    initialMethod ? [{ id: crypto.randomUUID(), method: initialMethod, amount: subtotal }] : []
-  );
+  const [payments, setPayments] = useState<SplitPayment[]>(() => {
+    if (initialAnzahlung) {
+      const amount = Math.min(subtotal, initialAnzahlung.remaining_value);
+      const rows: SplitPayment[] = [
+        { id: crypto.randomUUID(), method: 'Anzahlung', amount, voucherId: initialAnzahlung.id, voucherRemaining: initialAnzahlung.remaining_value, voucherValue: initialAnzahlung.value },
+      ];
+      if (amount < subtotal) {
+        rows.push({ id: crypto.randomUUID(), method: initialMethod || 'Karte', amount: roundToRappen(subtotal - amount) });
+      }
+      return rows;
+    }
+    return initialMethod ? [{ id: crypto.randomUUID(), method: initialMethod, amount: subtotal }] : [];
+  });
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [customerAnzahlung, setCustomerAnzahlung] = useState<Voucher | null>(initialAnzahlung || null);
+
+  useEffect(() => {
+    if (!customerId) {
+      setCustomerAnzahlung(null);
+      return;
+    }
+    fetchActiveAnzahlungForCustomer(customerId)
+      .then(setCustomerAnzahlung)
+      .catch(() => setCustomerAnzahlung(null));
+  }, [customerId]);
 
   const discountAmount = discountMode === 'percent' ? (subtotal * appliedDiscountPct) / 100 : appliedDiscountPct;
   const total = roundToRappen(Math.max(0, subtotal - discountAmount));
   const paid = payments.reduce((sum, p) => sum + p.amount, 0);
   const gutscheinRowsValid = payments
-    .filter((p) => p.method === 'Gutschein')
+    .filter((p) => p.method === 'Gutschein' || p.method === 'Anzahlung')
     .every((p) => p.voucherId && p.voucherRemaining != null && p.amount <= p.voucherRemaining + 0.001);
   const fullyPaid = Math.abs(paid - total) < 0.01 && gutscheinRowsValid;
 
@@ -504,7 +634,16 @@ function CheckoutModal({
             <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
               <select
                 value={p.method}
-                onChange={(e) => updatePayment(p.id, { method: e.target.value, voucherId: null, voucherRemaining: null, voucherError: null, voucherCode: '' })}
+                onChange={(e) => {
+                  const method = e.target.value;
+                  if (method === 'Anzahlung' && customerAnzahlung) {
+                    updatePayment(p.id, { method, voucherId: customerAnzahlung.id, voucherRemaining: customerAnzahlung.remaining_value, voucherValue: customerAnzahlung.value, voucherError: null, voucherCode: customerAnzahlung.code });
+                  } else if (method === 'Anzahlung') {
+                    updatePayment(p.id, { method, voucherId: null, voucherRemaining: null, voucherError: 'Kein Guthaben für diesen Kunden gefunden.', voucherCode: '' });
+                  } else {
+                    updatePayment(p.id, { method, voucherId: null, voucherRemaining: null, voucherError: null, voucherCode: '' });
+                  }
+                }}
                 style={{
                   border: 'none',
                   borderRadius: 4,
@@ -538,11 +677,60 @@ function CheckoutModal({
                 ✕
               </button>
             </div>
+          ) : p.method === 'Anzahlung' ? (
+            <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+              <select
+                value={p.method}
+                onChange={(e) => {
+                  const method = e.target.value;
+                  if (method === 'Anzahlung' && customerAnzahlung) {
+                    updatePayment(p.id, { method, voucherId: customerAnzahlung.id, voucherRemaining: customerAnzahlung.remaining_value, voucherValue: customerAnzahlung.value, voucherError: null, voucherCode: customerAnzahlung.code });
+                  } else if (method === 'Anzahlung') {
+                    updatePayment(p.id, { method, voucherId: null, voucherRemaining: null, voucherError: 'Kein Guthaben für diesen Kunden gefunden.', voucherCode: '' });
+                  } else {
+                    updatePayment(p.id, { method, voucherId: null, voucherRemaining: null, voucherError: null, voucherCode: '' });
+                  }
+                }}
+                style={{
+                  border: 'none',
+                  borderRadius: 4,
+                  padding: '9px 10px',
+                  fontSize: 12,
+                  fontWeight: 600,
+                  background: '#111',
+                  color: '#fff',
+                  width: 108,
+                  flexShrink: 0,
+                }}
+              >
+                {PAYMENT_METHODS.map((m) => (
+                  <option key={m}>{m}</option>
+                ))}
+              </select>
+              <input
+                type="number"
+                value={p.amount}
+                onChange={(e) => updatePayment(p.id, { amount: parseFloat(e.target.value) || 0 })}
+                style={{ flex: 1, border: '1px solid #ddd', borderRadius: 4, padding: '8px 10px', fontSize: 13 }}
+              />
+              <button onClick={() => removePayment(p.id)} style={{ background: 'none', border: 'none', fontSize: 14, color: '#999' }}>
+                ✕
+              </button>
+            </div>
           ) : (
             <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
               <select
                 value={p.method}
-                onChange={(e) => updatePayment(p.id, { method: e.target.value, voucherId: null, voucherRemaining: null, voucherError: null, voucherCode: '' })}
+                onChange={(e) => {
+                  const method = e.target.value;
+                  if (method === 'Anzahlung' && customerAnzahlung) {
+                    updatePayment(p.id, { method, voucherId: customerAnzahlung.id, voucherRemaining: customerAnzahlung.remaining_value, voucherValue: customerAnzahlung.value, voucherError: null, voucherCode: customerAnzahlung.code });
+                  } else if (method === 'Anzahlung') {
+                    updatePayment(p.id, { method, voucherId: null, voucherRemaining: null, voucherError: 'Kein Guthaben für diesen Kunden gefunden.', voucherCode: '' });
+                  } else {
+                    updatePayment(p.id, { method, voucherId: null, voucherRemaining: null, voucherError: null, voucherCode: '' });
+                  }
+                }}
                 style={{ flex: 1, border: '1px solid #ddd', borderRadius: 4, padding: '8px 10px', fontSize: 13 }}
               >
                 {PAYMENT_METHODS.map((m) => (
@@ -555,13 +743,13 @@ function CheckoutModal({
               </button>
             </div>
           )}
-          {p.method === 'Gutschein' && (
+          {(p.method === 'Gutschein' || p.method === 'Anzahlung') && (
             <div style={{ marginTop: 4, paddingLeft: 2 }}>
               {p.voucherChecking && <div style={{ fontSize: 11, color: '#999' }}>Prüft Gutschein…</div>}
               {p.voucherError && <div style={{ fontSize: 11, color: 'var(--color-destructive)' }}>{p.voucherError}</div>}
               {p.voucherId && p.voucherRemaining != null && (
                 <div style={{ fontSize: 11, color: p.amount > p.voucherRemaining ? 'var(--color-destructive)' : '#777' }}>
-                  Restwert Gutschein: {chf(Math.max(0, p.voucherRemaining - p.amount))} von {chf(p.voucherValue ?? p.voucherRemaining)}
+                  Restwert {p.method === 'Anzahlung' ? 'Anzahlung' : 'Gutschein'}: {chf(Math.max(0, p.voucherRemaining - p.amount))} von {chf(p.voucherValue ?? p.voucherRemaining)}
                   {p.amount > p.voucherRemaining && ' — Betrag übersteigt Guthaben'}
                 </div>
               )}
@@ -690,6 +878,9 @@ export default function Kasse() {
   const [loading, setLoading] = useState(true);
   const [showServiceModal, setShowServiceModal] = useState(false);
   const [showVoucherModal, setShowVoucherModal] = useState(false);
+  const [showAnzahlungModal, setShowAnzahlungModal] = useState(false);
+  const [anzahlungPrompt, setAnzahlungPrompt] = useState<Voucher | null>(null);
+  const [applyAnzahlung, setApplyAnzahlung] = useState<Voucher | null>(null);
   const [showProductModal, setShowProductModal] = useState(false);
   const [showCheckout, setShowCheckout] = useState(false);
   const [completed, setCompleted] = useState(false);
@@ -830,6 +1021,11 @@ export default function Kasse() {
         }
         if (appt.customer_id) {
           setSelectedCustomerId(appt.customer_id);
+          fetchActiveAnzahlungForCustomer(appt.customer_id)
+            .then((v) => {
+              if (v) setAnzahlungPrompt(v);
+            })
+            .catch(() => {});
         }
         if (appt.location_id) {
           setSelectedLocationId(appt.location_id);
@@ -1362,7 +1558,23 @@ export default function Kasse() {
             <button className="btn btn-outline" onClick={() => setShowVoucherModal(true)}>
               + Gutschein verkaufen
             </button>
+            <button
+              className="btn btn-outline"
+              disabled={!selectedCustomerId}
+              style={{ opacity: selectedCustomerId ? 1 : 0.5, cursor: selectedCustomerId ? 'pointer' : 'not-allowed' }}
+              title={selectedCustomerId ? undefined : 'Es muss zuerst ein Kunde ausgewählt werden.'}
+              onClick={() => {
+                if (!selectedCustomerId) return;
+                setShowAnzahlungModal(true);
+              }}
+            >
+              + Anzahlung
+            </button>
           </div>
+
+          {!selectedCustomerId && (
+            <div style={{ fontSize: 11, color: '#999', marginTop: -14, marginBottom: 20 }}>Für eine Anzahlung muss zuerst ein Kunde ausgewählt werden.</div>
+          )}
 
           {appointmentId && selectedCustomerId && (
             <div style={{ border: '1px solid var(--color-border)', borderRadius: 6, padding: 14, marginBottom: 20, background: 'var(--color-surface)' }}>
@@ -1451,6 +1663,12 @@ export default function Kasse() {
             <div>{chf(subtotal)}</div>
           </div>
 
+          {applyAnzahlung && (
+            <div style={{ border: '1px solid var(--color-accent)', background: 'var(--color-accent-fill)', borderRadius: 6, padding: '10px 12px', marginBottom: 16, fontSize: 12, color: 'var(--color-primary)' }}>
+              Anzahlung von {chf(applyAnzahlung.remaining_value)} wird verrechnet — bitte über "Split Payment" kassieren.
+            </div>
+          )}
+
           <div className="label-uppercase" style={{ marginBottom: 8 }}>
             Zahlungsart
           </div>
@@ -1531,11 +1749,48 @@ export default function Kasse() {
       {showProductModal && (
         <AddProductModal products={products} categories={productCategories} onClose={() => setShowProductModal(false)} onAdd={(newItems) => setItems((prev) => [...prev, ...newItems])} />
       )}
+      {anzahlungPrompt && (
+        <Modal title="Anzahlung verrechnen?" onClose={() => setAnzahlungPrompt(null)} width={380}>
+          <div style={{ fontSize: 13, marginBottom: 20 }}>
+            Dieser Kunde hat eine Anzahlung von <strong>{chf(anzahlungPrompt.remaining_value)}</strong>. Jetzt bei diesem Termin verrechnen?
+          </div>
+          <div style={{ display: 'flex', gap: 10 }}>
+            <button
+              className="btn btn-secondary"
+              style={{ flex: 1, justifyContent: 'center' }}
+              onClick={() => setAnzahlungPrompt(null)}
+            >
+              Nein, später
+            </button>
+            <button
+              className="btn btn-primary"
+              style={{ flex: 1, justifyContent: 'center' }}
+              onClick={() => {
+                setApplyAnzahlung(anzahlungPrompt);
+                setAnzahlungPrompt(null);
+              }}
+            >
+              Ja, verrechnen
+            </button>
+          </div>
+        </Modal>
+      )}
       {showVoucherModal && <SellVoucherModal onClose={() => setShowVoucherModal(false)} onAdd={(item) => setItems((prev) => [...prev, item])} />}
+      {showAnzahlungModal && selectedCustomerId && (
+        <SellAnzahlungModal
+          customerId={selectedCustomerId}
+          customerName={customers.find((c) => c.id === selectedCustomerId) ? `${customers.find((c) => c.id === selectedCustomerId)!.vorname} ${customers.find((c) => c.id === selectedCustomerId)!.name}` : ''}
+          locationId={selectedLocationId || null}
+          onClose={() => setShowAnzahlungModal(false)}
+          onSold={() => setShowAnzahlungModal(false)}
+        />
+      )}
       {showCheckout && (
         <CheckoutModal
           subtotal={subtotal}
           initialMethod={paymentMethod}
+          customerId={selectedCustomerId || null}
+          initialAnzahlung={applyAnzahlung}
           onClose={() => setShowCheckout(false)}
           onComplete={async (payments, total, discountType, discountValue) => {
             await handleCheckoutComplete(payments, total, discountType, discountValue);

@@ -488,7 +488,7 @@ export default function Abrechnung() {
               PDF herunterladen
             </button>
           </div>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 16, marginBottom: 24 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 16, marginBottom: 24 }}>
             <div style={summaryCardStyle}>
               <div style={{ fontSize: 11, color: '#999', textTransform: 'uppercase', marginBottom: 8, fontWeight: 600 }}>Umsatz Salon</div>
               <div style={{ fontFamily: 'var(--font-heading)', fontSize: 22, fontWeight: 700, marginBottom: 8 }}>
@@ -522,6 +522,11 @@ export default function Abrechnung() {
               <div style={{ fontSize: 11, color: '#999', textTransform: 'uppercase', marginBottom: 8, fontWeight: 600 }}>Umsatz</div>
               <div style={{ fontFamily: 'var(--font-heading)', fontSize: 22, fontWeight: 700 }}>{formatCHF(billing.salonRevenue)}</div>
               <div style={{ fontSize: 10, color: '#bbb', marginTop: 2 }}>Salon + Artists</div>
+            </div>
+            <div style={summaryCardStyle}>
+              <div style={{ fontSize: 11, color: '#999', textTransform: 'uppercase', marginBottom: 8, fontWeight: 600 }}>Anzahlung</div>
+              <div style={{ fontFamily: 'var(--font-heading)', fontSize: 22, fontWeight: 700 }}>{formatCHF(billing.anzahlungRevenue)}</div>
+              <div style={{ fontSize: 10, color: '#bbb', marginTop: 2 }}>noch nicht Umsatz</div>
             </div>
           </div>
 

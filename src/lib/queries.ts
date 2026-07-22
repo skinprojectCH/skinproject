@@ -171,6 +171,7 @@ export interface Voucher {
   source: 'kasse' | 'online';
   buyer_name: string | null;
   buyer_email: string | null;
+  type: 'gutschein' | 'anzahlung';
 }
 
 // ---------- Artists ----------
@@ -583,6 +584,7 @@ export async function fetchWalkInOrdersForDay(dateISO: string, locationId?: stri
     .from('orders')
     .select('*, customers(vorname, name, phone), order_line_items(description, quantity, unit_price)')
     .is('appointment_id', null)
+    .eq('is_anzahlung', false)
     .gte('created_at', start)
     .lte('created_at', end)
     .order('created_at');
@@ -656,6 +658,60 @@ export async function fetchVoucherByCode(code: string) {
   return data as Voucher | null;
 }
 
+// Aktives Anzahlungs-Guthaben eines Kunden (falls vorhanden) -- für den automatischen
+// "Anzahlung jetzt verrechnen?"-Hinweis und die Zahlungsart in der Kasse.
+export async function fetchActiveAnzahlungForCustomer(customerId: string): Promise<Voucher | null> {
+  const { data, error } = await supabase
+    .from('vouchers')
+    .select('*')
+    .eq('buyer_customer_id', customerId)
+    .eq('type', 'anzahlung')
+    .eq('status', 'aktiv')
+    .gt('remaining_value', 0)
+    .order('created_at', { ascending: true })
+    .limit(1)
+    .maybeSingle();
+  if (error) throw error;
+  return data as Voucher | null;
+}
+
+// Verkauft eine Anzahlung: Geld ist geflossen (payments-Eintrag existiert für die
+// Kassenbuch-Abstimmung), zählt aber bewusst NICHT als Umsatz/Artist-Ertrag -- dafür
+// wird die Bestellung mit is_anzahlung=true markiert, was alle Umsatz-Abfragen ausschliessen.
+export async function sellAnzahlung(opts: { customerId: string; locationId: string | null; amount: number; paymentMethod: string }) {
+  const code = '2SK-' + Math.random().toString(36).slice(2, 7).toUpperCase();
+
+  const { data: voucher, error: voucherError } = await supabase
+    .from('vouchers')
+    .insert({ code, value: opts.amount, remaining_value: opts.amount, status: 'aktiv', source: 'kasse', type: 'anzahlung', buyer_customer_id: opts.customerId })
+    .select()
+    .single();
+  if (voucherError) throw voucherError;
+
+  const { data: order, error: orderError } = await supabase
+    .from('orders')
+    .insert({ location_id: opts.locationId, customer_id: opts.customerId, subtotal: opts.amount, total: opts.amount, status: 'bezahlt', is_anzahlung: true })
+    .select()
+    .single();
+  if (orderError) throw orderError;
+
+  const { error: liError } = await supabase.from('order_line_items').insert({
+    order_id: order.id,
+    service_id: null,
+    product_id: null,
+    description: `Anzahlung ${code}`,
+    quantity: 1,
+    unit_price: opts.amount,
+    line_total: opts.amount,
+  });
+  if (liError) throw liError;
+
+  const { error: payError } = await supabase.from('payments').insert({ order_id: order.id, method: opts.paymentMethod.toLowerCase(), amount: opts.amount, voucher_id: null });
+  if (payError) throw payError;
+
+  return voucher as Voucher;
+}
+
 export async function checkoutOrder(input: {
   appointmentId: string | null;
   customerId: string | null;
@@ -712,7 +768,7 @@ export async function addPayments(orderId: string, payments: { method: string; a
 
 // ---------- Vouchers ----------
 export async function fetchVouchers() {
-  const { data, error } = await supabase.from('vouchers').select('*').order('created_at', { ascending: false });
+  const { data, error } = await supabase.from('vouchers').select('*').eq('type', 'gutschein').order('created_at', { ascending: false });
   if (error) throw error;
   return data as Voucher[];
 }
@@ -973,6 +1029,7 @@ export interface LocationBilling {
   salonServiceRevenue: number; // Salon-Anteil an Dienstleistungen (Miet- & Serviceanteil, summiert über alle Artists)
   productRevenue: number; // 100% Salon
   voucherRevenue: number; // 100% Salon
+  anzahlungRevenue: number; // Anzahlungs-Verkäufe -- Geld geflossen, zählt bewusst NICHT zum Umsatz
 }
 
 export async function fetchLocationBilling(locationId: string, startDateISO: string, endDateISO: string): Promise<LocationBilling> {
@@ -985,7 +1042,7 @@ export async function fetchLocationBilling(locationId: string, startDateISO: str
   // Termine unterschiedlich zählten).
   const { data: appts, error: apptError } = await supabase
     .from('appointments')
-    .select('id, artist_id, artists(id, name, calendar_color, revenue_share_pct, is_employee), orders(total, subtotal, status, order_line_items(service_id, product_id, line_total))')
+    .select('id, artist_id, artists(id, name, calendar_color, revenue_share_pct, is_employee), orders(total, subtotal, status, is_anzahlung, order_line_items(service_id, product_id, line_total))')
     .eq('location_id', locationId)
     .eq('type', 'termin')
     .gte('start_time', start)
@@ -993,7 +1050,7 @@ export async function fetchLocationBilling(locationId: string, startDateISO: str
   if (apptError) throw apptError;
 
   const apptRows = (appts as any[]) || [];
-  const paidApptOrders = apptRows.map((a) => a.orders?.[0]).filter((o) => o && o.status === 'bezahlt');
+  const paidApptOrders = apptRows.map((a) => a.orders?.[0]).filter((o) => o && o.status === 'bezahlt' && !o.is_anzahlung);
   const apptRevenue = paidApptOrders.reduce((s, o) => s + Number(o.total), 0);
 
   // Laufkunden-Verkäufe ohne Termin (z.B. reiner Artikelverkauf an der Kasse) -- lassen
@@ -1004,6 +1061,7 @@ export async function fetchLocationBilling(locationId: string, startDateISO: str
     .eq('location_id', locationId)
     .is('appointment_id', null)
     .eq('status', 'bezahlt')
+    .eq('is_anzahlung', false)
     .gte('created_at', start)
     .lte('created_at', end);
   if (walkInError) throw walkInError;
@@ -1013,6 +1071,19 @@ export async function fetchLocationBilling(locationId: string, startDateISO: str
   const salonRevenue = apptRevenue + walkInRevenue;
   const orderCount = paidApptOrders.length + walkInRows.length;
   const avgOrderValue = orderCount > 0 ? salonRevenue / orderCount : 0;
+
+  // Anzahlungs-Verkäufe (Geld geflossen, zählt bewusst NICHT als Umsatz) -- eigene
+  // Kennzahl fürs Abrechnungs-Kachel "Anzahlung".
+  const { data: anzahlungOrders, error: anzahlungError } = await supabase
+    .from('orders')
+    .select('total')
+    .eq('location_id', locationId)
+    .eq('status', 'bezahlt')
+    .eq('is_anzahlung', true)
+    .gte('created_at', start)
+    .lte('created_at', end);
+  if (anzahlungError) throw anzahlungError;
+  const anzahlungRevenue = ((anzahlungOrders as any[]) || []).reduce((s, o) => s + Number(o.total), 0);
 
   // Produkte & Gutscheine gehören zu 100% dem Salon -- über alle Bestellungen (Termine +
   // Laufkunden) hinweg summiert, inkl. anteiligem Bestell-Rabatt (subtotal/total-Faktor).
@@ -1053,7 +1124,7 @@ export async function fetchLocationBilling(locationId: string, startDateISO: str
   const artistRevenue = artistRows.reduce((s, r) => s + r.revenue, 0);
   const salonServiceRevenue = artistRows.reduce((s, r) => s + r.revenue * (r.sharePct / 100), 0);
 
-  return { salonRevenue, artistRevenue, orderCount, avgOrderValue, artistRows, salonServiceRevenue, productRevenue, voucherRevenue };
+  return { salonRevenue, artistRevenue, orderCount, avgOrderValue, artistRows, salonServiceRevenue, productRevenue, voucherRevenue, anzahlungRevenue };
 }
 
 export interface LocationArtistBillingEntry {
@@ -1176,6 +1247,7 @@ export async function fetchCustomerStatsForMonth(locationId: string, year: numbe
     .select('customer_id, total, created_at, customers(vorname, name)')
     .eq('location_id', locationId)
     .eq('status', 'bezahlt')
+    .eq('is_anzahlung', false)
     .not('customer_id', 'is', null)
     .gte('created_at', start)
     .lt('created_at', end);
@@ -1256,9 +1328,10 @@ export async function fetchServiceProductPerformance(locationId: string, startDa
 
   const { data, error } = await supabase
     .from('order_line_items')
-    .select('quantity, line_total, service_id, product_id, services(name), products(name), orders!inner(location_id, status, created_at)')
+    .select('quantity, line_total, service_id, product_id, services(name), products(name), orders!inner(location_id, status, created_at, is_anzahlung)')
     .eq('orders.location_id', locationId)
     .eq('orders.status', 'bezahlt')
+    .eq('orders.is_anzahlung', false)
     .gte('orders.created_at', start)
     .lte('orders.created_at', end);
   if (error) throw error;
@@ -1303,7 +1376,7 @@ export async function fetchMonthlyRevenueSeries(locationId: string, monthsBack =
   const start = startDate.toISOString();
   const end = new Date(now.getFullYear(), now.getMonth() + 1, 1).toISOString();
 
-  const { data, error } = await supabase.from('orders').select('total, created_at').eq('location_id', locationId).eq('status', 'bezahlt').gte('created_at', start).lt('created_at', end);
+  const { data, error } = await supabase.from('orders').select('total, created_at').eq('location_id', locationId).eq('status', 'bezahlt').eq('is_anzahlung', false).gte('created_at', start).lt('created_at', end);
   if (error) throw error;
 
   const buckets: Record<string, number> = {};
@@ -1330,7 +1403,7 @@ export async function fetchYearlyRevenueSeries(locationId: string, yearsBack = 5
   const start = `${startYear}-01-01T00:00:00`;
   const end = `${now.getFullYear() + 1}-01-01T00:00:00`;
 
-  const { data, error } = await supabase.from('orders').select('total, created_at').eq('location_id', locationId).eq('status', 'bezahlt').gte('created_at', start).lt('created_at', end);
+  const { data, error } = await supabase.from('orders').select('total, created_at').eq('location_id', locationId).eq('status', 'bezahlt').eq('is_anzahlung', false).gte('created_at', start).lt('created_at', end);
   if (error) throw error;
 
   const buckets: Record<number, number> = {};
@@ -1451,6 +1524,7 @@ export async function fetchDiscountStats(startDateISO: string, endDateISO: strin
     .from('orders')
     .select('total, order_line_items(quantity, unit_price)')
     .eq('status', 'bezahlt')
+    .eq('is_anzahlung', false)
     .gte('created_at', start)
     .lte('created_at', end);
   if (error) throw error;
