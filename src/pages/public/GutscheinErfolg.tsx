@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from 'react';
 const card: React.CSSProperties = { width: '100%', maxWidth: 420, margin: '0 auto', background: '#fff', borderRadius: 20, overflow: 'hidden', fontFamily: "'Work Sans', sans-serif", boxShadow: '0 1px 3px rgba(0,0,0,0.08)' };
 const cardInner: React.CSSProperties = { padding: 28, textAlign: 'center' };
 const primaryBtn: React.CSSProperties = { background: '#111', color: '#fff', textAlign: 'center', padding: 14, fontSize: 14, fontWeight: 600, borderRadius: 8, border: 'none', cursor: 'pointer', width: '100%' };
+const secondaryBtn: React.CSSProperties = { background: 'transparent', color: '#111', textAlign: 'center', padding: 14, fontSize: 14, fontWeight: 600, borderRadius: 8, border: '1.5px solid #ddd', cursor: 'pointer', width: '100%' };
 
 interface VoucherInfo {
   code: string;
@@ -116,6 +117,10 @@ export default function GutscheinErfolg() {
               <button style={primaryBtn} onClick={() => downloadVoucherPdf(voucher)}>
                 Gutschein herunterladen (PDF)
               </button>
+
+              <a href="/gutschein-kaufen" style={{ ...secondaryBtn, display: 'block', marginTop: 12, textDecoration: 'none' }}>
+                Weitere Gutscheine kaufen
+              </a>
             </>
           )}
         </div>
