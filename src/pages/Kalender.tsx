@@ -325,6 +325,7 @@ function layoutOverlaps(appts: LoadedAppointment[]): Map<string, { col: number; 
 }
 
 const HATCH_BG = 'repeating-linear-gradient(45deg, #fafafa, #fafafa 6px, #f0f0f0 6px, #f0f0f0 12px)';
+const ABSENCE_HATCH_BG = 'repeating-linear-gradient(45deg, #F6ECEC, #F6ECEC 6px, #ecd6d6 6px, #ecd6d6 12px)';
 
 function DayView({
   appointments,
@@ -503,7 +504,7 @@ function DayView({
                       height: Math.max(0, (w.end - w.start) * PX_PER_MIN),
                       left: 0,
                       right: 0,
-                      background: ABSENCE_BG,
+                      background: ABSENCE_HATCH_BG,
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'center',
@@ -790,7 +791,7 @@ function WeekView({
                           height: Math.max(0, (w.end - w.start) * PX_PER_MIN),
                           left: 0,
                           right: 0,
-                          background: ABSENCE_BG,
+                          background: ABSENCE_HATCH_BG,
                           display: 'flex',
                           alignItems: 'center',
                           justifyContent: 'center',
