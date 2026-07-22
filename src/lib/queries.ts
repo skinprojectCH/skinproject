@@ -883,6 +883,24 @@ export async function fetchAppointmentsForArtistRange(artistId: string, startDat
   return data;
 }
 
+// Für Mitarbeiter (z.B. Empfang/Assistenz) in der Artist-PWA: alle Termine an ihrem
+// Standort, egal welcher Artist -- damit sie fehlende Fotos für alle nachholen können,
+// falls ein Artist es vergisst.
+export async function fetchAppointmentsForLocationRange(locationId: string, startDateISO: string, endDateISO: string) {
+  const start = `${startDateISO}T00:00:00`;
+  const end = `${endDateISO}T23:59:59`;
+  const { data, error } = await supabase
+    .from('appointments')
+    .select('*, customers(vorname, name, phone), artists(name, kuenstlername), appointment_line_items(quantity, unit_price, services(name)), orders(total, status), locations(name)')
+    .eq('location_id', locationId)
+    .eq('type', 'termin')
+    .gte('start_time', start)
+    .lte('start_time', end)
+    .order('start_time');
+  if (error) throw error;
+  return data;
+}
+
 // Eine einzelne "Ertragsposition" für die Umsatzstatistik der Artist-PWA:
 // bereits nach Miet-/Serviceanteil-% berechneter EIGENER Anteil des Artists
 // (nur auf Dienstleistungen, nicht auf Artikel — analog zum Feld "Miet- & Serviceanteil").

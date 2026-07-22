@@ -5,6 +5,7 @@ import {
   fetchArtistById,
   updateArtist,
   fetchAppointmentsForArtistRange,
+  fetchAppointmentsForLocationRange,
   fetchAppointmentIdsWithPhotos,
   fetchArtistEarnings,
   fetchDocumentsForAppointment,
@@ -757,7 +758,7 @@ function hexToRgba(hex: string, alpha: number) {
   return `rgba(${r},${g},${b},${alpha})`;
 }
 
-function TermineTab({ artistId, locationId, artistColor }: { artistId: string; locationId: string | null; artistColor: string }) {
+function TermineTab({ artistId, locationId, artistColor, isEmployee }: { artistId: string; locationId: string | null; artistColor: string; isEmployee?: boolean }) {
   const [appointments, setAppointments] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -768,16 +769,24 @@ function TermineTab({ artistId, locationId, artistColor }: { artistId: string; l
   function reload() {
     setLoading(true);
     setError(null);
-    fetchAppointmentsForArtistRange(artistId, shiftISO(todayISO(), -30), shiftISO(todayISO(), 30))
+    const fetcher =
+      isEmployee && locationId
+        ? fetchAppointmentsForLocationRange(locationId, shiftISO(todayISO(), -30), shiftISO(todayISO(), 30))
+        : fetchAppointmentsForArtistRange(artistId, shiftISO(todayISO(), -30), shiftISO(todayISO(), 30));
+    fetcher
       .then((appts) => {
-        setAppointments(appts);
-        fetchAppointmentIdsWithPhotos(appts.map((a: any) => a.id)).then(setIdsWithPhotos);
+        fetchAppointmentIdsWithPhotos(appts.map((a: any) => a.id)).then((withPhotos) => {
+          setIdsWithPhotos(withPhotos);
+          // Mitarbeiter-Ansicht: nur Termine mit fehlenden Fotos anzeigen, als Fang-Netz
+          // für vergessene Fotos -- egal welcher Artist.
+          setAppointments(isEmployee ? appts.filter((a: any) => !withPhotos.has(a.id) && a.status !== 'storniert') : appts);
+        });
       })
       .catch((e) => setError(e.message))
       .finally(() => setLoading(false));
   }
 
-  useEffect(reload, [artistId]);
+  useEffect(reload, [artistId, isEmployee, locationId]);
 
   // Ziel ist nicht stur "heute", sondern der erste noch offene Termin (Status "gebucht") —
   // ist der heutige Tag bereits komplett abgeschlossen (alles kassiert/nicht erschienen),
@@ -821,6 +830,11 @@ function TermineTab({ artistId, locationId, artistColor }: { artistId: string; l
 
   return (
     <div>
+      {isEmployee && (
+        <div style={{ fontSize: 12, color: 'var(--color-text-muted)', marginTop: 16, marginBottom: -4 }}>
+          Termine mit fehlenden Fotos, standortweit (alle Artists).
+        </div>
+      )}
       <div
         style={{
           position: 'sticky',
@@ -878,6 +892,7 @@ function TermineTab({ artistId, locationId, artistColor }: { artistId: string; l
                         </div>
                         <div style={{ fontSize: 12, color: 'var(--color-text-muted)', marginTop: 2 }}>
                           {services.join(', ') || '—'}
+                          {isEmployee && appt.artists ? ` · ${appt.artists.kuenstlername || appt.artists.name}` : ''}
                           {appt.locations?.name ? ` · ${appt.locations.name}` : ''}
                         </div>
                         {appt.status !== 'storniert' && appt.customer_id && (
@@ -1460,7 +1475,7 @@ function ArtistDashboard({ artist: initialArtist, onLogout }: { artist: Artist; 
   const NAV_ITEMS: { key: typeof tab; label: string }[] = [
     { key: 'agenda', label: 'Agenda' },
     { key: 'buchen', label: 'Buchen' },
-    { key: 'abschluesse', label: 'Abschlüsse' },
+    ...(artist.is_employee ? [] : [{ key: 'abschluesse' as const, label: 'Abschlüsse' }]),
     { key: 'profil', label: 'Profil' },
   ];
 
@@ -1475,7 +1490,7 @@ function ArtistDashboard({ artist: initialArtist, onLogout }: { artist: Artist; 
       </div>
 
       <div style={{ padding: 20 }}>
-        {tab === 'agenda' && <TermineTab artistId={artist.id} locationId={artist.location_id} artistColor={artist.calendar_color} />}
+        {tab === 'agenda' && <TermineTab artistId={artist.id} locationId={artist.location_id} artistColor={artist.calendar_color} isEmployee={artist.is_employee} />}
         {tab === 'buchen' && (
           <div key={bookingKey} style={{ border: '1px solid var(--color-border)', borderRadius: 6, padding: 14, background: 'var(--color-surface)' }}>
             <div style={{ fontSize: 15, fontWeight: 700, marginBottom: 14 }}>Neuer Termin</div>
@@ -1490,7 +1505,7 @@ function ArtistDashboard({ artist: initialArtist, onLogout }: { artist: Artist; 
             />
           </div>
         )}
-        {tab === 'abschluesse' && <UmsatzTab artist={artist} />}
+        {tab === 'abschluesse' && !artist.is_employee && <UmsatzTab artist={artist} />}
         {tab === 'profil' && <ProfilTab artist={artist} onUpdated={setArtist} onLogout={onLogout} />}
       </div>
 

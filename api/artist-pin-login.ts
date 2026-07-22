@@ -28,7 +28,7 @@ export default async function handler(req: any, res: any) {
   try {
     const { data: artist, error: artistError } = await admin
       .from('artists')
-      .select('id, name, pin_hash, pin_salt, status')
+      .select('id, name, pin_hash, pin_salt, status, is_employee')
       .eq('id', artistId)
       .single();
 
