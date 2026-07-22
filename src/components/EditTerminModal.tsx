@@ -11,6 +11,7 @@ import {
   fetchCustomers,
   fetchServices,
   fetchServiceCategories,
+  fetchArtistServiceIds,
   type Artist,
   type Customer,
   type Service,
@@ -100,6 +101,18 @@ export default function EditTerminModal({ appointmentId, onClose }: Props) {
 
   const totalDuration = selectedServices.reduce((sum, id) => sum + (services.find((s) => s.id === id)?.duration_minutes || 0), 0);
   const totalPrice = selectedServices.reduce((sum, id) => sum + (services.find((s) => s.id === id)?.price || 0), 0);
+
+  const [artistServiceIds, setArtistServiceIdsState] = useState<string[]>([]);
+  useEffect(() => {
+    if (!selectedArtist) {
+      setArtistServiceIdsState([]);
+      return;
+    }
+    fetchArtistServiceIds(selectedArtist)
+      .then(setArtistServiceIdsState)
+      .catch(() => setArtistServiceIdsState([]));
+  }, [selectedArtist]);
+  const allowedServices = artistServiceIds.length > 0 ? services.filter((s) => artistServiceIds.includes(s.id)) : services;
 
   async function handleSave() {
     if (!selectedArtist || !date || !time) {
@@ -260,14 +273,16 @@ export default function EditTerminModal({ appointmentId, onClose }: Props) {
         {fieldLabel('Services')}
         <select value={categoryFilter} onChange={(e) => setCategoryFilter(e.target.value)} style={{ ...boxStyle, marginBottom: 8, color: categoryFilter ? '#111' : '#777' }}>
           <option value="">Alle Kategorien</option>
-          {categories.map((c) => (
-            <option key={c.id} value={c.id}>
-              {c.name}
-            </option>
-          ))}
+          {categories
+            .filter((c) => allowedServices.some((s) => s.category_id === c.id))
+            .map((c) => (
+              <option key={c.id} value={c.id}>
+                {c.name}
+              </option>
+            ))}
         </select>
         {selectedServices.map((id, index) => {
-          const filteredServices = categoryFilter ? services.filter((s) => s.category_id === categoryFilter) : services;
+          const filteredServices = categoryFilter ? allowedServices.filter((s) => s.category_id === categoryFilter) : allowedServices;
           const selectedStillVisible = id && filteredServices.some((s) => s.id === id);
           const optionsForRow = selectedStillVisible || !id ? filteredServices : [...filteredServices, services.find((s) => s.id === id)!].filter(Boolean);
           return (

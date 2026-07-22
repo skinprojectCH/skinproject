@@ -17,6 +17,7 @@ import {
   fetchCustomers,
   fetchServices,
   fetchServiceCategories,
+  fetchArtistServiceIds,
   fetchAppointmentLineItems,
   createAppointment,
   addAppointmentLineItems,
@@ -261,11 +262,15 @@ function TerminForm({
       fetchCustomers(),
       fetchServices(),
       fetchServiceCategories(),
+      fetchArtistServiceIds(artistId),
       isEdit ? fetchAppointmentLineItems(editAppointment.id) : Promise.resolve([]),
     ])
-      .then(([c, s, cats, lineItems]) => {
+      .then(([c, s, cats, allowedIds, lineItems]) => {
         setCustomers(c);
-        setServices(s.filter((sv) => sv.active));
+        const activeServices = s.filter((sv) => sv.active);
+        // Auf die dem Artist zugewiesenen Services einschränken -- leere Zuordnung
+        // (nie eingerichtet) bleibt unrestriktiert.
+        setServices(allowedIds.length > 0 ? activeServices.filter((sv) => allowedIds.includes(sv.id)) : activeServices);
         setCategories(cats);
         if (isEdit) {
           setSelectedCustomer(editAppointment.customer_id || '');
@@ -365,11 +370,13 @@ function TerminForm({
         {formFieldLabel('Services')}
         <select value={categoryFilter} onChange={(e) => setCategoryFilter(e.target.value)} style={{ ...formBoxStyle, marginBottom: 8, color: categoryFilter ? 'var(--color-primary)' : 'var(--color-text-muted)' }}>
           <option value="">Alle Kategorien</option>
-          {categories.map((c) => (
-            <option key={c.id} value={c.id}>
-              {c.name}
-            </option>
-          ))}
+          {categories
+            .filter((c) => services.some((s) => s.category_id === c.id))
+            .map((c) => (
+              <option key={c.id} value={c.id}>
+                {c.name}
+              </option>
+            ))}
         </select>
         {selectedServices.map((id, index) => {
           const filteredServices = categoryFilter ? services.filter((s) => s.category_id === categoryFilter) : services;

@@ -12,6 +12,7 @@ import {
   createAbsence,
   assignDocumentToAppointment,
   fetchCustomersWithPendingHealthDocs,
+  fetchArtistServiceIds,
   type Artist,
   type Customer,
   type Service,
@@ -73,8 +74,31 @@ export default function TerminModal({ onClose, onSave, locationId, initialDate, 
   const [selectedServices, setSelectedServices] = useState<string[]>(['']);
   const [pendingDocs, setPendingDocs] = useState<PendingHealthDoc[]>([]);
   const [selectedPendingDocId, setSelectedPendingDocId] = useState<string>('');
+  const [artistServiceIds, setArtistServiceIds] = useState<string[]>([]);
   const totalDuration = selectedServices.reduce((sum, id) => sum + (services.find((s) => s.id === id)?.duration_minutes || 0), 0);
   const totalPrice = selectedServices.reduce((sum, id) => sum + (services.find((s) => s.id === id)?.price || 0), 0);
+
+  // Services auf die dem Artist zugewiesenen einschränken -- ist die Zuordnung leer
+  // (Artist wurde nie eingeschränkt), bleibt es unrestriktiert wie bisher.
+  useEffect(() => {
+    if (!selectedArtist) {
+      setArtistServiceIds([]);
+      return;
+    }
+    fetchArtistServiceIds(selectedArtist)
+      .then(setArtistServiceIds)
+      .catch(() => setArtistServiceIds([]));
+  }, [selectedArtist]);
+  const allowedServices = artistServiceIds.length > 0 ? services.filter((s) => artistServiceIds.includes(s.id)) : services;
+
+  useEffect(() => {
+    if (artistServiceIds.length === 0) return;
+    setSelectedServices((prev) => {
+      const cleaned = prev.map((id) => (id && !artistServiceIds.includes(id) ? '' : id));
+      return cleaned.some((id) => id) ? cleaned : [''];
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [artistServiceIds]);
 
   // Nur Artists anzeigen, die laut Schichtplan an diesem Datum an dieser Location arbeiten
   // (Rückfallebene: Artists ganz ohne Schichtplan erscheinen an ihrer Stamm-Location).
@@ -273,14 +297,16 @@ export default function TerminModal({ onClose, onSave, locationId, initialDate, 
               style={{ ...boxStyle, width: '100%', marginBottom: 8, color: categoryFilter ? '#111' : '#777' }}
             >
               <option value="">Alle Kategorien</option>
-              {categories.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.name}
-                </option>
-              ))}
+              {categories
+                .filter((c) => allowedServices.some((s) => s.category_id === c.id))
+                .map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.name}
+                  </option>
+                ))}
             </select>
             {selectedServices.map((id, index) => {
-              const filteredServices = categoryFilter ? services.filter((s) => s.category_id === categoryFilter) : services;
+              const filteredServices = categoryFilter ? allowedServices.filter((s) => s.category_id === categoryFilter) : allowedServices;
               const selectedStillVisible = id && filteredServices.some((s) => s.id === id);
               const optionsForRow = selectedStillVisible || !id ? filteredServices : [...filteredServices, services.find((s) => s.id === id)!].filter(Boolean);
               return (
