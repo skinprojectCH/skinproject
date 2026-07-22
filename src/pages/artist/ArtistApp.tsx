@@ -779,7 +779,7 @@ function TermineTab({ artistId, locationId, artistColor, isEmployee }: { artistI
           setIdsWithPhotos(withPhotos);
           // Mitarbeiter-Ansicht: nur Termine mit fehlenden Fotos anzeigen, als Fang-Netz
           // für vergessene Fotos -- egal welcher Artist.
-          setAppointments(isEmployee ? appts.filter((a: any) => !withPhotos.has(a.id) && a.status !== 'storniert') : appts);
+          setAppointments(isEmployee ? appts.filter((a: any) => !withPhotos.has(a.id) && a.status !== 'storniert' && a.customer_id) : appts);
         });
       })
       .catch((e) => setError(e.message))
@@ -1474,7 +1474,7 @@ function ArtistDashboard({ artist: initialArtist, onLogout }: { artist: Artist; 
 
   const NAV_ITEMS: { key: typeof tab; label: string }[] = [
     { key: 'agenda', label: 'Agenda' },
-    { key: 'buchen', label: 'Buchen' },
+    ...(artist.is_employee ? [] : [{ key: 'buchen' as const, label: 'Buchen' }]),
     ...(artist.is_employee ? [] : [{ key: 'abschluesse' as const, label: 'Abschlüsse' }]),
     { key: 'profil', label: 'Profil' },
   ];
@@ -1491,7 +1491,7 @@ function ArtistDashboard({ artist: initialArtist, onLogout }: { artist: Artist; 
 
       <div style={{ padding: 20 }}>
         {tab === 'agenda' && <TermineTab artistId={artist.id} locationId={artist.location_id} artistColor={artist.calendar_color} isEmployee={artist.is_employee} />}
-        {tab === 'buchen' && (
+        {tab === 'buchen' && !artist.is_employee && (
           <div key={bookingKey} style={{ border: '1px solid var(--color-border)', borderRadius: 6, padding: 14, background: 'var(--color-surface)' }}>
             <div style={{ fontSize: 15, fontWeight: 700, marginBottom: 14 }}>Neuer Termin</div>
             <TerminForm
