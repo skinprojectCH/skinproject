@@ -364,6 +364,7 @@ function SellAnzahlungModal({
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [done, setDone] = useState(false);
+  const [soldVoucher, setSoldVoucher] = useState<Voucher | null>(null);
 
   const numValue = parseFloat(value);
   const valid = !isNaN(numValue) && numValue > 0;
@@ -376,7 +377,8 @@ function SellAnzahlungModal({
     setSaving(true);
     setError(null);
     try {
-      await sellAnzahlung({ customerId, locationId, amount: numValue, paymentMethod: method });
+      const voucher = await sellAnzahlung({ customerId, locationId, amount: numValue, paymentMethod: method });
+      setSoldVoucher(voucher);
       setDone(true);
     } catch (e: any) {
       setError(e.message);
@@ -388,12 +390,64 @@ function SellAnzahlungModal({
   if (done) {
     return (
       <Modal title="Anzahlung erfasst" onClose={onSold} width={380}>
-        <div style={{ textAlign: 'center', padding: '10px 0' }}>
+        <style>{`
+          @media print {
+            .anzahlung-no-print, .modal-header, .kasse-no-print { display: none !important; }
+            .modal-overlay {
+              position: static !important;
+              background: none !important;
+              display: block !important;
+            }
+            .modal-box {
+              width: auto !important;
+              max-width: none !important;
+              max-height: none !important;
+              overflow: visible !important;
+              box-shadow: none !important;
+            }
+            .anzahlung-print-area {
+              background: #fff !important;
+              border: 1px solid #000 !important;
+              color: #000 !important;
+            }
+            .anzahlung-print-area * { color: #000 !important; }
+          }
+        `}</style>
+        <div className="anzahlung-no-print" style={{ textAlign: 'center', padding: '10px 0 20px' }}>
           <div style={{ fontSize: 15, fontWeight: 700, color: '#1a7a3f', marginBottom: 8 }}>✓ CHF {numValue.toFixed(2)} erfasst</div>
-          <div style={{ fontSize: 12, color: '#777', marginBottom: 20 }}>
+          <div style={{ fontSize: 12, color: '#777' }}>
             Gutgeschrieben für {customerName}. Zählt nicht als Umsatz, ist im Tagesabschluss unter "Anzahlung" sichtbar und kann bei einem künftigen Termin als Zahlungsart verwendet werden.
           </div>
-          <button className="btn btn-primary" style={{ width: '100%', justifyContent: 'center' }} onClick={onSold}>
+        </div>
+
+        <div className="anzahlung-print-area" style={{ border: '1px solid var(--color-accent)', borderRadius: 8, padding: '18px 16px', marginBottom: 20 }}>
+          <div style={{ fontSize: 10, textTransform: 'uppercase', letterSpacing: 1, color: '#999', marginBottom: 4 }}>Bestätigung Anzahlung</div>
+          <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 10 }}>SkinProject</div>
+          <div style={{ fontSize: 12, marginBottom: 4 }}>
+            <strong>Kunde:</strong> {customerName}
+          </div>
+          <div style={{ fontSize: 12, marginBottom: 4 }}>
+            <strong>Datum:</strong> {new Date().toLocaleString('de-CH', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
+          </div>
+          <div style={{ fontSize: 12, marginBottom: 4 }}>
+            <strong>Bezahlt mit:</strong> {method}
+          </div>
+          {soldVoucher && (
+            <div style={{ fontSize: 12, marginBottom: 10 }}>
+              <strong>Referenz:</strong> <span style={{ fontFamily: 'monospace' }}>{soldVoucher.code}</span>
+            </div>
+          )}
+          <div style={{ borderTop: '1px solid var(--color-border)', paddingTop: 10, display: 'flex', justifyContent: 'space-between', fontWeight: 700, fontSize: 16 }}>
+            <div>Anzahlung</div>
+            <div>CHF {numValue.toFixed(2)}</div>
+          </div>
+        </div>
+
+        <div className="anzahlung-no-print" style={{ display: 'flex', gap: 10 }}>
+          <button className="btn btn-secondary" style={{ flex: 1, justifyContent: 'center' }} onClick={() => window.print()}>
+            Drucken
+          </button>
+          <button className="btn btn-primary" style={{ flex: 1, justifyContent: 'center' }} onClick={onSold}>
             Schliessen
           </button>
         </div>

@@ -13,6 +13,7 @@ export default function Modal({
 }) {
   return (
     <div
+      className="modal-overlay"
       style={{
         position: 'fixed',
         inset: 0,
@@ -24,6 +25,7 @@ export default function Modal({
       }}
     >
       <div
+        className="modal-box"
         style={{
           width,
           maxWidth: '92vw',
@@ -36,7 +38,7 @@ export default function Modal({
           overflowY: 'auto',
         }}
       >
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 18 }}>
+        <div className="modal-header" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 18 }}>
           <div style={{ fontFamily: 'var(--font-heading)', fontSize: 19, fontWeight: 700 }}>{title}</div>
           <button onClick={onClose} style={{ background: 'none', border: 'none', fontSize: 16, color: '#999' }}>
             ✕
