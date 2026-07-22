@@ -299,6 +299,34 @@ export async function assignDocumentToAppointment(documentId: string, appointmen
   if (error) throw error;
 }
 
+export interface PendingHealthDoc {
+  docId: string;
+  customerId: string;
+  customerName: string;
+  createdAt: string;
+}
+
+// Für "Neuer Termin": Kunden, die bereits ein Gesundheitsformular ausgefüllt haben, das
+// aber noch keinem Termin zugewiesen ist (z.B. sitzen gerade im Salon und füllen es am
+// Tablet aus, bevor der Termin erfasst wird). Älteste zuerst -- die zuerst dran waren.
+export async function fetchCustomersWithPendingHealthDocs(): Promise<PendingHealthDoc[]> {
+  const { data, error } = await supabase
+    .from('customer_documents')
+    .select('id, created_at, customer_id, customers(vorname, name)')
+    .eq('type', 'document')
+    .is('appointment_id', null)
+    .order('created_at', { ascending: true });
+  if (error) throw error;
+  return ((data as any[]) || [])
+    .filter((d) => d.customer_id && d.customers)
+    .map((d) => ({
+      docId: d.id,
+      customerId: d.customer_id,
+      customerName: `${d.customers.vorname} ${d.customers.name}`,
+      createdAt: d.created_at,
+    }));
+}
+
 // ---------- Services / Products ----------
 export async function fetchServiceCategories() {
   const { data, error } = await supabase.from('service_categories').select('*').order('sort_order');

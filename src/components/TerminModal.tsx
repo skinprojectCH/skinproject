@@ -10,10 +10,13 @@ import {
   createAppointment,
   addAppointmentLineItems,
   createAbsence,
+  assignDocumentToAppointment,
+  fetchCustomersWithPendingHealthDocs,
   type Artist,
   type Customer,
   type Service,
   type ServiceCategory,
+  type PendingHealthDoc,
 } from '../lib/queries';
 import NewCustomerModal from './NewCustomerModal';
 import { formatCHF } from '../lib/format';
@@ -48,14 +51,15 @@ export default function TerminModal({ onClose, onSave, locationId, initialDate, 
   const [categoryFilter, setCategoryFilter] = useState<string>('');
 
   useEffect(() => {
-    Promise.all([fetchArtists(), fetchCustomers(), fetchServices(), fetchServiceCategories(), fetchArtistIdsWithAnyShifts()])
-      .then(([a, c, s, cats, withShifts]) => {
+    Promise.all([fetchArtists(), fetchCustomers(), fetchServices(), fetchServiceCategories(), fetchArtistIdsWithAnyShifts(), fetchCustomersWithPendingHealthDocs()])
+      .then(([a, c, s, cats, withShifts, pending]) => {
         const active = a.filter((art) => art.status === 'active');
         setAllArtists(active);
         setIdsWithShifts(withShifts);
         setCustomers(c);
         setServices(s.filter((sv) => sv.active));
         setCategories(cats);
+        setPendingDocs(pending);
       })
       .catch((e) => setError(e.message));
   }, []);
@@ -67,6 +71,8 @@ export default function TerminModal({ onClose, onSave, locationId, initialDate, 
   const [date, setDate] = useState<string>(initialDate || new Date().toISOString().slice(0, 10));
   const [time, setTime] = useState<string>(initialTime || '14:00');
   const [selectedServices, setSelectedServices] = useState<string[]>(['']);
+  const [pendingDocs, setPendingDocs] = useState<PendingHealthDoc[]>([]);
+  const [selectedPendingDocId, setSelectedPendingDocId] = useState<string>('');
   const totalDuration = selectedServices.reduce((sum, id) => sum + (services.find((s) => s.id === id)?.duration_minutes || 0), 0);
   const totalPrice = selectedServices.reduce((sum, id) => sum + (services.find((s) => s.id === id)?.price || 0), 0);
 
@@ -140,6 +146,9 @@ export default function TerminModal({ onClose, onSave, locationId, initialDate, 
         .filter((s): s is Service => !!s)
         .map((s) => ({ service_id: s.id, quantity: 1, unit_price: s.price }));
       await addAppointmentLineItems(created.id, lineItems);
+      if (selectedPendingDocId) {
+        await assignDocumentToAppointment(selectedPendingDocId, created.id);
+      }
       onSave();
     } catch (e: any) {
       setError(e.message);
@@ -192,9 +201,38 @@ export default function TerminModal({ onClose, onSave, locationId, initialDate, 
 
       {tab === 'termin' ? (
         <>
+          {pendingDocs.length > 0 && (
+            <div style={{ marginBottom: 14, border: '1px solid var(--color-warn-border)', background: 'var(--color-accent-fill)', borderRadius: 6, padding: 12 }}>
+              {fieldLabel('Wartet im Salon (Gesundheitsformular bereits ausgefüllt)')}
+              <select
+                value={selectedPendingDocId}
+                onChange={(e) => {
+                  const docId = e.target.value;
+                  setSelectedPendingDocId(docId);
+                  const doc = pendingDocs.find((d) => d.docId === docId);
+                  if (doc) setSelectedCustomer(doc.customerId);
+                }}
+                style={{ ...boxStyle, width: '100%' }}
+              >
+                <option value="">— Keinen auswählen —</option>
+                {pendingDocs.map((d) => (
+                  <option key={d.docId} value={d.docId}>
+                    {d.customerName} · seit {new Date(d.createdAt).toLocaleTimeString('de-CH', { hour: '2-digit', minute: '2-digit' })}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
           <div style={{ marginBottom: 14 }}>
             {fieldLabel('Kunde auswählen')}
-            <select value={selectedCustomer} onChange={(e) => setSelectedCustomer(e.target.value)} style={{ ...boxStyle, width: '100%' }}>
+            <select
+              value={selectedCustomer}
+              onChange={(e) => {
+                setSelectedCustomer(e.target.value);
+                setSelectedPendingDocId('');
+              }}
+              style={{ ...boxStyle, width: '100%' }}
+            >
               <option value="">Laufkunde (kein Kunde)</option>
               {customers.map((c) => (
                 <option key={c.id} value={c.id}>
