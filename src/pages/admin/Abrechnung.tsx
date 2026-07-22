@@ -80,7 +80,7 @@ async function downloadLocationSummaryPdf(opts: { locationName: string; periodLa
   let y = 20;
 
   doc.setFontSize(16);
-  doc.text('Abrechnung', 14, y);
+  doc.text('Abrechnung Salon', 14, y);
   y += 7;
   doc.setFontSize(10);
   doc.setTextColor(120);
@@ -90,7 +90,6 @@ async function downloadLocationSummaryPdf(opts: { locationName: string; periodLa
 
   const b = opts.billing;
   const salonTotal = b.salonServiceRevenue + b.productRevenue + b.voucherRevenue;
-  const artistTotal = b.artistRows.reduce((s, r) => s + r.payout, 0);
 
   doc.setFontSize(12);
   doc.text('Übersicht', 14, y);
@@ -101,9 +100,7 @@ async function downloadLocationSummaryPdf(opts: { locationName: string; periodLa
     ['  davon Dienstleistungen (Anteil)', formatCHF(b.salonServiceRevenue)],
     ['  davon Produkte', formatCHF(b.productRevenue)],
     ['  davon Gutscheine', formatCHF(b.voucherRevenue)],
-    ['Umsatz Artists (Auszahlungen)', formatCHF(artistTotal)],
     ['Termine', String(b.orderCount)],
-    ['Umsatz gesamt (Salon + Artists)', formatCHF(salonTotal + artistTotal)],
   ];
   for (const [label, value] of summaryRows) {
     doc.text(label, 14, y);
@@ -111,40 +108,7 @@ async function downloadLocationSummaryPdf(opts: { locationName: string; periodLa
     y += 6;
   }
 
-  y += 6;
-  doc.setDrawColor(200);
-  doc.line(14, y, 196, y);
-  y += 10;
-
-  doc.setFontSize(12);
-  doc.text('Pro Artist', 14, y);
-  y += 8;
-  doc.setFontSize(9);
-  doc.setTextColor(120);
-  doc.text('Artist', 14, y);
-  doc.text('Umsatz', 110, y, { align: 'right' });
-  doc.text('Anteil', 150, y, { align: 'right' });
-  doc.text('Auszahlung', 196, y, { align: 'right' });
-  y += 6;
-  doc.setTextColor(0);
-  doc.setFontSize(10);
-  for (const row of b.artistRows) {
-    if (y > 280) {
-      doc.addPage();
-      y = 20;
-    }
-    doc.text(row.artistName, 14, y);
-    doc.text(formatCHF(row.revenue), 110, y, { align: 'right' });
-    doc.text(`${row.sharePct}%`, 150, y, { align: 'right' });
-    doc.text(formatCHF(row.payout), 196, y, { align: 'right' });
-    y += 7;
-  }
-  if (b.artistRows.length === 0) {
-    doc.setTextColor(150);
-    doc.text('Keine Dienstleistungsumsätze in diesem Zeitraum.', 14, y);
-  }
-
-  doc.save(`Abrechnung_${opts.locationName.replace(/[^\w-]+/g, '_')}_${opts.periodLabel.replace(/[^\w-]+/g, '_')}.pdf`);
+  doc.save(`Abrechnung_Salon_${opts.locationName.replace(/[^\w-]+/g, '_')}_${opts.periodLabel.replace(/[^\w-]+/g, '_')}.pdf`);
 }
 
 function ArtistDetailModal({
