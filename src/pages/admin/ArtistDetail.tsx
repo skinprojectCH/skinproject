@@ -149,9 +149,9 @@ export default function ArtistDetail() {
         strasse: strasse.trim() || null,
         plz_ort: plzOrt.trim() || null,
         ahv_nummer: ahvNummer.trim() || null,
-        mwst_aktiv: mwstAktiv,
-        mwst_nummer: mwstNummer.trim() || null,
-        mwst_prozent: mwstProzent ? parseFloat(mwstProzent) : null,
+        mwst_aktiv: isEmployee ? false : mwstAktiv,
+        mwst_nummer: isEmployee ? null : mwstNummer.trim() || null,
+        mwst_prozent: isEmployee ? null : mwstProzent ? parseFloat(mwstProzent) : null,
         revenue_share_pct: isEmployee ? 100 : parseFloat(revenueShare) || 0,
         is_employee: isEmployee,
         calendar_color: color,
@@ -319,6 +319,7 @@ export default function ArtistDetail() {
             <input value={ahvNummer} onChange={(e) => setAhvNummer(e.target.value)} style={inputStyle} placeholder="756.xxxx.xxxx.xx" />
           </div>
 
+          {!isEmployee && (
           <div style={{ border: '1px solid var(--color-border)', borderRadius: 6, padding: 14, marginBottom: 14, background: 'var(--color-surface)' }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
               <div style={{ fontSize: 13, fontWeight: 700 }}>MwSt.</div>
@@ -354,6 +355,7 @@ export default function ArtistDetail() {
               <div style={{ fontSize: 11, color: 'var(--color-destructive)', marginTop: 6 }}>Nummer und Satz müssen beide ausgefüllt sein, damit MwSt. aktiv ist.</div>
             )}
           </div>
+          )}
         </div>
 
         <div style={{ flex: 1, minWidth: 0 }}>
@@ -364,7 +366,11 @@ export default function ArtistDetail() {
                 checked={isEmployee}
                 onChange={(e) => {
                   setIsEmployee(e.target.checked);
-                  if (e.target.checked) setRevenueShare('100');
+                  if (e.target.checked) {
+                    setRevenueShare('100');
+                    setMwstNummer('');
+                    setMwstProzent('');
+                  }
                 }}
                 style={{ marginTop: 2 }}
               />
