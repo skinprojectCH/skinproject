@@ -114,14 +114,14 @@ export default function EditTerminModal({ appointmentId, onClose }: Props) {
   }, [selectedArtist]);
   const allowedServices = artistServiceIds.length > 0 ? services.filter((s) => artistServiceIds.includes(s.id)) : services;
 
-  async function handleSave() {
+  async function saveChanges(): Promise<boolean> {
     if (!selectedArtist || !date || !time) {
       setSaveError('Bitte Artist, Datum und Zeit auswählen.');
-      return;
+      return false;
     }
     if (!selectedServices.some((id) => id)) {
       setSaveError('Bitte mindestens einen Service auswählen.');
-      return;
+      return false;
     }
     setSaving(true);
     setSaveError(null);
@@ -146,10 +146,24 @@ export default function EditTerminModal({ appointmentId, onClose }: Props) {
         .map((s) => ({ service_id: s.id, quantity: 1, unit_price: s.price }));
       await replaceAppointmentLineItems(appointmentId, lineItems);
 
-      onClose();
+      return true;
     } catch (e: any) {
       setSaveError(e.message);
+      return false;
+    } finally {
       setSaving(false);
+    }
+  }
+
+  async function handleSave() {
+    if (await saveChanges()) onClose();
+  }
+
+  async function handleSaveAndCheckout() {
+    // Wichtig: ungespeicherte Änderungen (z.B. gerade hinzugefügter Service) müssen vor dem
+    // Wechsel zur Kasse persistiert sein, sonst fehlen sie dort und im Termin.
+    if (await saveChanges()) {
+      navigate('/kasse', { state: { appointmentId } });
     }
   }
 
@@ -327,8 +341,8 @@ export default function EditTerminModal({ appointmentId, onClose }: Props) {
         <button className="btn btn-secondary" style={{ flex: 1, justifyContent: 'center', opacity: saving ? 0.6 : 1 }} disabled={saving} onClick={handleSave}>
           {saving ? 'Speichert…' : 'Speichern'}
         </button>
-        <button className="btn btn-primary" style={{ flex: 1, justifyContent: 'center' }} onClick={() => navigate('/kasse', { state: { appointmentId } })}>
-          Kassieren
+        <button className="btn btn-primary" style={{ flex: 1, justifyContent: 'center', opacity: saving ? 0.6 : 1 }} disabled={saving} onClick={handleSaveAndCheckout}>
+          {saving ? 'Speichert…' : 'Kassieren'}
         </button>
       </div>
 
