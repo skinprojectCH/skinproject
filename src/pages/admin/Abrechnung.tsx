@@ -100,7 +100,9 @@ async function downloadLocationSummaryPdf(opts: { locationName: string; periodLa
     ['  davon Dienstleistungen (Anteil)', formatCHF(b.salonServiceRevenue)],
     ['  davon Produkte', formatCHF(b.productRevenue)],
     ['  davon Gutscheine', formatCHF(b.voucherRevenue)],
+    ...(b.anzahlungRedeemedRevenue > 0 ? ([['  davon mit Anzahlung bezahlt', formatCHF(b.anzahlungRedeemedRevenue)]] as [string, string][]) : []),
     ['Termine', String(b.orderCount)],
+    ...(b.anzahlungRevenue > 0 ? ([['Anzahlung (neu erfasst, nicht Umsatz)', formatCHF(b.anzahlungRevenue)]] as [string, string][]) : []),
   ];
   for (const [label, value] of summaryRows) {
     doc.text(label, 14, y);
