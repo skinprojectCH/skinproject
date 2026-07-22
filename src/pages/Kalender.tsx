@@ -923,7 +923,7 @@ function ListView({
 
   const [showUnresolved, setShowUnresolved] = useState(false);
   const [unresolved, setUnresolved] = useState<LoadedAppointment[]>([]);
-  const [unresolvedLoading, setUnresolvedLoading] = useState(false);
+  const [unresolvedLoading, setUnresolvedLoading] = useState(true);
   const [unresolvedError, setUnresolvedError] = useState<string | null>(null);
 
   function loadUnresolved() {
@@ -935,13 +935,12 @@ function ListView({
       .finally(() => setUnresolvedLoading(false));
   }
 
+  // Direkt beim Öffnen der Listenansicht prüfen, ob es offene vergangene Termine gibt --
+  // nur dann wird der Button überhaupt angezeigt (nicht erst nach einem Klick sichtbar).
+  useEffect(loadUnresolved, [locationId]);
+
   function toggleUnresolved() {
-    if (showUnresolved) {
-      setShowUnresolved(false);
-      return;
-    }
-    setShowUnresolved(true);
-    loadUnresolved();
+    setShowUnresolved((prev) => !prev);
   }
 
   if (showUnresolved) {
@@ -1027,23 +1026,25 @@ function ListView({
 
   return (
     <div>
-      <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 14 }}>
-        <button
-          onClick={toggleUnresolved}
-          style={{
-            border: '1px solid var(--color-destructive)',
-            background: '#F6ECEC',
-            color: 'var(--color-destructive)',
-            padding: '8px 14px',
-            fontSize: 12,
-            fontWeight: 600,
-            borderRadius: 4,
-            cursor: 'pointer',
-          }}
-        >
-          ⚠ Offene vergangene Termine
-        </button>
-      </div>
+      {!unresolvedLoading && !unresolvedError && unresolved.length > 0 && (
+        <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 14 }}>
+          <button
+            onClick={toggleUnresolved}
+            style={{
+              border: '1px solid var(--color-destructive)',
+              background: '#F6ECEC',
+              color: 'var(--color-destructive)',
+              padding: '8px 14px',
+              fontSize: 12,
+              fontWeight: 600,
+              borderRadius: 4,
+              cursor: 'pointer',
+            }}
+          >
+            ⚠ Offene vergangene Termine ({unresolved.length})
+          </button>
+        </div>
+      )}
       <div style={{ border: '1px solid var(--color-border)', borderRadius: 6, background: 'var(--color-surface)', overflow: 'hidden' }}>
       <div
         style={{
