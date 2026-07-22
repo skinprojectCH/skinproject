@@ -525,36 +525,63 @@ export default function Abrechnung() {
             </div>
           </div>
 
-          <div style={{ border: '1px solid var(--color-border)', borderRadius: 6, background: 'var(--color-surface)', overflow: 'hidden' }}>
-            <div style={{ display: 'grid', gridTemplateColumns: '1.4fr 1fr 1fr 1fr 0.7fr', padding: '10px 14px', fontSize: 11, textTransform: 'uppercase', letterSpacing: 0.5, color: '#999', borderBottom: '1px solid var(--color-border)', fontWeight: 600 }}>
-              <div>Artist</div>
-              <div>Umsatz</div>
-              <div>Miet- &amp; Serviceanteil</div>
-              <div>Auszahlung</div>
-              <div></div>
-            </div>
-            {billing.artistRows.length === 0 ? (
-              <div style={{ padding: 16, fontSize: 12, color: '#999' }}>Keine Dienstleistungsumsätze in diesem Zeitraum.</div>
-            ) : (
-              billing.artistRows.map((row) => (
-                <div
-                  key={row.artistId}
-                  style={{ display: 'grid', gridTemplateColumns: '1.4fr 1fr 1fr 1fr 0.7fr', padding: '14px', fontSize: 13, borderBottom: '1px solid var(--color-border-subtle, #eee)', alignItems: 'center' }}
-                >
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <span style={{ width: 8, height: 8, borderRadius: '50%', background: row.calendarColor, display: 'inline-block', flexShrink: 0 }} />
-                    {row.artistName}
-                  </div>
-                  <div>{formatCHF(row.revenue)}</div>
-                  <div>{row.sharePct}%</div>
-                  <div style={{ fontWeight: 600 }}>{formatCHF(row.payout)}</div>
-                  <div onClick={() => setDetailRow(row)} style={{ color: 'var(--color-accent)', fontWeight: 600, cursor: 'pointer', textAlign: 'right' }}>
-                    Detail
-                  </div>
+          {(() => {
+            const employeeRows = billing.artistRows.filter((r) => r.isEmployee);
+            const artistRows = billing.artistRows.filter((r) => !r.isEmployee);
+
+            const tableHeader = (
+              <div style={{ display: 'grid', gridTemplateColumns: '1.4fr 1fr 1fr 1fr 0.7fr', padding: '10px 14px', fontSize: 11, textTransform: 'uppercase', letterSpacing: 0.5, color: '#999', borderBottom: '1px solid var(--color-border)', fontWeight: 600 }}>
+                <div>Name</div>
+                <div>Umsatz</div>
+                <div>Miet- &amp; Serviceanteil</div>
+                <div>Auszahlung</div>
+                <div></div>
+              </div>
+            );
+
+            const renderRow = (row: LocationBillingArtistRow) => (
+              <div
+                key={row.artistId}
+                style={{ display: 'grid', gridTemplateColumns: '1.4fr 1fr 1fr 1fr 0.7fr', padding: '14px', fontSize: 13, borderBottom: '1px solid var(--color-border-subtle, #eee)', alignItems: 'center' }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <span style={{ width: 8, height: 8, borderRadius: '50%', background: row.calendarColor, display: 'inline-block', flexShrink: 0 }} />
+                  {row.artistName}
                 </div>
-              ))
-            )}
-          </div>
+                <div>{formatCHF(row.revenue)}</div>
+                <div>{row.sharePct}%</div>
+                <div style={{ fontWeight: 600 }}>{formatCHF(row.payout)}</div>
+                <div onClick={() => setDetailRow(row)} style={{ color: 'var(--color-accent)', fontWeight: 600, cursor: 'pointer', textAlign: 'right' }}>
+                  Detail
+                </div>
+              </div>
+            );
+
+            return (
+              <>
+                {employeeRows.length > 0 && (
+                  <div style={{ marginBottom: 20 }}>
+                    <div style={{ fontSize: 12, fontWeight: 700, marginBottom: 8, color: 'var(--color-accent)' }}>Mitarbeiter</div>
+                    <div style={{ border: '1px solid var(--color-border)', borderRadius: 6, background: 'var(--color-surface)', overflow: 'hidden' }}>
+                      {tableHeader}
+                      {employeeRows.map(renderRow)}
+                    </div>
+                    <div style={{ fontSize: 11, color: '#999', marginTop: 6 }}>Umsatz fliesst zu 100% an den Salon, ist bereits im Salon-Total enthalten.</div>
+                  </div>
+                )}
+
+                <div style={{ fontSize: 12, fontWeight: 700, marginBottom: 8 }}>Artists</div>
+                <div style={{ border: '1px solid var(--color-border)', borderRadius: 6, background: 'var(--color-surface)', overflow: 'hidden' }}>
+                  {tableHeader}
+                  {artistRows.length === 0 ? (
+                    <div style={{ padding: 16, fontSize: 12, color: '#999' }}>Keine Dienstleistungsumsätze in diesem Zeitraum.</div>
+                  ) : (
+                    artistRows.map(renderRow)
+                  )}
+                </div>
+              </>
+            );
+          })()}
         </>
       ) : null}
 

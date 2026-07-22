@@ -961,6 +961,7 @@ export interface LocationBillingArtistRow {
   revenue: number; // eigener Dienstleistungsanteil (vor Beteiligung)
   sharePct: number;
   payout: number; // revenue * (1 - sharePct/100) -- sharePct ist der Salon-Anteil
+  isEmployee: boolean;
 }
 
 export interface LocationBilling {
@@ -984,7 +985,7 @@ export async function fetchLocationBilling(locationId: string, startDateISO: str
   // Termine unterschiedlich zählten).
   const { data: appts, error: apptError } = await supabase
     .from('appointments')
-    .select('id, artist_id, artists(id, name, calendar_color, revenue_share_pct), orders(total, subtotal, status, order_line_items(service_id, product_id, line_total))')
+    .select('id, artist_id, artists(id, name, calendar_color, revenue_share_pct, is_employee), orders(total, subtotal, status, order_line_items(service_id, product_id, line_total))')
     .eq('location_id', locationId)
     .eq('type', 'termin')
     .gte('start_time', start)
@@ -1042,7 +1043,7 @@ export async function fetchLocationBilling(locationId: string, startDateISO: str
     const discountFactor = Number(order.subtotal) > 0 ? Number(order.total) / Number(order.subtotal) : 1;
     const revenue = serviceSubtotal * discountFactor;
     if (!byArtist[artist.id]) {
-      byArtist[artist.id] = { artistId: artist.id, artistName: artist.name, calendarColor: artist.calendar_color, revenue: 0, sharePct: artist.revenue_share_pct || 0, payout: 0 };
+      byArtist[artist.id] = { artistId: artist.id, artistName: artist.name, calendarColor: artist.calendar_color, revenue: 0, sharePct: artist.revenue_share_pct || 0, payout: 0, isEmployee: !!artist.is_employee };
     }
     byArtist[artist.id].revenue += revenue;
   }
