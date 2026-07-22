@@ -112,6 +112,10 @@ const NAV_ITEMS: NavItem[] = [
     label: 'Gutscheine',
     path: '/admin/gutscheine',
     icon: () => <GutscheinIcon />,
+    children: [
+      { key: 'gutscheine-liste', label: 'Gutscheine', path: '/admin/gutscheine' },
+      { key: 'anzahlungen', label: 'Anzahlungen', path: '/admin/anzahlungen' },
+    ],
   },
   {
     key: 'inventar',

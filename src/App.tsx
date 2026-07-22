@@ -17,6 +17,7 @@ import Statistiken from './pages/admin/Statistiken';
 import Abrechnung from './pages/admin/Abrechnung';
 import Locations from './pages/admin/Locations';
 import Gutscheine from './pages/admin/Gutscheine';
+import Anzahlungen from './pages/admin/Anzahlungen';
 import ArtistApp from './pages/artist/ArtistApp';
 import RegisterCustomer from './pages/register/RegisterCustomer';
 import GutscheinKaufen from './pages/public/GutscheinKaufen';
@@ -50,6 +51,7 @@ export default function App() {
         <Route path="/admin/abrechnung" element={<Abrechnung />} />
         <Route path="/admin/locations" element={<Locations />} />
         <Route path="/admin/gutscheine" element={<Gutscheine />} />
+        <Route path="/admin/anzahlungen" element={<Anzahlungen />} />
         </Route>
       </Route>
     </Routes>

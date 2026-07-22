@@ -773,6 +773,13 @@ export async function fetchVouchers() {
   return data as Voucher[];
 }
 
+// Übersicht aller Anzahlungen (Kunden-Guthaben) -- separat von den normalen Gutscheinen.
+export async function fetchAnzahlungen() {
+  const { data, error } = await supabase.from('vouchers').select('*').eq('type', 'anzahlung').order('created_at', { ascending: false });
+  if (error) throw error;
+  return data as Voucher[];
+}
+
 export async function createVoucher(input: { code: string; value: number; buyer_customer_id?: string | null }) {
   const { data, error } = await supabase
     .from('vouchers')
