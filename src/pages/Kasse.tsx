@@ -392,23 +392,17 @@ function SellAnzahlungModal({
       <Modal title="Anzahlung erfasst" onClose={onSold} width={380}>
         <style>{`
           @media print {
-            .anzahlung-no-print, .modal-header, .kasse-no-print { display: none !important; }
-            .modal-overlay {
-              position: static !important;
-              background: none !important;
-              display: block !important;
-            }
-            .modal-box {
-              width: auto !important;
-              max-width: none !important;
-              max-height: none !important;
-              overflow: visible !important;
-              box-shadow: none !important;
-            }
+            body * { visibility: hidden; }
+            .anzahlung-print-area, .anzahlung-print-area * { visibility: visible; }
             .anzahlung-print-area {
+              position: absolute;
+              left: 0;
+              top: 0;
+              width: 100%;
               background: #fff !important;
               border: 1px solid #000 !important;
               color: #000 !important;
+              box-shadow: none !important;
             }
             .anzahlung-print-area * { color: #000 !important; }
           }
