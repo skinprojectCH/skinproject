@@ -18,6 +18,7 @@ export interface Artist {
   mwst_nummer: string | null;
   mwst_prozent: number | null;
   pin_hash: string | null;
+  is_employee: boolean;
 }
 
 export interface Customer {

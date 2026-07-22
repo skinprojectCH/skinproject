@@ -56,6 +56,7 @@ export default function ArtistDetail() {
   const [mwstNummer, setMwstNummer] = useState('');
   const [mwstProzent, setMwstProzent] = useState('');
   const [revenueShare, setRevenueShare] = useState('');
+  const [isEmployee, setIsEmployee] = useState(false);
   const [color, setColor] = useState(ARTIST_COLORS[0]);
   const [locationId, setLocationId] = useState<string>('');
   const [locations, setLocations] = useState<Location[]>([]);
@@ -107,6 +108,7 @@ export default function ArtistDetail() {
         setMwstNummer(found.mwst_nummer || '');
         setMwstProzent(found.mwst_prozent != null ? String(found.mwst_prozent) : '');
         setRevenueShare(String(found.revenue_share_pct));
+        setIsEmployee(found.is_employee);
         setColor(found.calendar_color);
         setLocationId(found.location_id || '');
         setLocations(allLocations);
@@ -150,7 +152,8 @@ export default function ArtistDetail() {
         mwst_aktiv: mwstAktiv,
         mwst_nummer: mwstNummer.trim() || null,
         mwst_prozent: mwstProzent ? parseFloat(mwstProzent) : null,
-        revenue_share_pct: parseFloat(revenueShare) || 0,
+        revenue_share_pct: isEmployee ? 100 : parseFloat(revenueShare) || 0,
+        is_employee: isEmployee,
         calendar_color: color,
       };
       if (isNew) {
@@ -354,12 +357,38 @@ export default function ArtistDetail() {
         </div>
 
         <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ border: '1px solid var(--color-border)', borderRadius: 6, padding: 14, marginBottom: 20, background: 'var(--color-accent-fill)' }}>
+            <label style={{ display: 'flex', alignItems: 'flex-start', gap: 10, cursor: 'pointer' }}>
+              <input
+                type="checkbox"
+                checked={isEmployee}
+                onChange={(e) => {
+                  setIsEmployee(e.target.checked);
+                  if (e.target.checked) setRevenueShare('100');
+                }}
+                style={{ marginTop: 2 }}
+              />
+              <div>
+                <div style={{ fontSize: 13, fontWeight: 700 }}>Mitarbeiter (Angestellte:r statt freischaffend)</div>
+                <div style={{ fontSize: 11, color: '#777', marginTop: 2 }}>Umsatz fliesst zu 100% an den Salon, kein persönlicher Anteil/Auszahlung.</div>
+              </div>
+            </label>
+          </div>
+
           <div style={{ marginBottom: 20 }}>
             <div className="label-uppercase" style={{ marginBottom: 4 }}>
               Miet- &amp; Serviceanteil in %
             </div>
-            <input value={revenueShare} onChange={(e) => setRevenueShare(e.target.value)} style={{ ...inputStyle, width: 120 }} inputMode="decimal" />
-            <div style={{ fontSize: 11, color: '#999', marginTop: 4 }}>z.B. 60% Artist / 40% SkinProject (nur auf Dienstleistungen)</div>
+            <input
+              value={isEmployee ? '100' : revenueShare}
+              onChange={(e) => setRevenueShare(e.target.value)}
+              disabled={isEmployee}
+              style={{ ...inputStyle, width: 120, opacity: isEmployee ? 0.5 : 1 }}
+              inputMode="decimal"
+            />
+            <div style={{ fontSize: 11, color: '#999', marginTop: 4 }}>
+              {isEmployee ? 'Bei Mitarbeitern fix auf 100% (Salon).' : 'z.B. 60% Artist / 40% SkinProject (nur auf Dienstleistungen)'}
+            </div>
           </div>
 
           <div style={{ border: '1px solid var(--color-border)', borderRadius: 6, padding: 14, marginBottom: 20, background: 'var(--color-surface)' }}>

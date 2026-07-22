@@ -114,7 +114,14 @@ export default function Artists() {
               }}
             >
               <div style={{ width: 14, height: 14, borderRadius: '50%', background: a.calendar_color }} />
-              <div style={{ fontWeight: 500 }}>{a.name}</div>
+              <div style={{ fontWeight: 500, display: 'flex', alignItems: 'center', gap: 8 }}>
+                {a.name}
+                {a.is_employee && (
+                  <span style={{ border: '1px solid var(--color-accent)', color: 'var(--color-accent)', borderRadius: 10, padding: '1px 8px', fontSize: 9, fontWeight: 700, textTransform: 'uppercase' }}>
+                    Mitarbeiter
+                  </span>
+                )}
+              </div>
               <div style={{ width: 16, height: 16, background: a.calendar_color, borderRadius: 4 }} />
               <div
                 style={{
