@@ -203,7 +203,7 @@ export default function TerminModal({ onClose, onSave, locationId, initialDate, 
         <>
           {pendingDocs.length > 0 && (
             <div style={{ marginBottom: 14, border: '1px solid var(--color-warn-border)', background: 'var(--color-accent-fill)', borderRadius: 6, padding: 12 }}>
-              {fieldLabel('Wartet im Salon (Gesundheitsformular bereits ausgefüllt)')}
+              {fieldLabel('Ausgefüllte Gesundheitsformulare')}
               <select
                 value={selectedPendingDocId}
                 onChange={(e) => {
@@ -218,6 +218,7 @@ export default function TerminModal({ onClose, onSave, locationId, initialDate, 
                 {pendingDocs.map((d) => (
                   <option key={d.docId} value={d.docId}>
                     {d.customerName} · seit {new Date(d.createdAt).toLocaleTimeString('de-CH', { hour: '2-digit', minute: '2-digit' })}
+                    {d.treatmentType ? ` · ${d.treatmentType === 'tattoo' ? 'Tattoo' : 'Piercing'}` : ''}
                   </option>
                 ))}
               </select>

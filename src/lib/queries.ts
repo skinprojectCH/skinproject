@@ -304,6 +304,7 @@ export interface PendingHealthDoc {
   customerId: string;
   customerName: string;
   createdAt: string;
+  treatmentType: 'tattoo' | 'piercing' | null;
 }
 
 // Für "Neuer Termin": Kunden, die bereits ein Gesundheitsformular ausgefüllt haben, das
@@ -317,14 +318,39 @@ export async function fetchCustomersWithPendingHealthDocs(): Promise<PendingHeal
     .is('appointment_id', null)
     .order('created_at', { ascending: true });
   if (error) throw error;
-  return ((data as any[]) || [])
+
+  const pending = ((data as any[]) || [])
     .filter((d) => d.customer_id && d.customers)
     .map((d) => ({
       docId: d.id,
       customerId: d.customer_id,
       customerName: `${d.customers.vorname} ${d.customers.name}`,
       createdAt: d.created_at,
+      treatmentType: null as 'tattoo' | 'piercing' | null,
     }));
+  if (pending.length === 0) return pending;
+
+  // Interesse (Tattoo/Piercing) aus dem Gesundheitsfragebogen ergänzen -- jeweils die
+  // neueste Antwort pro Kunde, falls mehrfach ausgefüllt.
+  const customerIds = [...new Set(pending.map((p) => p.customerId))];
+  const { data: responses, error: respError } = await supabase
+    .from('health_questionnaire_responses')
+    .select('customer_id, detail_text, created_at')
+    .eq('question_key', 'treatment_type')
+    .in('customer_id', customerIds)
+    .order('created_at', { ascending: false });
+  if (respError) throw respError;
+
+  const latestByCustomer: Record<string, 'tattoo' | 'piercing'> = {};
+  for (const r of (responses as any[]) || []) {
+    if (!(r.customer_id in latestByCustomer) && (r.detail_text === 'tattoo' || r.detail_text === 'piercing')) {
+      latestByCustomer[r.customer_id] = r.detail_text;
+    }
+  }
+  for (const p of pending) {
+    p.treatmentType = latestByCustomer[p.customerId] || null;
+  }
+  return pending;
 }
 
 // ---------- Services / Products ----------
