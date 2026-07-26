@@ -134,7 +134,10 @@ export default function TerminModal({ onClose, onSave, locationId, initialDate, 
   const [absenceNotes, setAbsenceNotes] = useState('');
 
   useEffect(() => {
-    if (artists.length && !absenceArtist) setAbsenceArtist(artists[0].id);
+    if (artists.length && !absenceArtist) {
+      const preferred = initialArtistId && artists.some((a) => a.id === initialArtistId) ? initialArtistId : artists[0].id;
+      setAbsenceArtist(preferred);
+    }
   }, [artists, absenceArtist]);
 
   async function handleSaveTermin() {
