@@ -12,7 +12,7 @@ import {
   fetchCurrentUserLocationId,
   checkoutOrder,
   fetchVoucherByCode,
-  fetchActiveAnzahlungForCustomer,
+  fetchActiveAnzahlungenForCustomer,
   sellAnzahlung,
   fetchAppointment,
   fetchAppointmentLineItems,
@@ -500,28 +500,42 @@ function CheckoutModal({
   subtotal,
   initialMethod,
   customerId,
-  initialAnzahlung,
+  initialAnzahlungList,
   onClose,
   onComplete,
 }: {
   subtotal: number;
   initialMethod?: string | null;
   customerId?: string | null;
-  initialAnzahlung?: Voucher | null;
+  initialAnzahlungList?: Voucher[] | null;
   onClose: () => void;
   onComplete: (payments: { method: string; amount: number; voucher_id?: string | null }[], total: number, discountType: 'percent' | 'chf' | null, discountValue: number) => Promise<void>;
 }) {
   const [discountMode, setDiscountMode] = useState<'percent' | 'chf'>('percent');
   const [discountInput, setDiscountInput] = useState('');
   const [appliedDiscountPct, setAppliedDiscountPct] = useState(0);
+
+  // Verteilt einen Zielbetrag über eine oder mehrere Anzahlungen (älteste zuerst), da ein
+  // Kunde mehrere aktive Anzahlungen gleichzeitig haben kann (z.B. mehrfach eingezahlt).
+  function allocateAnzahlungRows(list: Voucher[], targetAmount: number, excludeIds: Set<string> = new Set()): { rows: SplitPayment[]; remaining: number } {
+    let remaining = targetAmount;
+    const rows: SplitPayment[] = [];
+    for (const v of list) {
+      if (remaining <= 0.001) break;
+      if (excludeIds.has(v.id)) continue;
+      const take = Math.min(remaining, v.remaining_value);
+      if (take <= 0) continue;
+      rows.push({ id: crypto.randomUUID(), method: 'Anzahlung', amount: roundToRappen(take), voucherId: v.id, voucherRemaining: v.remaining_value, voucherValue: v.value, voucherCode: v.code });
+      remaining -= take;
+    }
+    return { rows, remaining: Math.max(0, roundToRappen(remaining)) };
+  }
+
   const [payments, setPayments] = useState<SplitPayment[]>(() => {
-    if (initialAnzahlung) {
-      const amount = Math.min(subtotal, initialAnzahlung.remaining_value);
-      const rows: SplitPayment[] = [
-        { id: crypto.randomUUID(), method: 'Anzahlung', amount, voucherId: initialAnzahlung.id, voucherRemaining: initialAnzahlung.remaining_value, voucherValue: initialAnzahlung.value },
-      ];
-      if (amount < subtotal) {
-        rows.push({ id: crypto.randomUUID(), method: initialMethod || 'Karte', amount: roundToRappen(subtotal - amount) });
+    if (initialAnzahlungList && initialAnzahlungList.length > 0) {
+      const { rows, remaining } = allocateAnzahlungRows(initialAnzahlungList, subtotal);
+      if (remaining > 0.001) {
+        rows.push({ id: crypto.randomUUID(), method: initialMethod || 'Karte', amount: remaining });
       }
       return rows;
     }
@@ -529,17 +543,38 @@ function CheckoutModal({
   });
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [customerAnzahlung, setCustomerAnzahlung] = useState<Voucher | null>(initialAnzahlung || null);
+  const [customerAnzahlungen, setCustomerAnzahlungen] = useState<Voucher[]>(initialAnzahlungList || []);
 
   useEffect(() => {
     if (!customerId) {
-      setCustomerAnzahlung(null);
+      setCustomerAnzahlungen([]);
       return;
     }
-    fetchActiveAnzahlungForCustomer(customerId)
-      .then(setCustomerAnzahlung)
-      .catch(() => setCustomerAnzahlung(null));
+    fetchActiveAnzahlungenForCustomer(customerId)
+      .then(setCustomerAnzahlungen)
+      .catch(() => setCustomerAnzahlungen([]));
   }, [customerId]);
+
+  // Setzt eine Zeile auf Anzahlung -- verteilt den bisherigen Betrag dieser Zeile ggf. auf
+  // mehrere Anzahlungen (falls eine allein nicht reicht) und ersetzt die Zeile entsprechend.
+  function setRowToAnzahlung(rowId: string) {
+    setPayments((prev) => {
+      const row = prev.find((p) => p.id === rowId);
+      if (!row) return prev;
+      const usedIds = new Set(prev.filter((p) => p.id !== rowId && p.voucherId).map((p) => p.voucherId!));
+      const { rows, remaining } = allocateAnzahlungRows(customerAnzahlungen, row.amount, usedIds);
+      if (rows.length === 0) {
+        return prev.map((p) => (p.id === rowId ? { ...p, method: 'Anzahlung', voucherId: null, voucherRemaining: null, voucherError: 'Kein Guthaben für diesen Kunden gefunden.', voucherCode: '' } : p));
+      }
+      if (remaining > 0.001) {
+        rows.push({ id: crypto.randomUUID(), method: 'Karte', amount: remaining });
+      }
+      const idx = prev.findIndex((p) => p.id === rowId);
+      const before = prev.slice(0, idx);
+      const after = prev.slice(idx + 1);
+      return [...before, ...rows, ...after];
+    });
+  }
 
   const discountAmount = discountMode === 'percent' ? (subtotal * appliedDiscountPct) / 100 : appliedDiscountPct;
   const total = roundToRappen(Math.max(0, subtotal - discountAmount));
@@ -684,10 +719,8 @@ function CheckoutModal({
                 value={p.method}
                 onChange={(e) => {
                   const method = e.target.value;
-                  if (method === 'Anzahlung' && customerAnzahlung) {
-                    updatePayment(p.id, { method, voucherId: customerAnzahlung.id, voucherRemaining: customerAnzahlung.remaining_value, voucherValue: customerAnzahlung.value, voucherError: null, voucherCode: customerAnzahlung.code });
-                  } else if (method === 'Anzahlung') {
-                    updatePayment(p.id, { method, voucherId: null, voucherRemaining: null, voucherError: 'Kein Guthaben für diesen Kunden gefunden.', voucherCode: '' });
+                  if (method === 'Anzahlung') {
+                    setRowToAnzahlung(p.id);
                   } else {
                     updatePayment(p.id, { method, voucherId: null, voucherRemaining: null, voucherError: null, voucherCode: '' });
                   }
@@ -731,10 +764,8 @@ function CheckoutModal({
                 value={p.method}
                 onChange={(e) => {
                   const method = e.target.value;
-                  if (method === 'Anzahlung' && customerAnzahlung) {
-                    updatePayment(p.id, { method, voucherId: customerAnzahlung.id, voucherRemaining: customerAnzahlung.remaining_value, voucherValue: customerAnzahlung.value, voucherError: null, voucherCode: customerAnzahlung.code });
-                  } else if (method === 'Anzahlung') {
-                    updatePayment(p.id, { method, voucherId: null, voucherRemaining: null, voucherError: 'Kein Guthaben für diesen Kunden gefunden.', voucherCode: '' });
+                  if (method === 'Anzahlung') {
+                    setRowToAnzahlung(p.id);
                   } else {
                     updatePayment(p.id, { method, voucherId: null, voucherRemaining: null, voucherError: null, voucherCode: '' });
                   }
@@ -771,10 +802,8 @@ function CheckoutModal({
                 value={p.method}
                 onChange={(e) => {
                   const method = e.target.value;
-                  if (method === 'Anzahlung' && customerAnzahlung) {
-                    updatePayment(p.id, { method, voucherId: customerAnzahlung.id, voucherRemaining: customerAnzahlung.remaining_value, voucherValue: customerAnzahlung.value, voucherError: null, voucherCode: customerAnzahlung.code });
-                  } else if (method === 'Anzahlung') {
-                    updatePayment(p.id, { method, voucherId: null, voucherRemaining: null, voucherError: 'Kein Guthaben für diesen Kunden gefunden.', voucherCode: '' });
+                  if (method === 'Anzahlung') {
+                    setRowToAnzahlung(p.id);
                   } else {
                     updatePayment(p.id, { method, voucherId: null, voucherRemaining: null, voucherError: null, voucherCode: '' });
                   }
@@ -927,8 +956,8 @@ export default function Kasse() {
   const [showServiceModal, setShowServiceModal] = useState(false);
   const [showVoucherModal, setShowVoucherModal] = useState(false);
   const [showAnzahlungModal, setShowAnzahlungModal] = useState(false);
-  const [anzahlungPrompt, setAnzahlungPrompt] = useState<Voucher | null>(null);
-  const [applyAnzahlung, setApplyAnzahlung] = useState<Voucher | null>(null);
+  const [anzahlungPrompt, setAnzahlungPrompt] = useState<Voucher[] | null>(null);
+  const [applyAnzahlung, setApplyAnzahlung] = useState<Voucher[] | null>(null);
   const [showProductModal, setShowProductModal] = useState(false);
   const [showCheckout, setShowCheckout] = useState(false);
   const [completed, setCompleted] = useState(false);
@@ -1069,9 +1098,9 @@ export default function Kasse() {
         }
         if (appt.customer_id) {
           setSelectedCustomerId(appt.customer_id);
-          fetchActiveAnzahlungForCustomer(appt.customer_id)
-            .then((v) => {
-              if (v) setAnzahlungPrompt(v);
+          fetchActiveAnzahlungenForCustomer(appt.customer_id)
+            .then((list) => {
+              if (list.length > 0) setAnzahlungPrompt(list);
             })
             .catch(() => {});
         }
@@ -1711,9 +1740,9 @@ export default function Kasse() {
             <div>{chf(subtotal)}</div>
           </div>
 
-          {applyAnzahlung && (
+          {applyAnzahlung && applyAnzahlung.length > 0 && (
             <div style={{ border: '1px solid var(--color-accent)', background: 'var(--color-accent-fill)', borderRadius: 6, padding: '10px 12px', marginBottom: 16, fontSize: 12, color: 'var(--color-primary)' }}>
-              Anzahlung von {chf(applyAnzahlung.remaining_value)} wird verrechnet — bitte über "Split Payment" kassieren.
+              Anzahlung von {chf(applyAnzahlung.reduce((s, v) => s + v.remaining_value, 0))} wird verrechnet — bitte über "Split Payment" kassieren.
             </div>
           )}
 
@@ -1800,7 +1829,7 @@ export default function Kasse() {
       {anzahlungPrompt && (
         <Modal title="Anzahlung verrechnen?" onClose={() => setAnzahlungPrompt(null)} width={380}>
           <div style={{ fontSize: 13, marginBottom: 20 }}>
-            Dieser Kunde hat eine Anzahlung von <strong>{chf(anzahlungPrompt.remaining_value)}</strong>. Jetzt bei diesem Termin verrechnen?
+            Dieser Kunde hat eine Anzahlung von <strong>{chf(anzahlungPrompt.reduce((s, v) => s + v.remaining_value, 0))}</strong>. Jetzt bei diesem Termin verrechnen?
           </div>
           <div style={{ display: 'flex', gap: 10 }}>
             <button
@@ -1838,7 +1867,7 @@ export default function Kasse() {
           subtotal={subtotal}
           initialMethod={paymentMethod}
           customerId={selectedCustomerId || null}
-          initialAnzahlung={applyAnzahlung}
+          initialAnzahlungList={applyAnzahlung}
           onClose={() => setShowCheckout(false)}
           onComplete={async (payments, total, discountType, discountValue) => {
             await handleCheckoutComplete(payments, total, discountType, discountValue);

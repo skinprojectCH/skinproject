@@ -661,7 +661,9 @@ export async function fetchVoucherByCode(code: string) {
 
 // Aktives Anzahlungs-Guthaben eines Kunden (falls vorhanden) -- für den automatischen
 // "Anzahlung jetzt verrechnen?"-Hinweis und die Zahlungsart in der Kasse.
-export async function fetchActiveAnzahlungForCustomer(customerId: string): Promise<Voucher | null> {
+// Alle aktiven Anzahlungen eines Kunden (kann mehrere geben, z.B. mehrfach eingezahlt).
+// Älteste zuerst, damit beim Verrechnen zuerst die älteste aufgebraucht wird.
+export async function fetchActiveAnzahlungenForCustomer(customerId: string): Promise<Voucher[]> {
   const { data, error } = await supabase
     .from('vouchers')
     .select('*')
@@ -669,11 +671,9 @@ export async function fetchActiveAnzahlungForCustomer(customerId: string): Promi
     .eq('type', 'anzahlung')
     .eq('status', 'aktiv')
     .gt('remaining_value', 0)
-    .order('created_at', { ascending: true })
-    .limit(1)
-    .maybeSingle();
+    .order('created_at', { ascending: true });
   if (error) throw error;
-  return data as Voucher | null;
+  return (data as Voucher[]) || [];
 }
 
 // Verkauft eine Anzahlung: Geld ist geflossen (payments-Eintrag existiert für die
