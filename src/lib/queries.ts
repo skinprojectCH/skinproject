@@ -172,6 +172,7 @@ export interface Voucher {
   buyer_name: string | null;
   buyer_email: string | null;
   type: 'gutschein' | 'anzahlung';
+  location_id: string | null;
 }
 
 // ---------- Artists ----------
@@ -683,7 +684,7 @@ export async function sellAnzahlung(opts: { customerId: string; locationId: stri
 
   const { data: voucher, error: voucherError } = await supabase
     .from('vouchers')
-    .insert({ code, value: opts.amount, remaining_value: opts.amount, status: 'aktiv', source: 'kasse', type: 'anzahlung', buyer_customer_id: opts.customerId })
+    .insert({ code, value: opts.amount, remaining_value: opts.amount, status: 'aktiv', source: 'kasse', type: 'anzahlung', buyer_customer_id: opts.customerId, location_id: opts.locationId })
     .select()
     .single();
   if (voucherError) throw voucherError;
@@ -1080,18 +1081,17 @@ export async function fetchLocationBilling(locationId: string, startDateISO: str
   const orderCount = paidApptOrders.length + walkInRows.length;
   const avgOrderValue = orderCount > 0 ? salonRevenue / orderCount : 0;
 
-  // Anzahlungs-Verkäufe (Geld geflossen, zählt bewusst NICHT als Umsatz) -- eigene
-  // Kennzahl fürs Abrechnungs-Kachel "Anzahlung".
-  const { data: anzahlungOrders, error: anzahlungError } = await supabase
-    .from('orders')
-    .select('total')
-    .eq('location_id', locationId)
-    .eq('status', 'bezahlt')
-    .eq('is_anzahlung', true)
-    .gte('created_at', start)
-    .lte('created_at', end);
+  // Aktueller OFFENER Bestand an Anzahlungen dieser Location -- bewusst OHNE Zeitraum-Filter,
+  // da es ein Kontostand ist (sinkt automatisch, sobald eine Anzahlung als Zahlungsart
+  // eingesetzt wird), keine reine Verkaufssumme dieses Zeitraums.
+  const { data: anzahlungVouchers, error: anzahlungError } = await supabase
+    .from('vouchers')
+    .select('remaining_value')
+    .eq('type', 'anzahlung')
+    .eq('status', 'aktiv')
+    .eq('location_id', locationId);
   if (anzahlungError) throw anzahlungError;
-  const anzahlungRevenue = ((anzahlungOrders as any[]) || []).reduce((s, o) => s + Number(o.total), 0);
+  const anzahlungRevenue = ((anzahlungVouchers as any[]) || []).reduce((s, v) => s + Number(v.remaining_value), 0);
 
   // Wie viel vom heutigen Umsatz wurde mit einer früher verkauften Anzahlung beglichen
   // (informativ -- ist bereits in Dienstleistungen/Produkte enthalten, keine zusätzliche

@@ -102,7 +102,7 @@ async function downloadLocationSummaryPdf(opts: { locationName: string; periodLa
     ['  davon Gutscheine', formatCHF(b.voucherRevenue)],
     ...(b.anzahlungRedeemedRevenue > 0 ? ([['  davon mit Anzahlung bezahlt', formatCHF(b.anzahlungRedeemedRevenue)]] as [string, string][]) : []),
     ['Termine', String(b.orderCount)],
-    ...(b.anzahlungRevenue > 0 ? ([['Anzahlung (neu erfasst, nicht Umsatz)', formatCHF(b.anzahlungRevenue)]] as [string, string][]) : []),
+    ...(b.anzahlungRevenue > 0 ? ([['Anzahlung (offener Bestand, nicht Umsatz)', formatCHF(b.anzahlungRevenue)]] as [string, string][]) : []),
   ];
   for (const [label, value] of summaryRows) {
     doc.text(label, 14, y);
@@ -534,7 +534,7 @@ export default function Abrechnung() {
             <div style={summaryCardStyle}>
               <div style={{ fontSize: 11, color: '#999', textTransform: 'uppercase', marginBottom: 8, fontWeight: 600 }}>Anzahlung</div>
               <div style={{ fontFamily: 'var(--font-heading)', fontSize: 22, fontWeight: 700 }}>{formatCHF(billing.anzahlungRevenue)}</div>
-              <div style={{ fontSize: 10, color: '#bbb', marginTop: 2 }}>noch nicht Umsatz</div>
+              <div style={{ fontSize: 10, color: '#bbb', marginTop: 2 }}>aktueller offener Bestand</div>
             </div>
           </div>
 
