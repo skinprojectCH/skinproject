@@ -1566,35 +1566,34 @@ export async function fetchDiscountStats(startDateISO: string, endDateISO: strin
 }
 
 // ---------- Kassenbestand ----------
-export interface CashAdjustment {
-  id: string;
-  location_id: string;
-  amount: number;
-  note: string | null;
-  created_by: string | null;
-  created_at: string;
-}
-
-// Laufender Kassenbestand einer Location: Summe aller manuellen Anpassungen (Start-Bargeld,
-// Korrekturen, Entnahmen) plus Summe aller je eingegangenen Bar-Zahlungen dieser Location.
-export async function fetchCashBalance(locationId: string): Promise<{ balance: number; adjustments: CashAdjustment[] }> {
-  const [{ data: adjustments, error: adjError }, { data: cashPayments, error: payError }] = await Promise.all([
-    supabase.from('cash_adjustments').select('*').eq('location_id', locationId).order('created_at', { ascending: false }),
-    supabase.from('payments').select('amount, orders!inner(location_id)').eq('method', 'bar').eq('orders.location_id', locationId),
-  ]);
-  if (adjError) throw adjError;
-  if (payError) throw payError;
-
-  const adjustmentTotal = ((adjustments as any[]) || []).reduce((s, a) => s + Number(a.amount), 0);
-  const cashPaymentTotal = ((cashPayments as any[]) || []).reduce((s, p) => s + Number(p.amount), 0);
-
-  return { balance: adjustmentTotal + cashPaymentTotal, adjustments: (adjustments as CashAdjustment[]) || [] };
-}
-
-// Nur der Hauptadmin darf den Kassenbestand manuell anpassen (in der UI entsprechend
-// abgesichert) -- z.B. Start-Bargeld am Morgen, Korrekturen, Bargeld-Entnahmen.
-export async function addCashAdjustment(locationId: string, amount: number, note: string, createdBy?: string | null) {
-  const { error } = await supabase.from('cash_adjustments').insert({ location_id: locationId, amount, note: note || null, created_by: createdBy || null });
+// Fixer Startbetrag pro Location (z.B. 300 CHF Wechselgeld), den nur der Hauptadmin setzt.
+// Der Tagesbestand ergibt sich als Startbetrag + Bareinnahmen des jeweiligen Tages -- am
+// Abend nimmt der Admin die Differenz raus, am nächsten Morgen steht wieder der Startbetrag.
+export async function fetchCashStartingBalance(locationId: string): Promise<number> {
+  const { data, error } = await supabase.from('location_cash_settings').select('starting_balance').eq('location_id', locationId).maybeSingle();
   if (error) throw error;
+  return data ? Number(data.starting_balance) : 0;
+}
+
+export async function setCashStartingBalance(locationId: string, amount: number, updatedBy?: string | null) {
+  const { error } = await supabase
+    .from('location_cash_settings')
+    .upsert({ location_id: locationId, starting_balance: amount, updated_at: new Date().toISOString(), updated_by: updatedBy || null });
+  if (error) throw error;
+}
+
+// Bareinnahmen eines einzelnen Tages an dieser Location (nach Bestell-Datum).
+export async function fetchCashIncomeForDay(locationId: string, dateISO: string): Promise<number> {
+  const start = `${dateISO}T00:00:00`;
+  const end = `${dateISO}T23:59:59`;
+  const { data, error } = await supabase
+    .from('payments')
+    .select('amount, orders!inner(location_id, created_at)')
+    .eq('method', 'bar')
+    .eq('orders.location_id', locationId)
+    .gte('orders.created_at', start)
+    .lte('orders.created_at', end);
+  if (error) throw error;
+  return ((data as any[]) || []).reduce((s, p) => s + Number(p.amount), 0);
 }
 
