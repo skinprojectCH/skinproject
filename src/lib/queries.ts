@@ -333,7 +333,7 @@ export async function fetchCustomersWithPendingHealthDocs(): Promise<PendingHeal
     }));
   if (pending.length === 0) return pending;
 
-  // Interesse (Tattoo/Piercing) aus dem Gesundheitsfragebogen ergänzen -- jeweils die
+  // Interesse (Tattoo/Piercing) aus der Einverständniserklärung ergänzen -- jeweils die
   // neueste Antwort pro Kunde, falls mehrfach ausgefüllt.
   const customerIds = [...new Set(pending.map((p) => p.customerId))];
   const { data: responses, error: respError } = await supabase

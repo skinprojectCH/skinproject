@@ -188,7 +188,7 @@ async function buildAndUploadPdf(opts: {
   y += 4;
 
   doc.setFontSize(12);
-  doc.text('Gesundheitsfragebogen', 14, y);
+  doc.text('Einverständniserklärung', 14, y);
   y += 7;
   doc.setFontSize(10);
   for (const a of opts.answers) {
@@ -687,7 +687,7 @@ export default function RegisterCustomer() {
         {/* N5 GESUNDHEITSFRAGEBOGEN */}
         {step === 'gesundheit' && (
           <div style={{ ...cardInner, padding: '20px 20px 14px' }}>
-            <div style={heading}>Gesundheitsfragebogen</div>
+            <div style={heading}>Einverständniserklärung</div>
             <div style={{ fontSize: 11, color: '#999', marginBottom: 14 }}>Bitte wahrheitsgemäss beantworten.</div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 9, overflowY: 'auto', maxHeight: '52vh', marginBottom: 14 }}>
               {GENERAL_QUESTIONS.map((q) => (
