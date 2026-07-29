@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useLocationContext } from '../../lib/locationContext';
-import { fetchLocationBilling, fetchLocationArtistBillingDetail, fetchLocations, type LocationBilling, type LocationBillingArtistRow, type LocationArtistBillingEntry } from '../../lib/queries';
+import { fetchLocationBilling, fetchLocationArtistBillingDetail, fetchLocations, fetchCashBalance, addCashAdjustment, type LocationBilling, type LocationBillingArtistRow, type LocationArtistBillingEntry, type CashAdjustment } from '../../lib/queries';
 import { formatCHF } from '../../lib/format';
 import Modal from '../../components/Modal';
 
@@ -33,6 +33,136 @@ const navBtnStyle: React.CSSProperties = {
 };
 
 const summaryCardStyle: React.CSSProperties = { border: '1px solid var(--color-border)', background: 'var(--color-surface)', borderRadius: 6, padding: 16 };
+
+function KassenbestandBox({ locationId, isHauptadmin }: { locationId: string; isHauptadmin: boolean }) {
+  const [balance, setBalance] = useState<number | null>(null);
+  const [adjustments, setAdjustments] = useState<CashAdjustment[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [showForm, setShowForm] = useState(false);
+  const [amountInput, setAmountInput] = useState('');
+  const [noteInput, setNoteInput] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [showHistory, setShowHistory] = useState(false);
+
+  function reload() {
+    setLoading(true);
+    setError(null);
+    fetchCashBalance(locationId)
+      .then((r) => {
+        setBalance(r.balance);
+        setAdjustments(r.adjustments);
+      })
+      .catch((e) => setError(e.message))
+      .finally(() => setLoading(false));
+  }
+
+  useEffect(reload, [locationId]);
+
+  async function handleSaveAdjustment() {
+    const amount = parseFloat(amountInput.replace(',', '.'));
+    if (isNaN(amount) || amount === 0) return;
+    setSaving(true);
+    try {
+      await addCashAdjustment(locationId, amount, noteInput.trim());
+      setAmountInput('');
+      setNoteInput('');
+      setShowForm(false);
+      reload();
+    } catch (e: any) {
+      setError(e.message);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div style={{ ...summaryCardStyle, marginBottom: 20, display: 'flex', flexDirection: 'column', gap: 10 }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12 }}>
+        <div>
+          <div style={{ fontSize: 11, color: '#999', textTransform: 'uppercase', fontWeight: 600, marginBottom: 4 }}>Kassenbestand</div>
+          {loading ? (
+            <div style={{ fontSize: 13, color: '#999' }}>Lädt…</div>
+          ) : error ? (
+            <div style={{ fontSize: 13, color: 'var(--color-destructive)' }}>Fehler: {error}</div>
+          ) : (
+            <div style={{ fontFamily: 'var(--font-heading)', fontSize: 22, fontWeight: 700 }}>{formatCHF(balance || 0)}</div>
+          )}
+        </div>
+        <div style={{ display: 'flex', gap: 10 }}>
+          {adjustments.length > 0 && (
+            <button className="btn btn-outline" onClick={() => setShowHistory(true)}>
+              Verlauf
+            </button>
+          )}
+          {isHauptadmin && (
+            <button className="btn btn-outline" onClick={() => setShowForm((v) => !v)}>
+              + Anpassung
+            </button>
+          )}
+        </div>
+      </div>
+
+      {!isHauptadmin && (
+        <div style={{ fontSize: 11, color: '#999' }}>Nur der Hauptadmin kann den Kassenbestand anpassen.</div>
+      )}
+
+      {showForm && isHauptadmin && (
+        <div style={{ borderTop: '1px solid var(--color-border)', paddingTop: 12, display: 'flex', gap: 10, alignItems: 'flex-end', flexWrap: 'wrap' }}>
+          <div>
+            <div className="label-uppercase" style={{ marginBottom: 4 }}>
+              Betrag (+ Einlage / − Entnahme)
+            </div>
+            <input
+              value={amountInput}
+              onChange={(e) => setAmountInput(e.target.value)}
+              placeholder="z.B. 300 oder -50"
+              style={{ border: '1px solid var(--color-border)', borderRadius: 4, padding: '8px 10px', fontSize: 13, width: 160 }}
+              inputMode="decimal"
+            />
+          </div>
+          <div style={{ flex: 1, minWidth: 180 }}>
+            <div className="label-uppercase" style={{ marginBottom: 4 }}>
+              Notiz (optional)
+            </div>
+            <input
+              value={noteInput}
+              onChange={(e) => setNoteInput(e.target.value)}
+              placeholder="z.B. Start-Bargeld Morgen"
+              style={{ border: '1px solid var(--color-border)', borderRadius: 4, padding: '8px 10px', fontSize: 13, width: '100%' }}
+            />
+          </div>
+          <button className="btn btn-primary" style={{ opacity: saving ? 0.6 : 1 }} disabled={saving} onClick={handleSaveAdjustment}>
+            {saving ? 'Speichert…' : 'Speichern'}
+          </button>
+        </div>
+      )}
+
+      {showHistory && (
+        <Modal title="Kassenbestand — Verlauf der Anpassungen" onClose={() => setShowHistory(false)} width={480}>
+          {adjustments.length === 0 ? (
+            <div style={{ fontSize: 13, color: '#999' }}>Noch keine manuellen Anpassungen.</div>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              {adjustments.map((a) => (
+                <div key={a.id} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, borderBottom: '1px solid var(--color-border)', paddingBottom: 8 }}>
+                  <div>
+                    <div>{a.note || '—'}</div>
+                    <div style={{ fontSize: 11, color: '#999' }}>{new Date(a.created_at).toLocaleString('de-CH')}</div>
+                  </div>
+                  <div style={{ fontWeight: 700, color: a.amount >= 0 ? '#1a7a3f' : 'var(--color-destructive)' }}>
+                    {a.amount >= 0 ? '+' : ''}
+                    {formatCHF(a.amount)}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </Modal>
+      )}
+    </div>
+  );
+}
 
 function periodLabel(period: Period, day: string, month: number, year: number) {
   if (period === 'tag') return new Date(day).toLocaleDateString('de-CH', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
@@ -383,6 +513,8 @@ export default function Abrechnung() {
           </select>
         )}
       </div>
+
+      {locationId && <KassenbestandBox locationId={locationId} isHauptadmin={!isLocationLocked} />}
 
       <div style={{ display: 'flex', borderBottom: '1px solid var(--color-border)', marginBottom: 20, fontSize: 13 }}>
         {(['tag', 'monat', 'jahr', 'mwst'] as const).map((p) => (

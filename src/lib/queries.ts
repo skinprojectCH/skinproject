@@ -1564,3 +1564,37 @@ export async function fetchDiscountStats(startDateISO: string, endDateISO: strin
   const discountPct = grossRevenue > 0 ? (discountAmount / grossRevenue) * 100 : 0;
   return { grossRevenue, netRevenue, discountAmount, discountPct };
 }
+
+// ---------- Kassenbestand ----------
+export interface CashAdjustment {
+  id: string;
+  location_id: string;
+  amount: number;
+  note: string | null;
+  created_by: string | null;
+  created_at: string;
+}
+
+// Laufender Kassenbestand einer Location: Summe aller manuellen Anpassungen (Start-Bargeld,
+// Korrekturen, Entnahmen) plus Summe aller je eingegangenen Bar-Zahlungen dieser Location.
+export async function fetchCashBalance(locationId: string): Promise<{ balance: number; adjustments: CashAdjustment[] }> {
+  const [{ data: adjustments, error: adjError }, { data: cashPayments, error: payError }] = await Promise.all([
+    supabase.from('cash_adjustments').select('*').eq('location_id', locationId).order('created_at', { ascending: false }),
+    supabase.from('payments').select('amount, orders!inner(location_id)').eq('method', 'bar').eq('orders.location_id', locationId),
+  ]);
+  if (adjError) throw adjError;
+  if (payError) throw payError;
+
+  const adjustmentTotal = ((adjustments as any[]) || []).reduce((s, a) => s + Number(a.amount), 0);
+  const cashPaymentTotal = ((cashPayments as any[]) || []).reduce((s, p) => s + Number(p.amount), 0);
+
+  return { balance: adjustmentTotal + cashPaymentTotal, adjustments: (adjustments as CashAdjustment[]) || [] };
+}
+
+// Nur der Hauptadmin darf den Kassenbestand manuell anpassen (in der UI entsprechend
+// abgesichert) -- z.B. Start-Bargeld am Morgen, Korrekturen, Bargeld-Entnahmen.
+export async function addCashAdjustment(locationId: string, amount: number, note: string, createdBy?: string | null) {
+  const { error } = await supabase.from('cash_adjustments').insert({ location_id: locationId, amount, note: note || null, created_by: createdBy || null });
+  if (error) throw error;
+}
+
