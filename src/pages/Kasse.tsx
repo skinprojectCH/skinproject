@@ -1351,6 +1351,10 @@ export default function Kasse() {
       const cardTotal = rows.reduce((s, r) => s + r.amount, 0);
       const mwstAmount = mwstActive && location?.mwst_prozent ? cardTotal - cardTotal / (1 + location.mwst_prozent / 100) : 0;
 
+      // Wenn der Artist an diesem Kassiervorgang nichts hatte (z.B. reiner Gutschein-/
+      // Anzahlungsverkauf ohne Termin), braucht es keine leere Artist-Quittung.
+      if (variant === 'artist' && rows.length === 0) return null;
+
       return (
         <div className="kasse-receipt-card" style={{ border: '1px solid var(--color-border)', borderRadius: 6, padding: 18, background: '#fff', flex: '1 1 320px', maxWidth: 380 }}>
           <div style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: 0.5, color: '#999', fontWeight: 700, marginBottom: 4 }}>
