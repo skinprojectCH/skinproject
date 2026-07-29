@@ -230,7 +230,7 @@ export default function TerminModal({ onClose, onSave, locationId, initialDate, 
         <>
           {pendingDocs.length > 0 && (
             <div style={{ marginBottom: 14, border: '1px solid var(--color-warn-border)', background: 'var(--color-accent-fill)', borderRadius: 6, padding: 12 }}>
-              {fieldLabel('Ausgefüllte Gesundheitsformulare')}
+              {fieldLabel('Ausgefüllte Einverständniserklärungen')}
               <select
                 value={selectedPendingDocId}
                 onChange={(e) => {

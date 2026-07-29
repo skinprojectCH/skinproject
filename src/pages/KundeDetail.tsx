@@ -720,7 +720,7 @@ export default function KundeDetail() {
       {pendingDeleteFile && (
         <Modal title="Dokument löschen?" onClose={() => (!deletingFile ? setPendingDeleteFile(null) : undefined)} width={400}>
           <div style={{ border: '1px solid var(--color-warn-border)', background: 'var(--color-warn-bg)', borderRadius: 6, padding: '12px 14px', marginBottom: 16, fontSize: 13, color: '#5a4a20', lineHeight: 1.5 }}>
-            Dies ist ein wichtiges Dokument (z.B. Gesundheitsformular, Ausweis oder Einverständniserklärung). Einmal gelöscht, ist es unwiderruflich weg.
+            Dies ist ein wichtiges Dokument (z.B. Einverständniserklärung oder Ausweis). Einmal gelöscht, ist es unwiderruflich weg.
           </div>
           <div style={{ fontSize: 13, color: '#555', marginBottom: 20, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
             {pendingDeleteFile.file_name || pendingDeleteFile.storage_path.split('/').pop()}

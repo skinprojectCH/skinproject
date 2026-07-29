@@ -294,7 +294,7 @@ export async function deleteCustomerDocument(doc: CustomerDocument) {
   if (error) throw error;
 }
 
-// Ordnet ein bestehendes Kunden-Dokument (z.B. das Gesundheitsformular aus der Registrierung)
+// Ordnet ein bestehendes Kunden-Dokument (z.B. die Einverständniserklärung aus der Registrierung)
 // nachträglich einem konkreten Termin zu, z.B. wenn der Salon-Manager einen Termin für den
 // Kunden bucht und das Dokument dort sichtbar sein muss.
 export async function assignDocumentToAppointment(documentId: string, appointmentId: string | null) {
@@ -310,7 +310,7 @@ export interface PendingHealthDoc {
   treatmentType: 'tattoo' | 'piercing' | null;
 }
 
-// Für "Neuer Termin": Kunden, die bereits ein Gesundheitsformular ausgefüllt haben, das
+// Für "Neuer Termin": Kunden, die bereits eine Einverständniserklärung ausgefüllt haben, die
 // aber noch keinem Termin zugewiesen ist (z.B. sitzen gerade im Salon und füllen es am
 // Tablet aus, bevor der Termin erfasst wird). Älteste zuerst -- die zuerst dran waren.
 export async function fetchCustomersWithPendingHealthDocs(): Promise<PendingHealthDoc[]> {
