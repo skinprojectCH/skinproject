@@ -82,8 +82,12 @@ function KassenbestandBox({ locationId, isHauptadmin, dateISO }: { locationId: s
 
   async function handleSaveAdjustment() {
     if (!formType) return;
-    const amount = parseFloat(formAmount.replace(',', '.'));
-    if (isNaN(amount) || amount === 0) return;
+    const raw = parseFloat(formAmount.replace(',', '.'));
+    if (isNaN(raw) || raw === 0) return;
+    // Auslage = Bargeld verlässt die Kasse -> immer negativ, unabhängig vom eingegebenen
+    // Vorzeichen (Nutzer tippt meist nur "60" statt "-60"). Differenz behält das Vorzeichen,
+    // das der Salon Manager beim Kassensturz eingibt.
+    const amount = formType === 'auslage' ? -Math.abs(raw) : raw;
     setSavingForm(true);
     try {
       await addCashAdjustment(locationId, formType, amount, formNote.trim());
@@ -142,12 +146,12 @@ function KassenbestandBox({ locationId, isHauptadmin, dateISO }: { locationId: s
         <div style={{ borderTop: '1px solid var(--color-border)', paddingTop: 12, display: 'flex', gap: 10, alignItems: 'flex-end', flexWrap: 'wrap' }}>
           <div>
             <div className="label-uppercase" style={{ marginBottom: 4 }}>
-              {formType === 'auslage' ? 'Auslage (Betrag, negativ)' : 'Differenz (+ oder −)'}
+              {formType === 'auslage' ? 'Auslage (Betrag)' : 'Differenz (+ oder −)'}
             </div>
             <input
               value={formAmount}
               onChange={(e) => setFormAmount(e.target.value)}
-              placeholder={formType === 'auslage' ? 'z.B. -50' : 'z.B. -12'}
+              placeholder={formType === 'auslage' ? 'z.B. 50' : 'z.B. -12'}
               style={{ border: '1px solid var(--color-border)', borderRadius: 4, padding: '8px 10px', fontSize: 13, width: 160 }}
               inputMode="decimal"
               autoFocus
@@ -261,7 +265,12 @@ async function downloadBillingPdf(opts: { title: string; subtitle: string; artis
   doc.save(`${opts.title.replace(/[^\w-]+/g, '_')}.pdf`);
 }
 
-async function downloadLocationSummaryPdf(opts: { locationName: string; periodLabel: string; billing: LocationBilling }) {
+async function downloadLocationSummaryPdf(opts: {
+  locationName: string;
+  periodLabel: string;
+  billing: LocationBilling;
+  cash?: { startingBalance: number; balance: number; adjustments: CashAdjustment[] } | null;
+}) {
   const { jsPDF } = await import('jspdf');
   const doc = new jsPDF();
   let y = 20;
@@ -294,6 +303,47 @@ async function downloadLocationSummaryPdf(opts: { locationName: string; periodLa
     doc.text(label, 14, y);
     doc.text(value, 196, y, { align: 'right' });
     y += 6;
+  }
+
+  if (opts.cash) {
+    y += 6;
+    doc.setDrawColor(200);
+    doc.line(14, y, 196, y);
+    y += 10;
+
+    doc.setFontSize(12);
+    doc.text('Kassenbestand', 14, y);
+    y += 8;
+    doc.setFontSize(10);
+    const cashRows: [string, string][] = [
+      ['Start-Kassenbestand', formatCHF(opts.cash.startingBalance)],
+      ['Kassenbestand aktuell', formatCHF(opts.cash.balance)],
+    ];
+    for (const [label, value] of cashRows) {
+      doc.text(label, 14, y);
+      doc.text(value, 196, y, { align: 'right' });
+      y += 6;
+    }
+
+    if (opts.cash.adjustments.length > 0) {
+      y += 4;
+      doc.setFontSize(9);
+      doc.setTextColor(120);
+      doc.text('Auslagen & Differenzen heute', 14, y);
+      y += 6;
+      doc.setTextColor(0);
+      for (const a of opts.cash.adjustments) {
+        if (y > 280) {
+          doc.addPage();
+          y = 20;
+        }
+        const time = new Date(a.created_at).toLocaleTimeString('de-CH', { hour: '2-digit', minute: '2-digit' });
+        const label = `${a.type === 'auslage' ? 'Auslage' : 'Differenz'}${a.note ? ' — ' + a.note : ''} · ${time}`;
+        doc.text(label, 14, y);
+        doc.text(`${a.amount >= 0 ? '+' : ''}${formatCHF(a.amount)}`, 196, y, { align: 'right' });
+        y += 6;
+      }
+    }
   }
 
   doc.save(`Abrechnung_Salon_${opts.locationName.replace(/[^\w-]+/g, '_')}_${opts.periodLabel.replace(/[^\w-]+/g, '_')}.pdf`);
@@ -667,13 +717,27 @@ export default function Abrechnung() {
           <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 14 }}>
             <button
               className="btn btn-outline"
-              onClick={() =>
+              onClick={async () => {
+                let cash: { startingBalance: number; balance: number; adjustments: CashAdjustment[] } | null = null;
+                if (period === 'tag' && locationId) {
+                  try {
+                    const [startingBalance, balance, adjustments] = await Promise.all([
+                      fetchCashStartingBalance(locationId),
+                      fetchCashBalance(locationId),
+                      fetchCashAdjustmentsForDay(locationId, day),
+                    ]);
+                    cash = { startingBalance, balance, adjustments };
+                  } catch {
+                    cash = null;
+                  }
+                }
                 downloadLocationSummaryPdf({
                   locationName: currentLocationName,
                   periodLabel: periodLabel(period, day, month, year),
                   billing,
-                })
-              }
+                  cash,
+                });
+              }}
             >
               PDF herunterladen
             </button>
