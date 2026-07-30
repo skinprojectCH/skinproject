@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useLocationContext } from '../../lib/locationContext';
-import { fetchLocationBilling, fetchLocationArtistBillingDetail, fetchLocations, fetchCashStartingBalance, setCashStartingBalance, fetchCashIncomeForDay, type LocationBilling, type LocationBillingArtistRow, type LocationArtistBillingEntry } from '../../lib/queries';
+import { fetchLocationBilling, fetchLocationArtistBillingDetail, fetchLocations, fetchCashStartingBalance, setCashStartingBalance, fetchCashBalance, addCashAdjustment, fetchCashAdjustmentsForDay, type LocationBilling, type LocationBillingArtistRow, type LocationArtistBillingEntry, type CashAdjustment } from '../../lib/queries';
 import { formatCHF } from '../../lib/format';
 import Modal from '../../components/Modal';
 
@@ -35,21 +35,29 @@ const navBtnStyle: React.CSSProperties = {
 const summaryCardStyle: React.CSSProperties = { border: '1px solid var(--color-border)', background: 'var(--color-surface)', borderRadius: 6, padding: 16 };
 
 function KassenbestandBox({ locationId, isHauptadmin, dateISO }: { locationId: string; isHauptadmin: boolean; dateISO: string }) {
-  const [startingBalance, setStartingBalance] = useState<number>(0);
-  const [cashToday, setCashToday] = useState<number>(0);
+  const [startingBalance, setStartingBalanceState] = useState<number>(0);
+  const [balance, setBalance] = useState<number>(0);
+  const [todayAdjustments, setTodayAdjustments] = useState<CashAdjustment[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [editing, setEditing] = useState(false);
-  const [editValue, setEditValue] = useState('');
-  const [saving, setSaving] = useState(false);
+
+  const [editingStart, setEditingStart] = useState(false);
+  const [startInput, setStartInput] = useState('');
+  const [savingStart, setSavingStart] = useState(false);
+
+  const [formType, setFormType] = useState<'auslage' | 'differenz' | null>(null);
+  const [formAmount, setFormAmount] = useState('');
+  const [formNote, setFormNote] = useState('');
+  const [savingForm, setSavingForm] = useState(false);
 
   function reload() {
     setLoading(true);
     setError(null);
-    Promise.all([fetchCashStartingBalance(locationId), fetchCashIncomeForDay(locationId, dateISO)])
-      .then(([start, income]) => {
-        setStartingBalance(start);
-        setCashToday(income);
+    Promise.all([fetchCashStartingBalance(locationId), fetchCashBalance(locationId), fetchCashAdjustmentsForDay(locationId, dateISO)])
+      .then(([start, bal, adj]) => {
+        setStartingBalanceState(start);
+        setBalance(bal);
+        setTodayAdjustments(adj);
       })
       .catch((e) => setError(e.message))
       .finally(() => setLoading(false));
@@ -58,21 +66,37 @@ function KassenbestandBox({ locationId, isHauptadmin, dateISO }: { locationId: s
   useEffect(reload, [locationId, dateISO]);
 
   async function handleSaveStart() {
-    const amount = parseFloat(editValue.replace(',', '.'));
+    const amount = parseFloat(startInput.replace(',', '.'));
     if (isNaN(amount) || amount < 0) return;
-    setSaving(true);
+    setSavingStart(true);
     try {
       await setCashStartingBalance(locationId, amount);
-      setEditing(false);
+      setEditingStart(false);
       reload();
     } catch (e: any) {
       setError(e.message);
     } finally {
-      setSaving(false);
+      setSavingStart(false);
     }
   }
 
-  const currentBalance = startingBalance + cashToday;
+  async function handleSaveAdjustment() {
+    if (!formType) return;
+    const amount = parseFloat(formAmount.replace(',', '.'));
+    if (isNaN(amount) || amount === 0) return;
+    setSavingForm(true);
+    try {
+      await addCashAdjustment(locationId, formType, amount, formNote.trim());
+      setFormType(null);
+      setFormAmount('');
+      setFormNote('');
+      reload();
+    } catch (e: any) {
+      setError(e.message);
+    } finally {
+      setSavingForm(false);
+    }
+  }
 
   return (
     <div style={{ ...summaryCardStyle, marginBottom: 20, display: 'flex', flexDirection: 'column', gap: 10 }}>
@@ -87,60 +111,110 @@ function KassenbestandBox({ locationId, isHauptadmin, dateISO }: { locationId: s
             )}
           </div>
           <div>
-            <div style={{ fontSize: 11, color: '#999', textTransform: 'uppercase', fontWeight: 600, marginBottom: 4 }}>+ Bareinnahmen heute</div>
-            {!loading && <div style={{ fontFamily: 'var(--font-heading)', fontSize: 18, fontWeight: 700 }}>{formatCHF(cashToday)}</div>}
-          </div>
-          <div>
-            <div style={{ fontSize: 11, color: '#999', textTransform: 'uppercase', fontWeight: 600, marginBottom: 4 }}>= Kassenbestand aktuell</div>
-            {!loading && <div style={{ fontFamily: 'var(--font-heading)', fontSize: 22, fontWeight: 700 }}>{formatCHF(currentBalance)}</div>}
+            <div style={{ fontSize: 11, color: '#999', textTransform: 'uppercase', fontWeight: 600, marginBottom: 4 }}>Kassenbestand aktuell</div>
+            {!loading && <div style={{ fontFamily: 'var(--font-heading)', fontSize: 22, fontWeight: 700 }}>{formatCHF(balance)}</div>}
           </div>
         </div>
-        {isHauptadmin && !editing && (
-          <button
-            className="btn btn-outline"
-            onClick={() => {
-              setEditValue(String(startingBalance));
-              setEditing(true);
-            }}
-          >
-            Startbetrag ändern
+        <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+          <button className="btn btn-outline" onClick={() => setFormType(formType === 'auslage' ? null : 'auslage')}>
+            + Auslage
           </button>
-        )}
+          <button className="btn btn-outline" onClick={() => setFormType(formType === 'differenz' ? null : 'differenz')}>
+            + Differenz (Kassensturz)
+          </button>
+          {isHauptadmin && !editingStart && (
+            <button
+              className="btn btn-outline"
+              onClick={() => {
+                setStartInput(String(startingBalance));
+                setEditingStart(true);
+              }}
+            >
+              Startbetrag ändern
+            </button>
+          )}
+        </div>
       </div>
 
       {error && <div style={{ fontSize: 12, color: 'var(--color-destructive)' }}>Fehler: {error}</div>}
 
-      {!loading && cashToday > 0 && (
-        <div style={{ fontSize: 12, color: '#8A6D2E', background: 'var(--color-accent-fill)', border: '1px solid var(--color-warn-border)', borderRadius: 6, padding: '8px 12px' }}>
-          Am Abend {formatCHF(cashToday)} aus der Kasse entnehmen, damit morgen wieder {formatCHF(startingBalance)} in der Kasse liegen.
+      {formType && (
+        <div style={{ borderTop: '1px solid var(--color-border)', paddingTop: 12, display: 'flex', gap: 10, alignItems: 'flex-end', flexWrap: 'wrap' }}>
+          <div>
+            <div className="label-uppercase" style={{ marginBottom: 4 }}>
+              {formType === 'auslage' ? 'Auslage (Betrag, negativ)' : 'Differenz (+ oder −)'}
+            </div>
+            <input
+              value={formAmount}
+              onChange={(e) => setFormAmount(e.target.value)}
+              placeholder={formType === 'auslage' ? 'z.B. -50' : 'z.B. -12'}
+              style={{ border: '1px solid var(--color-border)', borderRadius: 4, padding: '8px 10px', fontSize: 13, width: 160 }}
+              inputMode="decimal"
+              autoFocus
+            />
+          </div>
+          <div style={{ flex: 1, minWidth: 180 }}>
+            <div className="label-uppercase" style={{ marginBottom: 4 }}>
+              Notiz
+            </div>
+            <input
+              value={formNote}
+              onChange={(e) => setFormNote(e.target.value)}
+              placeholder={formType === 'auslage' ? 'z.B. Materialeinkauf' : 'z.B. Kassensturz morgens'}
+              style={{ border: '1px solid var(--color-border)', borderRadius: 4, padding: '8px 10px', fontSize: 13, width: '100%' }}
+            />
+          </div>
+          <button className="btn btn-primary" style={{ opacity: savingForm ? 0.6 : 1 }} disabled={savingForm} onClick={handleSaveAdjustment}>
+            {savingForm ? 'Speichert…' : 'Erfassen'}
+          </button>
+          <button className="btn btn-secondary" onClick={() => setFormType(null)}>
+            Abbrechen
+          </button>
         </div>
       )}
 
-      {!isHauptadmin && (
-        <div style={{ fontSize: 11, color: '#999' }}>Nur der Hauptadmin kann den Start-Kassenbestand ändern.</div>
-      )}
-
-      {editing && isHauptadmin && (
+      {editingStart && isHauptadmin && (
         <div style={{ borderTop: '1px solid var(--color-border)', paddingTop: 12, display: 'flex', gap: 10, alignItems: 'flex-end' }}>
           <div>
             <div className="label-uppercase" style={{ marginBottom: 4 }}>
               Neuer Start-Kassenbestand
             </div>
             <input
-              value={editValue}
-              onChange={(e) => setEditValue(e.target.value)}
+              value={startInput}
+              onChange={(e) => setStartInput(e.target.value)}
               placeholder="z.B. 300"
               style={{ border: '1px solid var(--color-border)', borderRadius: 4, padding: '8px 10px', fontSize: 13, width: 160 }}
               inputMode="decimal"
               autoFocus
             />
           </div>
-          <button className="btn btn-primary" style={{ opacity: saving ? 0.6 : 1 }} disabled={saving} onClick={handleSaveStart}>
-            {saving ? 'Speichert…' : 'Speichern'}
+          <button className="btn btn-primary" style={{ opacity: savingStart ? 0.6 : 1 }} disabled={savingStart} onClick={handleSaveStart}>
+            {savingStart ? 'Speichert…' : 'Speichern'}
           </button>
-          <button className="btn btn-secondary" onClick={() => setEditing(false)}>
+          <button className="btn btn-secondary" onClick={() => setEditingStart(false)}>
             Abbrechen
           </button>
+        </div>
+      )}
+
+      {todayAdjustments.length > 0 && (
+        <div style={{ borderTop: '1px solid var(--color-border)', paddingTop: 12 }}>
+          <div style={{ fontSize: 11, color: '#999', textTransform: 'uppercase', fontWeight: 600, marginBottom: 8 }}>Auslagen &amp; Differenzen heute</div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+            {todayAdjustments.map((a) => (
+              <div key={a.id} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13 }}>
+                <div>
+                  <span style={{ fontWeight: 600, textTransform: 'capitalize' }}>{a.type}</span>
+                  {a.note ? ` — ${a.note}` : ''}
+                  <span style={{ color: '#999' }}> · {new Date(a.created_at).toLocaleTimeString('de-CH', { hour: '2-digit', minute: '2-digit' })}</span>
+                </div>
+                <div style={{ fontWeight: 700, color: a.amount >= 0 ? '#1a7a3f' : 'var(--color-destructive)' }}>
+                  {a.amount >= 0 ? '+' : ''}
+                  {formatCHF(a.amount)}
+                </div>
+              </div>
+            ))}
+          </div>
         </div>
       )}
     </div>

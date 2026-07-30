@@ -1566,9 +1566,8 @@ export async function fetchDiscountStats(startDateISO: string, endDateISO: strin
 }
 
 // ---------- Kassenbestand ----------
-// Fixer Startbetrag pro Location (z.B. 300 CHF Wechselgeld), den nur der Hauptadmin setzt.
-// Der Tagesbestand ergibt sich als Startbetrag + Bareinnahmen des jeweiligen Tages -- am
-// Abend nimmt der Admin die Differenz raus, am nächsten Morgen steht wieder der Startbetrag.
+// Fixer Startbetrag pro Location (z.B. 300 CHF Wechselgeld) -- nur der Hauptadmin darf
+// diesen Basiswert ändern.
 export async function fetchCashStartingBalance(locationId: string): Promise<number> {
   const { data, error } = await supabase.from('location_cash_settings').select('starting_balance').eq('location_id', locationId).maybeSingle();
   if (error) throw error;
@@ -1582,18 +1581,51 @@ export async function setCashStartingBalance(locationId: string, amount: number,
   if (error) throw error;
 }
 
-// Bareinnahmen eines einzelnen Tages an dieser Location (nach Bestell-Datum).
-export async function fetchCashIncomeForDay(locationId: string, dateISO: string): Promise<number> {
+export interface CashAdjustment {
+  id: string;
+  location_id: string;
+  type: 'auslage' | 'differenz';
+  amount: number;
+  note: string | null;
+  created_at: string;
+}
+
+// Laufender Kassenbestand: Startbetrag + alle jemals eingegangenen Bar-Zahlungen + alle
+// Auslagen/Differenzen (können vom Salon Manager laufend erfasst werden, nicht nur vom
+// Hauptadmin) -- wächst also mit jeder Bar-Zahlung, bis jemand eine Auslage macht.
+export async function fetchCashBalance(locationId: string): Promise<number> {
+  const [startingBalance, { data: cashPayments, error: payError }, { data: adjustments, error: adjError }] = await Promise.all([
+    fetchCashStartingBalance(locationId),
+    supabase.from('payments').select('amount, orders!inner(location_id)').eq('method', 'bar').eq('orders.location_id', locationId),
+    supabase.from('cash_adjustments').select('amount').eq('location_id', locationId),
+  ]);
+  if (payError) throw payError;
+  if (adjError) throw adjError;
+  const cashTotal = ((cashPayments as any[]) || []).reduce((s, p) => s + Number(p.amount), 0);
+  const adjustmentTotal = ((adjustments as any[]) || []).reduce((s, a) => s + Number(a.amount), 0);
+  return startingBalance + cashTotal + adjustmentTotal;
+}
+
+// Auslage (Bargeld-Entnahme, üblicherweise negativ) oder Differenz (Kassensturz-Korrektur
+// am Morgen, kann + oder − sein) erfassen. Darf vom Salon Manager gemacht werden.
+export async function addCashAdjustment(locationId: string, type: 'auslage' | 'differenz', amount: number, note: string) {
+  const { error } = await supabase.from('cash_adjustments').insert({ location_id: locationId, type, amount, note: note || null });
+  if (error) throw error;
+}
+
+// Auslagen/Differenzen eines einzelnen Tages -- für die Anzeige im Tagesabschluss.
+export async function fetchCashAdjustmentsForDay(locationId: string, dateISO: string): Promise<CashAdjustment[]> {
   const start = `${dateISO}T00:00:00`;
   const end = `${dateISO}T23:59:59`;
   const { data, error } = await supabase
-    .from('payments')
-    .select('amount, orders!inner(location_id, created_at)')
-    .eq('method', 'bar')
-    .eq('orders.location_id', locationId)
-    .gte('orders.created_at', start)
-    .lte('orders.created_at', end);
+    .from('cash_adjustments')
+    .select('*')
+    .eq('location_id', locationId)
+    .gte('created_at', start)
+    .lte('created_at', end)
+    .order('created_at', { ascending: false });
   if (error) throw error;
-  return ((data as any[]) || []).reduce((s, p) => s + Number(p.amount), 0);
+  return (data as CashAdjustment[]) || [];
 }
+
 
