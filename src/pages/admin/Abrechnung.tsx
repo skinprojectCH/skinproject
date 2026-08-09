@@ -296,7 +296,7 @@ async function downloadLocationSummaryPdf(opts: {
     ['  davon Dienstleistungen (Anteil)', formatCHF(b.salonServiceRevenue)],
     ['  davon Produkte', formatCHF(b.productRevenue)],
     ['  davon Gutscheine', formatCHF(b.voucherRevenue)],
-    ...(b.anzahlungRedeemedRevenue > 0 ? ([['  davon mit Anzahlung bezahlt', formatCHF(b.anzahlungRedeemedRevenue)]] as [string, string][]) : []),
+    ...(b.anzahlungRedeemedRevenue > 0 ? ([['  davon Anzahlung', formatCHF(b.anzahlungRedeemedRevenue)]] as [string, string][]) : []),
     ['Termine', String(b.orderCount)],
   ];
   for (const [label, value] of summaryRows) {
@@ -762,8 +762,8 @@ export default function Abrechnung() {
                   <span>{formatCHF(billing.voucherRevenue)}</span>
                 </div>
                 {billing.anzahlungRedeemedRevenue > 0 && (
-                  <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 2, paddingTop: 4, borderTop: '1px solid var(--color-border)' }}>
-                    <span>davon mit Anzahlung bezahlt</span>
+                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                    <span>Anzahlung</span>
                     <span>{formatCHF(billing.anzahlungRedeemedRevenue)}</span>
                   </div>
                 )}
