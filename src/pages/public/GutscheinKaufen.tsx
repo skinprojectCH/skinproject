@@ -27,7 +27,15 @@ export default function GutscheinKaufen() {
   const [customAmount, setCustomAmount] = useState('');
   const [buyerName, setBuyerName] = useState('');
   const [buyerEmail, setBuyerEmail] = useState('');
+
+  // Anzahlung: erst Telefonnummer prüfen, dann ggf. vorausgefülltes Formular zeigen.
+  const [anzahlungStep, setAnzahlungStep] = useState<'phone' | 'form'>('phone');
+  const [phoneInput, setPhoneInput] = useState('');
+  const [phoneChecking, setPhoneChecking] = useState(false);
+  const [phoneError, setPhoneError] = useState<string | null>(null);
+  const [foundExisting, setFoundExisting] = useState(false);
   const [customer, setCustomer] = useState<CustomerFormState>(emptyCustomer);
+
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -35,13 +43,66 @@ export default function GutscheinKaufen() {
   const amountValid = amount >= 10 && amount <= 2000;
 
   const customerFieldsValid =
-    mode === 'gutschein' ||
-    (customer.vorname.trim() && customer.name.trim() && customer.birthdate.trim() && customer.phone.trim() && customer.email.trim() && customer.strasse.trim() && customer.plzOrt.trim());
+    customer.vorname.trim() && customer.name.trim() && customer.birthdate.trim() && customer.phone.trim() && customer.email.trim() && customer.strasse.trim() && customer.plzOrt.trim();
 
-  const canSubmit = amountValid && (mode === 'gutschein' ? buyerName.trim().length > 0 && buyerEmail.trim().length > 0 : !!customerFieldsValid);
+  const canSubmit =
+    amountValid && (mode === 'gutschein' ? buyerName.trim().length > 0 && buyerEmail.trim().length > 0 : anzahlungStep === 'form' && !!customerFieldsValid);
 
   function updateCustomer(field: keyof CustomerFormState, value: string) {
     setCustomer((prev) => ({ ...prev, [field]: value }));
+  }
+
+  function switchMode(m: 'gutschein' | 'anzahlung') {
+    setMode(m);
+    setError(null);
+    if (m === 'anzahlung') {
+      setAnzahlungStep('phone');
+      setPhoneInput('');
+      setPhoneError(null);
+      setFoundExisting(false);
+      setCustomer(emptyCustomer);
+    }
+  }
+
+  async function handlePhoneCheck() {
+    if (!phoneInput.trim()) {
+      setPhoneError('Bitte Telefonnummer eingeben.');
+      return;
+    }
+    setPhoneChecking(true);
+    setPhoneError(null);
+    try {
+      const res = await fetch('/api/registration-lookup', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ phone: phoneInput }),
+      });
+      const body = await res.json();
+      if (!res.ok) throw new Error(body.error || 'Unbekannter Fehler.');
+
+      // Gleiches Telefon-Format wie überall in der App -- die normalisierte Nummer vom
+      // Server übernehmen, nicht die rohe Eingabe.
+      if (body.found && body.customer) {
+        setFoundExisting(true);
+        setCustomer({
+          vorname: body.customer.vorname || '',
+          name: body.customer.name || '',
+          birthdate: body.customer.birthdate || '',
+          phone: body.customer.phone || '',
+          email: body.customer.email || '',
+          strasse: body.customer.strasse || '',
+          plzOrt: body.customer.plz_ort || '',
+        });
+      } else {
+        setFoundExisting(false);
+        setCustomer({ ...emptyCustomer, phone: body.normalizedPhone || phoneInput });
+      }
+      setAnzahlungStep('form');
+    } catch (e: any) {
+      setPhoneError(e.message);
+    } finally {
+      setPhoneChecking(false);
+    }
   }
 
   async function handleCheckout() {
@@ -80,7 +141,7 @@ export default function GutscheinKaufen() {
             {(['gutschein', 'anzahlung'] as const).map((m) => (
               <div
                 key={m}
-                onClick={() => setMode(m)}
+                onClick={() => switchMode(m)}
                 style={{
                   flex: 1,
                   textAlign: 'center',
@@ -97,107 +158,139 @@ export default function GutscheinKaufen() {
             ))}
           </div>
 
-          <div style={heading}>{mode === 'gutschein' ? 'Gutschein kaufen' : 'Anzahlung tätigen'}</div>
-          <div style={{ fontSize: 12, color: '#999', lineHeight: 1.5, marginBottom: 24 }}>
-            {mode === 'gutschein'
-              ? 'Einlösbar an jedem SkinProject-Standort. Nach der Zahlung kannst du deinen Gutschein direkt herunterladen.'
-              : 'Wird als Guthaben deinem Kundenprofil gutgeschrieben und kann bei deinem nächsten Termin als Zahlungsart verwendet werden.'}
-          </div>
-
-          <div style={{ ...fieldLabel, marginBottom: 8 }}>Betrag wählen</div>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 10 }}>
-            {PRESET_AMOUNTS.map((a) => (
-              <div
-                key={a}
-                onClick={() => {
-                  setSelected(a);
-                  setCustomAmount('');
-                }}
-                style={{
-                  border: `1.5px solid ${selected === a ? '#111' : '#ddd'}`,
-                  background: selected === a ? '#111' : 'transparent',
-                  color: selected === a ? '#fff' : '#333',
-                  borderRadius: 8,
-                  padding: '14px 0',
-                  textAlign: 'center',
-                  fontWeight: 700,
-                  fontSize: 15,
-                  cursor: 'pointer',
-                }}
-              >
-                CHF {a}
-              </div>
-            ))}
-          </div>
-
-          <div style={{ marginBottom: 24 }}>
-            <div style={fieldLabel}>Anderer Betrag (CHF 10–2000)</div>
-            <input
-              value={customAmount}
-              onChange={(e) => {
-                setCustomAmount(e.target.value.replace(/[^\d.,]/g, ''));
-                setSelected(null);
-              }}
-              placeholder="z.B. 80"
-              inputMode="decimal"
-              style={{ ...underlineInput, borderColor: selected === null && customAmount ? '#111' : '#ccc' }}
-            />
-          </div>
-
-          {mode === 'gutschein' ? (
+          {/* ANZAHLUNG SCHRITT 1: Telefonnummer prüfen */}
+          {mode === 'anzahlung' && anzahlungStep === 'phone' && (
             <>
-              <div style={{ marginBottom: 14 }}>
-                <div style={fieldLabel}>Dein Name</div>
-                <input value={buyerName} onChange={(e) => setBuyerName(e.target.value)} style={underlineInput} />
+              <div style={heading}>Anzahlung tätigen</div>
+              <div style={{ fontSize: 12, color: '#999', lineHeight: 1.5, marginBottom: 24 }}>
+                Zuerst deine Telefonnummer — falls du schon bei uns registriert bist, füllen wir den Rest automatisch für dich aus.
               </div>
-              <div style={{ marginBottom: 24 }}>
-                <div style={fieldLabel}>E-Mail (für Beleg)</div>
-                <input value={buyerEmail} onChange={(e) => setBuyerEmail(e.target.value)} type="email" style={underlineInput} />
-              </div>
-            </>
-          ) : (
-            <>
-              <div style={{ fontSize: 11, color: '#999', marginBottom: 12 }}>
-                Damit dir das Guthaben zugewiesen werden kann, brauchen wir folgende Angaben:
-              </div>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14, marginBottom: 14 }}>
-                <div>
-                  <div style={fieldLabel}>Vorname</div>
-                  <input value={customer.vorname} onChange={(e) => updateCustomer('vorname', e.target.value)} style={underlineInput} />
-                </div>
-                <div>
-                  <div style={fieldLabel}>Name</div>
-                  <input value={customer.name} onChange={(e) => updateCustomer('name', e.target.value)} style={underlineInput} />
-                </div>
-              </div>
-              <div style={{ marginBottom: 14 }}>
-                <div style={fieldLabel}>Geburtsdatum</div>
-                <input value={customer.birthdate} onChange={(e) => updateCustomer('birthdate', e.target.value)} type="date" style={underlineInput} />
-              </div>
-              <div style={{ marginBottom: 14 }}>
+              <div style={{ marginBottom: 20 }}>
                 <div style={fieldLabel}>Mobile</div>
-                <input value={customer.phone} onChange={(e) => updateCustomer('phone', e.target.value)} type="tel" placeholder="079 123 45 67" style={underlineInput} />
+                <input
+                  value={phoneInput}
+                  onChange={(e) => setPhoneInput(e.target.value)}
+                  type="tel"
+                  placeholder="079 123 45 67"
+                  style={underlineInput}
+                  autoFocus
+                />
               </div>
-              <div style={{ marginBottom: 14 }}>
-                <div style={fieldLabel}>E-Mail</div>
-                <input value={customer.email} onChange={(e) => updateCustomer('email', e.target.value)} type="email" style={underlineInput} />
-              </div>
-              <div style={{ marginBottom: 14 }}>
-                <div style={fieldLabel}>Strasse</div>
-                <input value={customer.strasse} onChange={(e) => updateCustomer('strasse', e.target.value)} style={underlineInput} />
-              </div>
-              <div style={{ marginBottom: 24 }}>
-                <div style={fieldLabel}>PLZ / Ort</div>
-                <input value={customer.plzOrt} onChange={(e) => updateCustomer('plzOrt', e.target.value)} placeholder="8000 Zürich" style={underlineInput} />
-              </div>
+              {phoneError && <div style={{ fontSize: 12, color: 'var(--color-destructive)', marginBottom: 14 }}>{phoneError}</div>}
+              <button style={{ ...primaryBtn, opacity: phoneChecking ? 0.6 : 1 }} disabled={phoneChecking} onClick={handlePhoneCheck}>
+                {phoneChecking ? 'Prüft…' : 'Weiter'}
+              </button>
             </>
           )}
 
-          {error && <div style={{ fontSize: 12, color: 'var(--color-destructive)', marginBottom: 14 }}>{error}</div>}
+          {/* ANZAHLUNG SCHRITT 2 + GUTSCHEIN: Betrag + restliche Angaben */}
+          {(mode === 'gutschein' || anzahlungStep === 'form') && (
+            <>
+              <div style={heading}>{mode === 'gutschein' ? 'Gutschein kaufen' : 'Anzahlung tätigen'}</div>
+              <div style={{ fontSize: 12, color: '#999', lineHeight: 1.5, marginBottom: 24 }}>
+                {mode === 'gutschein'
+                  ? 'Einlösbar an jedem SkinProject-Standort. Nach der Zahlung kannst du deinen Gutschein direkt herunterladen.'
+                  : foundExisting
+                    ? 'Schön, dich wiederzusehen! Wir haben deine Daten schon — du kannst sie unten bei Bedarf anpassen.'
+                    : 'Wird als Guthaben deinem Kundenprofil gutgeschrieben und kann bei deinem nächsten Termin als Zahlungsart verwendet werden.'}
+              </div>
 
-          <button style={{ ...primaryBtn, opacity: canSubmit && !loading ? 1 : 0.4 }} disabled={!canSubmit || loading} onClick={handleCheckout}>
-            {loading ? 'Weiterleitung…' : `Weiter zur Zahlung — CHF ${amount ? amount.toFixed(2) : '0.00'}`}
-          </button>
+              <div style={{ ...fieldLabel, marginBottom: 8 }}>Betrag wählen</div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 10 }}>
+                {PRESET_AMOUNTS.map((a) => (
+                  <div
+                    key={a}
+                    onClick={() => {
+                      setSelected(a);
+                      setCustomAmount('');
+                    }}
+                    style={{
+                      border: `1.5px solid ${selected === a ? '#111' : '#ddd'}`,
+                      background: selected === a ? '#111' : 'transparent',
+                      color: selected === a ? '#fff' : '#333',
+                      borderRadius: 8,
+                      padding: '14px 0',
+                      textAlign: 'center',
+                      fontWeight: 700,
+                      fontSize: 15,
+                      cursor: 'pointer',
+                    }}
+                  >
+                    CHF {a}
+                  </div>
+                ))}
+              </div>
+
+              <div style={{ marginBottom: 24 }}>
+                <div style={fieldLabel}>Anderer Betrag (CHF 10–2000)</div>
+                <input
+                  value={customAmount}
+                  onChange={(e) => {
+                    setCustomAmount(e.target.value.replace(/[^\d.,]/g, ''));
+                    setSelected(null);
+                  }}
+                  placeholder="z.B. 80"
+                  inputMode="decimal"
+                  style={{ ...underlineInput, borderColor: selected === null && customAmount ? '#111' : '#ccc' }}
+                />
+              </div>
+
+              {mode === 'gutschein' ? (
+                <>
+                  <div style={{ marginBottom: 14 }}>
+                    <div style={fieldLabel}>Dein Name</div>
+                    <input value={buyerName} onChange={(e) => setBuyerName(e.target.value)} style={underlineInput} />
+                  </div>
+                  <div style={{ marginBottom: 24 }}>
+                    <div style={fieldLabel}>E-Mail (für Beleg)</div>
+                    <input value={buyerEmail} onChange={(e) => setBuyerEmail(e.target.value)} type="email" style={underlineInput} />
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14, marginBottom: 14 }}>
+                    <div>
+                      <div style={fieldLabel}>Vorname</div>
+                      <input value={customer.vorname} onChange={(e) => updateCustomer('vorname', e.target.value)} style={underlineInput} />
+                    </div>
+                    <div>
+                      <div style={fieldLabel}>Name</div>
+                      <input value={customer.name} onChange={(e) => updateCustomer('name', e.target.value)} style={underlineInput} />
+                    </div>
+                  </div>
+                  <div style={{ marginBottom: 14 }}>
+                    <div style={fieldLabel}>Geburtsdatum</div>
+                    <input value={customer.birthdate} onChange={(e) => updateCustomer('birthdate', e.target.value)} type="date" style={underlineInput} />
+                  </div>
+                  <div style={{ marginBottom: 14 }}>
+                    <div style={fieldLabel}>Mobile</div>
+                    <input value={customer.phone} onChange={(e) => updateCustomer('phone', e.target.value)} type="tel" style={underlineInput} />
+                  </div>
+                  <div style={{ marginBottom: 14 }}>
+                    <div style={fieldLabel}>E-Mail</div>
+                    <input value={customer.email} onChange={(e) => updateCustomer('email', e.target.value)} type="email" style={underlineInput} />
+                  </div>
+                  <div style={{ marginBottom: 14 }}>
+                    <div style={fieldLabel}>Strasse</div>
+                    <input value={customer.strasse} onChange={(e) => updateCustomer('strasse', e.target.value)} style={underlineInput} />
+                  </div>
+                  <div style={{ marginBottom: 24 }}>
+                    <div style={fieldLabel}>PLZ / Ort</div>
+                    <input value={customer.plzOrt} onChange={(e) => updateCustomer('plzOrt', e.target.value)} placeholder="8000 Zürich" style={underlineInput} />
+                  </div>
+                  <div onClick={() => setAnzahlungStep('phone')} style={{ fontSize: 11, color: 'var(--color-accent)', fontWeight: 600, cursor: 'pointer', marginBottom: 20 }}>
+                    ← Andere Telefonnummer verwenden
+                  </div>
+                </>
+              )}
+
+              {error && <div style={{ fontSize: 12, color: 'var(--color-destructive)', marginBottom: 14 }}>{error}</div>}
+
+              <button style={{ ...primaryBtn, opacity: canSubmit && !loading ? 1 : 0.4 }} disabled={!canSubmit || loading} onClick={handleCheckout}>
+                {loading ? 'Weiterleitung…' : `Weiter zur Zahlung — CHF ${amount ? amount.toFixed(2) : '0.00'}`}
+              </button>
+            </>
+          )}
         </div>
       </div>
     </div>
