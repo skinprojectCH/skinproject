@@ -10,11 +10,13 @@ interface VoucherInfo {
   value: number;
   buyer_name: string | null;
   created_at: string;
+  type: 'gutschein' | 'anzahlung';
 }
 
 async function downloadVoucherPdf(voucher: VoucherInfo) {
   const { jsPDF } = await import('jspdf');
   const doc = new jsPDF();
+  const isAnzahlung = voucher.type === 'anzahlung';
 
   // Rahmen
   doc.setDrawColor(176, 141, 61);
@@ -29,7 +31,7 @@ async function downloadVoucherPdf(voucher: VoucherInfo) {
   doc.text('Tattoo & Piercing', 105, 43, { align: 'center' });
 
   doc.setFontSize(14);
-  doc.text('Gutschein', 105, 58, { align: 'center' });
+  doc.text(isAnzahlung ? 'Bestätigung Anzahlung' : 'Gutschein', 105, 58, { align: 'center' });
 
   doc.setFontSize(28);
   doc.setFont('helvetica', 'bold');
@@ -40,12 +42,12 @@ async function downloadVoucherPdf(voucher: VoucherInfo) {
   doc.text(`Code: ${voucher.code}`, 105, 88, { align: 'center' });
 
   doc.setFontSize(9);
-  doc.text(`Gekauft am: ${new Date(voucher.created_at).toLocaleDateString('de-CH')}`, 105, 96, { align: 'center' });
+  doc.text(`${isAnzahlung ? 'Bezahlt am' : 'Gekauft am'}: ${new Date(voucher.created_at).toLocaleDateString('de-CH')}`, 105, 96, { align: 'center' });
 
   doc.setTextColor(120);
-  doc.text('Einlösbar an jedem SkinProject-Standort.', 105, 104, { align: 'center' });
+  doc.text(isAnzahlung ? 'Einsetzbar bei deinem nächsten Termin.' : 'Einlösbar an jedem SkinProject-Standort.', 105, 104, { align: 'center' });
 
-  doc.save(`SkinProject_Gutschein_${voucher.code}.pdf`);
+  doc.save(`SkinProject_${isAnzahlung ? 'Anzahlung' : 'Gutschein'}_${voucher.code}.pdf`);
 }
 
 export default function GutscheinErfolg() {
@@ -90,6 +92,8 @@ export default function GutscheinErfolg() {
     };
   }, [sessionId]);
 
+  const isAnzahlung = voucher?.type === 'anzahlung';
+
   return (
     <div style={{ minHeight: '100vh', background: 'var(--color-bg)', padding: '40px 16px', display: 'flex', alignItems: 'flex-start', justifyContent: 'center' }}>
       <div style={card}>
@@ -106,20 +110,22 @@ export default function GutscheinErfolg() {
             <>
               <div style={{ width: 56, height: 56, borderRadius: '50%', background: 'var(--color-accent)', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 26, margin: '10px auto 20px' }}>✓</div>
               <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 18, fontWeight: 700, marginBottom: 8 }}>Zahlung erfolgreich!</div>
-              <div style={{ fontSize: 12, color: '#777', marginBottom: 24 }}>Dein Gutschein ist bereit zum Download.</div>
+              <div style={{ fontSize: 12, color: '#777', marginBottom: 24 }}>
+                {isAnzahlung ? 'Deine Anzahlung wurde deinem Kundenprofil gutgeschrieben.' : 'Dein Gutschein ist bereit zum Download.'}
+              </div>
 
               <div style={{ border: '1.5px solid var(--color-accent)', borderRadius: 12, padding: '20px 16px', marginBottom: 22 }}>
-                <div style={{ fontSize: 10, textTransform: 'uppercase', letterSpacing: 1, color: '#999', marginBottom: 6 }}>Gutschein</div>
+                <div style={{ fontSize: 10, textTransform: 'uppercase', letterSpacing: 1, color: '#999', marginBottom: 6 }}>{isAnzahlung ? 'Anzahlung' : 'Gutschein'}</div>
                 <div style={{ fontSize: 28, fontWeight: 700, fontFamily: "'Space Grotesk', sans-serif", marginBottom: 6 }}>CHF {voucher.value.toFixed(2)}</div>
                 <div style={{ fontSize: 13, color: '#555', fontFamily: 'monospace' }}>{voucher.code}</div>
               </div>
 
               <button style={primaryBtn} onClick={() => downloadVoucherPdf(voucher)}>
-                Gutschein herunterladen (PDF)
+                {isAnzahlung ? 'Bestätigung herunterladen (PDF)' : 'Gutschein herunterladen (PDF)'}
               </button>
 
               <a href="/gutschein-kaufen" style={{ ...secondaryBtn, display: 'block', marginTop: 12, textDecoration: 'none' }}>
-                Weitere Gutscheine kaufen
+                {isAnzahlung ? 'Weitere Gutscheine/Anzahlungen tätigen' : 'Weitere Gutscheine kaufen'}
               </a>
             </>
           )}

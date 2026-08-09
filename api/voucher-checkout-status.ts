@@ -25,7 +25,7 @@ export default async function handler(req: any, res: any) {
   try {
     const { data: voucher, error } = await admin
       .from('vouchers')
-      .select('code, value, buyer_name, created_at')
+      .select('code, value, buyer_name, created_at, type')
       .eq('stripe_session_id', sessionId)
       .maybeSingle();
     if (error) {

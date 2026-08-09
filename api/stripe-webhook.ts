@@ -54,9 +54,8 @@ export default async function handler(req: any, res: any) {
   }
 
   const session = event.data.object as Stripe.Checkout.Session;
+  const purchaseType = session.metadata?.purchaseType === 'anzahlung' ? 'anzahlung' : 'gutschein';
   const amount = Number(session.metadata?.amount || (session.amount_total ? session.amount_total / 100 : 0));
-  const buyerName = session.metadata?.buyerName || null;
-  const buyerEmail = session.customer_details?.email || null;
 
   const supabaseUrl = process.env.VITE_SUPABASE_URL;
   const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -83,6 +82,94 @@ export default async function handler(req: any, res: any) {
 
     const code = generateVoucherCode();
 
+    if (purchaseType === 'anzahlung') {
+      // Anzahlung muss zwingend einem Kundenprofil zugeordnet sein -- vorhandenen Kunden
+      // per Telefonnummer suchen, sonst per E-Mail, sonst neu anlegen.
+      const phone = session.metadata?.customerPhone || '';
+      const email = session.metadata?.customerEmail || session.customer_details?.email || '';
+
+      let customerId: string | null = null;
+
+      if (phone) {
+        const { data: byPhone } = await admin.from('customers').select('id').eq('phone', phone).maybeSingle();
+        if (byPhone) customerId = byPhone.id;
+      }
+      if (!customerId && email) {
+        const { data: byEmail } = await admin.from('customers').select('id').eq('email', email).maybeSingle();
+        if (byEmail) customerId = byEmail.id;
+      }
+
+      if (!customerId) {
+        const { data: newCustomer, error: customerError } = await admin
+          .from('customers')
+          .insert({
+            vorname: session.metadata?.customerVorname || '',
+            name: session.metadata?.customerName || '',
+            birthdate: session.metadata?.customerBirthdate || null,
+            phone: phone || null,
+            email: email || null,
+            strasse: session.metadata?.customerStrasse || null,
+            plz_ort: session.metadata?.customerPlzOrt || null,
+          })
+          .select()
+          .single();
+        if (customerError || !newCustomer) {
+          res.status(500).json({ error: customerError?.message || 'Kunde konnte nicht angelegt werden.' });
+          return;
+        }
+        customerId = newCustomer.id;
+      }
+
+      const { data: voucher, error: voucherError } = await admin
+        .from('vouchers')
+        .insert({
+          code,
+          value: amount,
+          remaining_value: amount,
+          status: 'aktiv',
+          source: 'online',
+          type: 'anzahlung',
+          buyer_customer_id: customerId,
+          location_id: mainLocation.id,
+          stripe_session_id: session.id,
+        })
+        .select()
+        .single();
+      if (voucherError || !voucher) {
+        res.status(500).json({ error: voucherError?.message || 'Anzahlung konnte nicht angelegt werden.' });
+        return;
+      }
+
+      const { data: order, error: orderError } = await admin
+        .from('orders')
+        .insert({ location_id: mainLocation.id, customer_id: customerId, subtotal: amount, total: amount, status: 'bezahlt', is_anzahlung: true })
+        .select()
+        .single();
+      if (orderError || !order) {
+        res.status(500).json({ error: orderError?.message || 'Bestellung konnte nicht angelegt werden.' });
+        return;
+      }
+
+      await admin.from('order_line_items').insert({
+        order_id: order.id,
+        service_id: null,
+        product_id: null,
+        description: `Anzahlung ${code} (Online-Kauf)`,
+        quantity: 1,
+        unit_price: amount,
+        line_total: amount,
+      });
+
+      await admin.from('payments').insert({ order_id: order.id, method: 'online', amount, voucher_id: null });
+
+      res.status(200).json({ received: true, voucherCode: code });
+      return;
+    }
+
+    // Gutschein (Standardfall)
+    const buyerName = session.metadata?.buyerName || null;
+    const buyerEmail = session.customer_details?.email || null;
+
     const { data: voucher, error: voucherError } = await admin
       .from('vouchers')
       .insert({
@@ -91,6 +178,7 @@ export default async function handler(req: any, res: any) {
         remaining_value: amount,
         status: 'aktiv',
         source: 'online',
+        type: 'gutschein',
         buyer_email: buyerEmail,
         buyer_name: buyerName,
         stripe_session_id: session.id,
@@ -122,7 +210,7 @@ export default async function handler(req: any, res: any) {
       line_total: amount,
     });
 
-    await admin.from('payments').insert({ order_id: order.id, method: 'online', amount, voucher_id: voucher.id });
+    await admin.from('payments').insert({ order_id: order.id, method: 'online', amount, voucher_id: null });
 
     res.status(200).json({ received: true, voucherCode: code });
   } catch (e: any) {
