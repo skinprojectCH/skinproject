@@ -1051,7 +1051,7 @@ export async function fetchLocationBilling(locationId: string, startDateISO: str
   // Termine unterschiedlich zählten).
   const { data: appts, error: apptError } = await supabase
     .from('appointments')
-    .select('id, artist_id, artists(id, name, calendar_color, revenue_share_pct, is_employee), orders(total, subtotal, status, is_anzahlung, order_line_items(service_id, product_id, line_total))')
+    .select('id, artist_id, artists(id, name, calendar_color, revenue_share_pct, is_employee), orders(total, subtotal, status, is_anzahlung, order_line_items(service_id, product_id, line_total), payments(method, amount))')
     .eq('location_id', locationId)
     .eq('type', 'termin')
     .gte('start_time', start)
@@ -1066,7 +1066,7 @@ export async function fetchLocationBilling(locationId: string, startDateISO: str
   // sich nicht über Termine finden, daher separat über Bestelldatum.
   const { data: walkInOrders, error: walkInError } = await supabase
     .from('orders')
-    .select('id, total, subtotal, status, order_line_items(service_id, product_id, line_total)')
+    .select('id, total, subtotal, status, order_line_items(service_id, product_id, line_total), payments(method, amount)')
     .eq('location_id', locationId)
     .is('appointment_id', null)
     .eq('status', 'bezahlt')
@@ -1093,20 +1093,16 @@ export async function fetchLocationBilling(locationId: string, startDateISO: str
   if (anzahlungError) throw anzahlungError;
   const anzahlungRevenue = ((anzahlungVouchers as any[]) || []).reduce((s, v) => s + Number(v.remaining_value), 0);
 
-  // Wie viel vom heutigen Umsatz wurde mit einer früher verkauften Anzahlung beglichen
-  // (informativ -- ist bereits in Dienstleistungen/Produkte enthalten, keine zusätzliche
-  // Summe, sondern nur zur Einordnung "Bargeld heute" vs. "früher schon kassiert").
-  const { data: anzahlungPayments, error: anzahlungPayError } = await supabase
-    .from('payments')
-    .select('amount, orders!inner(location_id, status, is_anzahlung, created_at)')
-    .eq('method', 'anzahlung')
-    .eq('orders.location_id', locationId)
-    .eq('orders.status', 'bezahlt')
-    .eq('orders.is_anzahlung', false)
-    .gte('orders.created_at', start)
-    .lte('orders.created_at', end);
-  if (anzahlungPayError) throw anzahlungPayError;
-  const anzahlungRedeemedRevenue = ((anzahlungPayments as any[]) || []).reduce((s, p) => s + Number(p.amount), 0);
+  // Wie viel vom heutigen Umsatz wurde mit einer früher verkauften Anzahlung beglichen --
+  // aus denselben Terminen/Laufkunden-Bestellungen berechnet wie der übrige Umsatz (Termine
+  // nach start_time, Laufkunden nach Bestelldatum), NICHT nach Kassier-Zeitpunkt -- sonst
+  // laufen "Dienstleistungen" und "Anzahlung" bei rückwirkend kassierten Terminen auseinander.
+  let anzahlungRedeemedRevenue = 0;
+  for (const order of [...paidApptOrders, ...walkInRows]) {
+    for (const p of order.payments || []) {
+      if (p.method === 'anzahlung') anzahlungRedeemedRevenue += Number(p.amount);
+    }
+  }
 
   // Produkte & Gutscheine gehören zu 100% dem Salon -- über alle Bestellungen (Termine +
   // Laufkunden) hinweg summiert, inkl. anteiligem Bestell-Rabatt (subtotal/total-Faktor).
