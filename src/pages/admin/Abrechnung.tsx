@@ -362,7 +362,7 @@ async function downloadLocationSummaryPdf(opts: {
         doc.addPage();
         y = 20;
       }
-      doc.text(`${v.code} · ${v.type} · ${v.customerLabel}`, 14, y);
+      doc.text(`${v.code} · ${v.type} · ${v.customerLabel} · ${v.source === 'online' ? 'Online' : 'Kasse'}`, 14, y);
       doc.text(formatCHF(v.amount), 196, y, { align: 'right' });
       y += 6;
     }
@@ -866,25 +866,35 @@ export default function Abrechnung() {
                   <div style={{ marginTop: 20 }}>
                     <div style={{ fontSize: 12, fontWeight: 700, marginBottom: 8 }}>Eingesetzte Gutschein-/Anzahlung-Codes</div>
                     <div style={{ border: '1px solid var(--color-border)', borderRadius: 6, background: 'var(--color-surface)', overflow: 'hidden' }}>
-                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 100px', padding: '10px 14px', fontSize: 11, textTransform: 'uppercase', letterSpacing: 0.5, color: '#999', borderBottom: '1px solid var(--color-border)', fontWeight: 600 }}>
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 90px 100px', padding: '10px 14px', fontSize: 11, textTransform: 'uppercase', letterSpacing: 0.5, color: '#999', borderBottom: '1px solid var(--color-border)', fontWeight: 600 }}>
                         <div>Code</div>
                         <div>Typ</div>
                         <div>Kunde</div>
+                        <div>Herkunft</div>
                         <div style={{ textAlign: 'right' }}>Betrag</div>
                       </div>
                       {billing.redeemedVouchers.map((v: RedeemedVoucherEntry, i: number) => (
                         <div
                           key={`${v.code}-${i}`}
-                          style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 100px', padding: '12px 14px', fontSize: 13, borderBottom: '1px solid var(--color-border-subtle, #eee)', alignItems: 'center' }}
+                          style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 90px 100px', padding: '12px 14px', fontSize: 13, borderBottom: '1px solid var(--color-border-subtle, #eee)', alignItems: 'center' }}
                         >
                           <div style={{ fontFamily: 'monospace' }}>{v.code}</div>
                           <div style={{ textTransform: 'capitalize' }}>{v.type}</div>
                           <div>{v.customerLabel}</div>
+                          <div>
+                            {v.source === 'online' ? (
+                              <span style={{ border: '1px solid var(--color-accent)', color: 'var(--color-accent)', borderRadius: 10, padding: '2px 8px', fontSize: 10, fontWeight: 600 }}>Online</span>
+                            ) : (
+                              <span style={{ border: '1px solid var(--color-border)', color: '#999', borderRadius: 10, padding: '2px 8px', fontSize: 10, fontWeight: 600 }}>Kasse</span>
+                            )}
+                          </div>
                           <div style={{ textAlign: 'right', fontWeight: 600 }}>{formatCHF(v.amount)}</div>
                         </div>
                       ))}
                     </div>
-                    <div style={{ fontSize: 11, color: '#999', marginTop: 6 }}>Zum Abgleich mit der Gutschein-/Anzahlung-Übersicht (Admin → Gutschein &amp; Anzahlung).</div>
+                    <div style={{ fontSize: 11, color: '#999', marginTop: 6 }}>
+                      Zum Abgleich mit der Gutschein-/Anzahlung-Übersicht (Admin → Gutschein &amp; Anzahlung). "Online" = Geld ging schon damals per Stripe ein, nicht heute aus der Kasse.
+                    </div>
                   </div>
                 )}
               </>

@@ -1047,6 +1047,7 @@ export interface RedeemedVoucherEntry {
   type: 'gutschein' | 'anzahlung';
   amount: number;
   customerLabel: string;
+  source: 'kasse' | 'online';
 }
 
 export async function fetchLocationBilling(locationId: string, startDateISO: string, endDateISO: string): Promise<LocationBilling> {
@@ -1060,7 +1061,7 @@ export async function fetchLocationBilling(locationId: string, startDateISO: str
   const { data: appts, error: apptError } = await supabase
     .from('appointments')
     .select(
-      'id, artist_id, artists(id, name, calendar_color, revenue_share_pct, is_employee), orders(total, subtotal, status, is_anzahlung, customers(vorname, name), order_line_items(service_id, product_id, line_total), payments(method, amount, voucher_id, vouchers(code, type)))'
+      'id, artist_id, artists(id, name, calendar_color, revenue_share_pct, is_employee), orders(total, subtotal, status, is_anzahlung, customers(vorname, name), order_line_items(service_id, product_id, line_total), payments(method, amount, voucher_id, vouchers(code, type, source)))'
     )
     .eq('location_id', locationId)
     .eq('type', 'termin')
@@ -1076,7 +1077,7 @@ export async function fetchLocationBilling(locationId: string, startDateISO: str
   // sich nicht über Termine finden, daher separat über Bestelldatum.
   const { data: walkInOrders, error: walkInError } = await supabase
     .from('orders')
-    .select('id, total, subtotal, status, customers(vorname, name), order_line_items(service_id, product_id, line_total), payments(method, amount, voucher_id, vouchers(code, type))')
+    .select('id, total, subtotal, status, customers(vorname, name), order_line_items(service_id, product_id, line_total), payments(method, amount, voucher_id, vouchers(code, type, source))')
     .eq('location_id', locationId)
     .is('appointment_id', null)
     .eq('status', 'bezahlt')
@@ -1114,7 +1115,7 @@ export async function fetchLocationBilling(locationId: string, startDateISO: str
     for (const p of order.payments || []) {
       if (p.method === 'anzahlung') anzahlungRedeemedRevenue += Number(p.amount);
       if (p.voucher_id && p.vouchers) {
-        redeemedVouchers.push({ code: p.vouchers.code, type: p.vouchers.type, amount: Number(p.amount), customerLabel });
+        redeemedVouchers.push({ code: p.vouchers.code, type: p.vouchers.type, amount: Number(p.amount), customerLabel, source: p.vouchers.source });
       }
     }
   }
