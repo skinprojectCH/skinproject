@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useLocationContext } from '../../lib/locationContext';
-import { fetchLocationBilling, fetchLocationArtistBillingDetail, fetchLocations, fetchCashStartingBalance, setCashStartingBalance, fetchCashBalance, addCashAdjustment, fetchCashAdjustmentsForDay, type LocationBilling, type LocationBillingArtistRow, type LocationArtistBillingEntry, type CashAdjustment } from '../../lib/queries';
+import { fetchLocationBilling, fetchLocationArtistBillingDetail, fetchLocations, fetchCashStartingBalance, setCashStartingBalance, fetchCashBalance, addCashAdjustment, fetchCashAdjustmentsForDay, type LocationBilling, type LocationBillingArtistRow, type LocationArtistBillingEntry, type CashAdjustment, type RedeemedVoucherEntry } from '../../lib/queries';
 import { formatCHF } from '../../lib/format';
 import Modal from '../../components/Modal';
 
@@ -343,6 +343,28 @@ async function downloadLocationSummaryPdf(opts: {
         doc.text(`${a.amount >= 0 ? '+' : ''}${formatCHF(a.amount)}`, 196, y, { align: 'right' });
         y += 6;
       }
+    }
+  }
+
+  if (b.redeemedVouchers.length > 0) {
+    y += 6;
+    doc.setDrawColor(200);
+    doc.line(14, y, 196, y);
+    y += 10;
+
+    doc.setFontSize(12);
+    doc.setTextColor(0);
+    doc.text('Eingesetzte Gutschein-/Anzahlung-Codes', 14, y);
+    y += 8;
+    doc.setFontSize(9);
+    for (const v of b.redeemedVouchers) {
+      if (y > 280) {
+        doc.addPage();
+        y = 20;
+      }
+      doc.text(`${v.code} · ${v.type} · ${v.customerLabel}`, 14, y);
+      doc.text(formatCHF(v.amount), 196, y, { align: 'right' });
+      y += 6;
     }
   }
 
@@ -839,6 +861,32 @@ export default function Abrechnung() {
                     artistRows.map(renderRow)
                   )}
                 </div>
+
+                {billing.redeemedVouchers.length > 0 && (
+                  <div style={{ marginTop: 20 }}>
+                    <div style={{ fontSize: 12, fontWeight: 700, marginBottom: 8 }}>Eingesetzte Gutschein-/Anzahlung-Codes</div>
+                    <div style={{ border: '1px solid var(--color-border)', borderRadius: 6, background: 'var(--color-surface)', overflow: 'hidden' }}>
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 100px', padding: '10px 14px', fontSize: 11, textTransform: 'uppercase', letterSpacing: 0.5, color: '#999', borderBottom: '1px solid var(--color-border)', fontWeight: 600 }}>
+                        <div>Code</div>
+                        <div>Typ</div>
+                        <div>Kunde</div>
+                        <div style={{ textAlign: 'right' }}>Betrag</div>
+                      </div>
+                      {billing.redeemedVouchers.map((v: RedeemedVoucherEntry, i: number) => (
+                        <div
+                          key={`${v.code}-${i}`}
+                          style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 100px', padding: '12px 14px', fontSize: 13, borderBottom: '1px solid var(--color-border-subtle, #eee)', alignItems: 'center' }}
+                        >
+                          <div style={{ fontFamily: 'monospace' }}>{v.code}</div>
+                          <div style={{ textTransform: 'capitalize' }}>{v.type}</div>
+                          <div>{v.customerLabel}</div>
+                          <div style={{ textAlign: 'right', fontWeight: 600 }}>{formatCHF(v.amount)}</div>
+                        </div>
+                      ))}
+                    </div>
+                    <div style={{ fontSize: 11, color: '#999', marginTop: 6 }}>Zum Abgleich mit der Gutschein-/Anzahlung-Übersicht (Admin → Gutschein &amp; Anzahlung).</div>
+                  </div>
+                )}
               </>
             );
           })()}
