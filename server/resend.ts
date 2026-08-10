@@ -38,8 +38,8 @@ export async function sendEmail(opts: { to: string; subject: string; html: strin
 export function emailLayout(bodyHtml: string) {
   return `
   <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 560px; margin: 0 auto; color: #222;">
-    <div style="padding: 28px 0 20px; text-align: center; border-bottom: 2px solid #111;">
-      <span style="font-size: 20px; font-weight: 700; letter-spacing: 0.5px;">SkinProject</span>
+    <div style="padding: 24px 0 20px; text-align: center; border-bottom: 2px solid #111;">
+      <img src="https://www.sknpr.ch/logo-email.png" alt="SkinProject" width="90" style="display: block; margin: 0 auto; height: auto;" />
     </div>
     <div style="padding: 28px 4px;">
       ${bodyHtml}

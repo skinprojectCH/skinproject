@@ -83,9 +83,9 @@ export default function Einstellungen() {
         />
       </div>
 
-      <h3 style={{ fontSize: 18, marginBottom: 6 }}>Dankeschön-Gutschein</h3>
+      <h3 style={{ fontSize: 18, marginBottom: 6 }}>Dankeschön-Rabatt</h3>
       <p style={{ color: '#999', fontSize: 13, marginBottom: 16 }}>
-        Wird automatisch mit der Pflegeanleitungs-Mail verschickt. Gilt ausschliesslich für Produkte, nicht für Dienstleistungen.
+        Wird als Rabatt-Hinweis mit der Pflegeanleitungs-Mail verschickt (kein Code, kein Gutschein zum Einlösen an der Kasse -- reine Information für den Kunden).
       </p>
 
       <div style={{ marginBottom: 18, display: 'flex', alignItems: 'center', gap: 10 }}>
@@ -98,39 +98,36 @@ export default function Einstellungen() {
           style={{ width: 16, height: 16 }}
         />
         <label htmlFor="voucherEnabled" style={{ fontSize: 13 }}>
-          Dankeschön-Gutschein aktivieren
+          Dankeschön-Rabatt in der Mail anzeigen
         </label>
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 24 }}>
-        <div>
-          <div className="label-uppercase" style={{ marginBottom: 4 }}>
-            Betrag (CHF)
-          </div>
-          <input
-            type="number"
-            min={0}
-            step={5}
-            value={settings.thankYouVoucherAmount}
-            onChange={(e) => setSettings({ ...settings, thankYouVoucherAmount: parseFloat(e.target.value) || 0 })}
-            style={inputStyle}
-            disabled={readOnly || !settings.thankYouVoucherEnabled}
-          />
+      <div style={{ marginBottom: 18, maxWidth: 160 }}>
+        <div className="label-uppercase" style={{ marginBottom: 4 }}>
+          Rabatt (%)
         </div>
-        <div>
-          <div className="label-uppercase" style={{ marginBottom: 4 }}>
-            Gültigkeit (Monate)
-          </div>
-          <input
-            type="number"
-            min={1}
-            step={1}
-            value={settings.thankYouVoucherValidityMonths}
-            onChange={(e) => setSettings({ ...settings, thankYouVoucherValidityMonths: parseInt(e.target.value, 10) || 1 })}
-            style={inputStyle}
-            disabled={readOnly || !settings.thankYouVoucherEnabled}
-          />
+        <input
+          type="number"
+          min={0}
+          max={100}
+          step={5}
+          value={settings.thankYouDiscountPercent}
+          onChange={(e) => setSettings({ ...settings, thankYouDiscountPercent: parseFloat(e.target.value) || 0 })}
+          style={inputStyle}
+          disabled={readOnly || !settings.thankYouVoucherEnabled}
+        />
+      </div>
+
+      <div style={{ marginBottom: 24 }}>
+        <div className="label-uppercase" style={{ marginBottom: 4 }}>
+          Hinweistext (Kleingedrucktes)
         </div>
+        <textarea
+          value={settings.thankYouDiscountText}
+          onChange={(e) => setSettings({ ...settings, thankYouDiscountText: e.target.value })}
+          style={{ ...inputStyle, minHeight: 70, resize: 'vertical' }}
+          disabled={readOnly || !settings.thankYouVoucherEnabled}
+        />
       </div>
 
       {error && <div style={{ color: 'var(--color-destructive)', fontSize: 12.5, marginBottom: 14 }}>{error}</div>}

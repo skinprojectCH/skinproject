@@ -1659,24 +1659,24 @@ export const APP_SETTINGS_KEYS = {
   careInstructionsTattoo: 'care_instructions_tattoo',
   careInstructionsPiercing: 'care_instructions_piercing',
   thankYouVoucherEnabled: 'thank_you_voucher_enabled',
-  thankYouVoucherAmount: 'thank_you_voucher_amount',
-  thankYouVoucherValidityMonths: 'thank_you_voucher_validity_months',
+  thankYouDiscountPercent: 'thank_you_discount_percent',
+  thankYouDiscountText: 'thank_you_discount_text',
 } as const;
 
 export interface AppSettings {
   careInstructionsTattoo: string;
   careInstructionsPiercing: string;
   thankYouVoucherEnabled: boolean;
-  thankYouVoucherAmount: number;
-  thankYouVoucherValidityMonths: number;
+  thankYouDiscountPercent: number;
+  thankYouDiscountText: string;
 }
 
 const APP_SETTINGS_DEFAULTS: AppSettings = {
   careInstructionsTattoo: '',
   careInstructionsPiercing: '',
   thankYouVoucherEnabled: false,
-  thankYouVoucherAmount: 10,
-  thankYouVoucherValidityMonths: 6,
+  thankYouDiscountPercent: 20,
+  thankYouDiscountText: 'Gültig auf Piercingschmuck und Schmuck. Nicht kumulierbar, Änderungen vorbehalten.',
 };
 
 export async function fetchAppSettings(): Promise<AppSettings> {
@@ -1687,10 +1687,8 @@ export async function fetchAppSettings(): Promise<AppSettings> {
     careInstructionsTattoo: map.get(APP_SETTINGS_KEYS.careInstructionsTattoo) ?? APP_SETTINGS_DEFAULTS.careInstructionsTattoo,
     careInstructionsPiercing: map.get(APP_SETTINGS_KEYS.careInstructionsPiercing) ?? APP_SETTINGS_DEFAULTS.careInstructionsPiercing,
     thankYouVoucherEnabled: map.get(APP_SETTINGS_KEYS.thankYouVoucherEnabled) === 'true',
-    thankYouVoucherAmount: map.has(APP_SETTINGS_KEYS.thankYouVoucherAmount) ? Number(map.get(APP_SETTINGS_KEYS.thankYouVoucherAmount)) : APP_SETTINGS_DEFAULTS.thankYouVoucherAmount,
-    thankYouVoucherValidityMonths: map.has(APP_SETTINGS_KEYS.thankYouVoucherValidityMonths)
-      ? Number(map.get(APP_SETTINGS_KEYS.thankYouVoucherValidityMonths))
-      : APP_SETTINGS_DEFAULTS.thankYouVoucherValidityMonths,
+    thankYouDiscountPercent: map.has(APP_SETTINGS_KEYS.thankYouDiscountPercent) ? Number(map.get(APP_SETTINGS_KEYS.thankYouDiscountPercent)) : APP_SETTINGS_DEFAULTS.thankYouDiscountPercent,
+    thankYouDiscountText: map.get(APP_SETTINGS_KEYS.thankYouDiscountText) ?? APP_SETTINGS_DEFAULTS.thankYouDiscountText,
   };
 }
 
@@ -1699,8 +1697,8 @@ export async function saveAppSettings(settings: AppSettings, updatedBy?: string 
     { key: APP_SETTINGS_KEYS.careInstructionsTattoo, value: settings.careInstructionsTattoo },
     { key: APP_SETTINGS_KEYS.careInstructionsPiercing, value: settings.careInstructionsPiercing },
     { key: APP_SETTINGS_KEYS.thankYouVoucherEnabled, value: String(settings.thankYouVoucherEnabled) },
-    { key: APP_SETTINGS_KEYS.thankYouVoucherAmount, value: String(settings.thankYouVoucherAmount) },
-    { key: APP_SETTINGS_KEYS.thankYouVoucherValidityMonths, value: String(settings.thankYouVoucherValidityMonths) },
+    { key: APP_SETTINGS_KEYS.thankYouDiscountPercent, value: String(settings.thankYouDiscountPercent) },
+    { key: APP_SETTINGS_KEYS.thankYouDiscountText, value: settings.thankYouDiscountText },
   ].map((r) => ({ ...r, updated_at: new Date().toISOString(), updated_by: updatedBy || null }));
   const { error } = await supabase.from('app_settings').upsert(rows);
   if (error) throw error;

@@ -8,15 +8,12 @@ import { sendEmail, emailLayout } from '../server/resend.js';
 // Detailseite -> Dokument -> "Termin zuweisen"). Laufkunden-Verkäufe ohne Termin
 // und Termine ohne zugewiesenes Formular lösen NIE eine Mail aus.
 // Schickt die zum Behandlungstyp (Tattoo/Piercing) passende Pflegeanleitung an
-// den Kunden, plus einen automatisch erzeugten, auf Produkte beschränkten
-// Dankeschön-Gutschein (falls in den Einstellungen aktiviert).
+// den Kunden, plus einen als reinen Hinweistext angezeigten Dankeschön-Rabatt
+// (Prozentsatz + Kleingedrucktes, kein Code, kein einlösbarer Gutschein-Datensatz)
+// -- Konfiguration erfolgt in den Einstellungen.
 //
 // Bricht überall dort still ab (200 OK, kein Versand), wo Bedingungen fehlen --
 // der Checkout an der Kasse darf dadurch nie fehlschlagen oder blockiert werden.
-
-function generateVoucherCode() {
-  return '2SK-' + Math.random().toString(36).slice(2, 7).toUpperCase();
-}
 
 export default async function handler(req: any, res: any) {
   if (req.method !== 'POST') {
@@ -86,7 +83,7 @@ export default async function handler(req: any, res: any) {
     const { data: settingsRows } = await admin
       .from('app_settings')
       .select('key, value')
-      .in('key', ['care_instructions_tattoo', 'care_instructions_piercing', 'thank_you_voucher_enabled', 'thank_you_voucher_amount', 'thank_you_voucher_validity_months']);
+      .in('key', ['care_instructions_tattoo', 'care_instructions_piercing', 'thank_you_voucher_enabled', 'thank_you_discount_percent', 'thank_you_discount_text']);
     const settingsMap = new Map((settingsRows || []).map((r: any) => [r.key, r.value as string | null]));
 
     const careText = treatmentType === 'tattoo' ? settingsMap.get('care_instructions_tattoo') : settingsMap.get('care_instructions_piercing');
@@ -95,36 +92,18 @@ export default async function handler(req: any, res: any) {
       return;
     }
 
-    const voucherEnabled = settingsMap.get('thank_you_voucher_enabled') === 'true';
-    const voucherAmount = Number(settingsMap.get('thank_you_voucher_amount') || 0);
-    const validityMonths = Number(settingsMap.get('thank_you_voucher_validity_months') || 6);
+    const discountEnabled = settingsMap.get('thank_you_voucher_enabled') === 'true';
+    const discountPercent = Number(settingsMap.get('thank_you_discount_percent') || 0);
+    const discountText = settingsMap.get('thank_you_discount_text') || '';
 
     let voucherHtml = '';
-    if (voucherEnabled && voucherAmount > 0) {
-      const code = generateVoucherCode();
-      const expiresAt = new Date();
-      expiresAt.setMonth(expiresAt.getMonth() + validityMonths);
-
-      const { error: voucherError } = await admin.from('vouchers').insert({
-        code,
-        value: voucherAmount,
-        remaining_value: voucherAmount,
-        buyer_customer_id: customer.id,
-        status: 'aktiv',
-        source: 'system',
-        type: 'gutschein',
-        product_only: true,
-        expires_at: expiresAt.toISOString(),
-      });
-
-      if (!voucherError) {
-        voucherHtml = `
-          <div style="margin-top: 24px; padding: 18px 20px; border: 2px dashed #111; border-radius: 8px; text-align: center;">
-            <div style="font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; color: #888; margin-bottom: 6px;">Als kleines Dankeschön</div>
-            <div style="font-size: 22px; font-weight: 700; letter-spacing: 1px;">${code}</div>
-            <div style="font-size: 13px; color: #555; margin-top: 6px;">CHF ${voucherAmount.toFixed(2)} &middot; einlösbar für Produkte &middot; gültig bis ${expiresAt.toLocaleDateString('de-CH')}</div>
-          </div>`;
-      }
+    if (discountEnabled && discountPercent > 0) {
+      voucherHtml = `
+        <div style="margin-top: 24px; padding: 18px 20px; border: 2px dashed #111; border-radius: 8px; text-align: center;">
+          <div style="font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; color: #888; margin-bottom: 6px;">Als kleines Dankeschön</div>
+          <div style="font-size: 28px; font-weight: 700; letter-spacing: 1px;">${discountPercent}% Rabatt</div>
+          ${discountText ? `<div style="font-size: 12px; color: #888; margin-top: 8px;">${discountText}</div>` : ''}
+        </div>`;
     }
 
     const careTextHtml = careText
