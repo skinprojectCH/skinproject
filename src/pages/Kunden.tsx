@@ -13,7 +13,7 @@ function EditIcon() {
 }
 
 export default function Kunden() {
-  const { canAccessBackoffice } = useLocationContext();
+  const { isAdmin } = useLocationContext();
   const [search, setSearch] = useState('');
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [loading, setLoading] = useState(true);
@@ -81,10 +81,15 @@ export default function Kunden() {
           <button className="btn btn-primary" onClick={() => navigate('/kunden/new')}>
             + Neu
           </button>
-          {canAccessBackoffice && (
-            <button className="btn btn-secondary" onClick={() => navigate('/admin/kundenimport')}>
-              Importieren
-            </button>
+          {isAdmin && (
+            <>
+              <button className="btn btn-secondary" onClick={() => navigate('/admin/kundenexport')}>
+                Exportieren
+              </button>
+              <button className="btn btn-secondary" onClick={() => navigate('/admin/kundenimport')}>
+                Importieren
+              </button>
+            </>
           )}
         </div>
       </div>

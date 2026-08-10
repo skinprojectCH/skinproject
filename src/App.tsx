@@ -2,12 +2,14 @@ import { Routes, Route, Navigate } from 'react-router-dom';
 import AppLayout from './components/AppLayout';
 import RequireAuth from './components/RequireAuth';
 import RequireBackoffice from './components/RequireBackoffice';
+import RequireAdmin from './components/RequireAdmin';
 import Login from './pages/Login';
 import ResetPassword from './pages/ResetPassword';
 import Kalender from './pages/Kalender';
 import Kasse from './pages/Kasse';
 import Kunden from './pages/Kunden';
 import KundenImport from './pages/admin/KundenImport';
+import KundenExport from './pages/admin/KundenExport';
 import KundeDetail from './pages/KundeDetail';
 import AdminIndex from './pages/admin/AdminIndex';
 import Artists from './pages/admin/Artists';
@@ -45,9 +47,13 @@ export default function App() {
         <Route path="/kunden" element={<Kunden />} />
         <Route path="/kunden/:id" element={<KundeDetail />} />
 
+        <Route element={<RequireAdmin />}>
+          <Route path="/admin/kundenimport" element={<KundenImport />} />
+          <Route path="/admin/kundenexport" element={<KundenExport />} />
+        </Route>
+
         <Route element={<RequireBackoffice />}>
           <Route path="/admin" element={<AdminIndex />} />
-          <Route path="/admin/kundenimport" element={<KundenImport />} />
           <Route path="/admin/artists" element={<Artists />} />
           <Route path="/admin/artists/:id" element={<ArtistDetail />} />
           <Route path="/admin/dienstleistungen" element={<Dienstleistungen />} />
