@@ -1,0 +1,1725 @@
+import { supabase } from './supabaseClient';
+
+// ---------- Types (spiegeln db/schema.sql) ----------
+export interface Artist {
+  id: string;
+  name: string;
+  kuenstlername: string | null;
+  email: string | null;
+  phone: string | null;
+  revenue_share_pct: number;
+  calendar_color: string;
+  status: 'active' | 'inactive';
+  location_id: string | null;
+  strasse: string | null;
+  plz_ort: string | null;
+  ahv_nummer: string | null;
+  mwst_aktiv: boolean;
+  mwst_nummer: string | null;
+  mwst_prozent: number | null;
+  pin_hash: string | null;
+  is_employee: boolean;
+}
+
+export interface Customer {
+  id: string;
+  vorname: string;
+  name: string;
+  email: string | null;
+  phone: string | null;
+  birthdate: string | null;
+  notes: string | null;
+  health_notice: string | null;
+  strasse: string | null;
+  plz_ort: string | null;
+}
+
+export interface ServiceCategory {
+  id: string;
+  name: string;
+  active: boolean;
+}
+
+export interface Service {
+  id: string;
+  category_id: string | null;
+  name: string;
+  duration_minutes: number;
+  price: number;
+  description: string | null;
+  active: boolean;
+}
+
+export interface ProductCategory {
+  id: string;
+  name: string;
+  active: boolean;
+}
+
+export interface Product {
+  id: string;
+  category_id: string | null;
+  name: string;
+  price: number;
+  barcode: string | null;
+  description: string | null;
+  active: boolean;
+}
+
+export interface Appointment {
+  id: string;
+  customer_id: string | null;
+  artist_id: string | null;
+  location_id: string | null;
+  start_time: string;
+  end_time: string;
+  type: 'termin' | 'absenz';
+  status: 'gebucht' | 'kassiert' | 'storniert' | 'nicht_erschienen';
+  notes: string | null;
+}
+
+export interface Location {
+  id: string;
+  name: string;
+  address: string | null;
+  vat_number: string | null;
+  strasse: string | null;
+  plz_ort: string | null;
+  telefon: string | null;
+  email: string | null;
+  mwst_prozent: number | null;
+  saldosteuersatz: number | null;
+  is_main: boolean;
+}
+
+export interface LocationManager {
+  id: string;
+  location_id: string;
+  vorname: string;
+  name: string;
+  email: string | null;
+  telefon: string | null;
+}
+
+// ---------- Locations ----------
+export async function fetchCurrentUserLocationId() {
+  const { data: userData } = await supabase.auth.getUser();
+  if (!userData.user) return null;
+  const { data, error } = await supabase.from('app_users').select('location_id').eq('id', userData.user.id).maybeSingle();
+  if (error) return null; // z.B. noch kein app_users-Eintrag für diesen Login vorhanden
+  return data?.location_id ?? null;
+}
+
+export async function fetchLocations() {
+  const { data, error } = await supabase.from('locations').select('*').order('name');
+  if (error) throw error;
+  return data as Location[];
+}
+
+export async function createLocation(input: { name: string; strasse: string | null; plz_ort: string | null; telefon: string | null; email: string | null; vat_number: string | null; mwst_prozent: number | null; saldosteuersatz?: number | null }) {
+  const { data, error } = await supabase.from('locations').insert(input).select().single();
+  if (error) throw error;
+  return data as Location;
+}
+
+export async function updateLocation(id: string, patch: Partial<Location>) {
+  const { error } = await supabase.from('locations').update(patch).eq('id', id);
+  if (error) throw error;
+}
+
+// Setzt eine Location als Haupt-Location (für Umsätze ohne eigene Location-Zuordnung,
+// z.B. online verkaufte Gutscheine). Alle anderen werden zuerst zurückgesetzt, da nur
+// eine Location gleichzeitig "Haupt" sein darf (unique partial index in der DB).
+export async function setMainLocation(id: string) {
+  const { error: unsetError } = await supabase.from('locations').update({ is_main: false }).eq('is_main', true);
+  if (unsetError) throw unsetError;
+  const { error } = await supabase.from('locations').update({ is_main: true }).eq('id', id);
+  if (error) throw error;
+}
+
+// ---------- Location-Manager ----------
+export async function fetchLocationManagers(locationId: string) {
+  const { data, error } = await supabase.from('location_managers').select('*').eq('location_id', locationId);
+  if (error) throw error;
+  return data as LocationManager[];
+}
+
+export async function createLocationManager(input: { location_id: string; vorname: string; name: string; email: string | null; telefon: string | null }) {
+  const { data, error } = await supabase.from('location_managers').insert(input).select().single();
+  if (error) throw error;
+  return data as LocationManager;
+}
+
+export async function updateLocationManager(id: string, patch: Partial<LocationManager>) {
+  const { error } = await supabase.from('location_managers').update(patch).eq('id', id);
+  if (error) throw error;
+}
+
+export async function deleteLocationManager(id: string) {
+  const { error } = await supabase.from('location_managers').delete().eq('id', id);
+  if (error) throw error;
+}
+
+export interface Voucher {
+  id: string;
+  code: string;
+  value: number;
+  remaining_value: number;
+  buyer_customer_id: string | null;
+  status: 'aktiv' | 'eingelöst' | 'abgelaufen';
+  created_at: string;
+  source: 'kasse' | 'online';
+  buyer_name: string | null;
+  buyer_email: string | null;
+  type: 'gutschein' | 'anzahlung';
+  location_id: string | null;
+}
+
+// ---------- Artists ----------
+export async function fetchArtists() {
+  const { data, error } = await supabase.from('artists').select('*').order('name');
+  if (error) throw error;
+  return data as Artist[];
+}
+
+export async function fetchArtistById(id: string) {
+  const { data, error } = await supabase.from('artists').select('*').eq('id', id).single();
+  if (error) throw error;
+  return data as Artist;
+}
+
+export async function createArtist(input: Partial<Omit<Artist, 'id'>> & { name: string }) {
+  const { data, error } = await supabase.from('artists').insert(input).select().single();
+  if (error) throw error;
+  return data as Artist;
+}
+
+export async function updateArtist(id: string, patch: Partial<Artist>) {
+  const { error } = await supabase.from('artists').update(patch).eq('id', id);
+  if (error) throw error;
+}
+
+export async function deleteArtist(id: string) {
+  const { error } = await supabase.from('artists').delete().eq('id', id);
+  if (error) throw error;
+}
+
+export async function fetchArtistServiceIds(artistId: string) {
+  const { data, error } = await supabase.from('artist_services').select('service_id').eq('artist_id', artistId);
+  if (error) throw error;
+  return (data || []).map((row) => row.service_id as string);
+}
+
+// Ersetzt die komplette Zuordnung (löscht bestehende, fügt neue ein) — einfacher und
+// robuster als ein Diff, für die überschaubare Anzahl Services pro Artist unproblematisch.
+export async function setArtistServiceIds(artistId: string, serviceIds: string[]) {
+  const { error: deleteError } = await supabase.from('artist_services').delete().eq('artist_id', artistId);
+  if (deleteError) throw deleteError;
+  if (serviceIds.length === 0) return;
+  const { error: insertError } = await supabase.from('artist_services').insert(serviceIds.map((service_id) => ({ artist_id: artistId, service_id })));
+  if (insertError) throw insertError;
+}
+
+// ---------- Customers ----------
+export async function fetchCustomers() {
+  const { data, error } = await supabase.from('customers').select('*').order('name');
+  if (error) throw error;
+  return data as Customer[];
+}
+
+export async function fetchCustomer(id: string) {
+  const { data, error } = await supabase.from('customers').select('*').eq('id', id).single();
+  if (error) throw error;
+  return data as Customer;
+}
+
+export async function createCustomer(input: Partial<Customer>) {
+  const { data, error } = await supabase.from('customers').insert(input).select().single();
+  if (error) throw error;
+  return data as Customer;
+}
+
+export async function updateCustomer(id: string, patch: Partial<Customer>) {
+  const { error } = await supabase.from('customers').update(patch).eq('id', id);
+  if (error) throw error;
+}
+
+export async function deleteCustomer(id: string) {
+  const { error } = await supabase.from('customers').delete().eq('id', id);
+  if (error) throw error;
+}
+
+// ---------- Kunden-Dokumente & Fotos (Supabase Storage: Bucket "customer-files") ----------
+export interface CustomerDocument {
+  id: string;
+  customer_id: string;
+  appointment_id: string | null;
+  type: 'id_photo' | 'signature' | 'photo' | 'document';
+  storage_path: string;
+  file_name: string | null;
+  created_at: string;
+}
+
+export async function fetchCustomerDocuments(customerId: string) {
+  const { data, error } = await supabase.from('customer_documents').select('*').eq('customer_id', customerId).order('created_at', { ascending: false });
+  if (error) throw error;
+  return data as CustomerDocument[];
+}
+
+// appointmentId optional: ordnet die Datei einem bestimmten Termin zu (statt nur dem Kunden allgemein)
+export async function uploadCustomerFile(customerId: string, file: File, type: 'document' | 'photo', appointmentId?: string | null) {
+  const ext = file.name.split('.').pop();
+  const path = `${customerId}/${type}/${crypto.randomUUID()}.${ext}`;
+  const { error: uploadError } = await supabase.storage.from('customer-files').upload(path, file);
+  if (uploadError) throw uploadError;
+  const { data, error } = await supabase
+    .from('customer_documents')
+    .insert({ customer_id: customerId, type, storage_path: path, appointment_id: appointmentId || null, file_name: file.name })
+    .select()
+    .single();
+  if (error) throw error;
+  return data as CustomerDocument;
+}
+
+export async function getCustomerFileUrl(storagePath: string) {
+  const { data, error } = await supabase.storage.from('customer-files').createSignedUrl(storagePath, 60 * 5);
+  if (error) throw error;
+  return data.signedUrl;
+}
+
+export async function deleteCustomerDocument(doc: CustomerDocument) {
+  const { error: storageError } = await supabase.storage.from('customer-files').remove([doc.storage_path]);
+  if (storageError) throw storageError;
+  const { error } = await supabase.from('customer_documents').delete().eq('id', doc.id);
+  if (error) throw error;
+}
+
+// Ordnet ein bestehendes Kunden-Dokument (z.B. die Einverständniserklärung aus der Registrierung)
+// nachträglich einem konkreten Termin zu, z.B. wenn der Salon-Manager einen Termin für den
+// Kunden bucht und das Dokument dort sichtbar sein muss.
+export async function assignDocumentToAppointment(documentId: string, appointmentId: string | null) {
+  const { error } = await supabase.from('customer_documents').update({ appointment_id: appointmentId }).eq('id', documentId);
+  if (error) throw error;
+}
+
+export interface PendingHealthDoc {
+  docId: string;
+  customerId: string;
+  customerName: string;
+  createdAt: string;
+  treatmentType: 'tattoo' | 'piercing' | null;
+}
+
+// Für "Neuer Termin": Kunden, die bereits eine Einverständniserklärung ausgefüllt haben, die
+// aber noch keinem Termin zugewiesen ist (z.B. sitzen gerade im Salon und füllen es am
+// Tablet aus, bevor der Termin erfasst wird). Älteste zuerst -- die zuerst dran waren.
+export async function fetchCustomersWithPendingHealthDocs(): Promise<PendingHealthDoc[]> {
+  const { data, error } = await supabase
+    .from('customer_documents')
+    .select('id, created_at, customer_id, customers(vorname, name)')
+    .eq('type', 'document')
+    .is('appointment_id', null)
+    .order('created_at', { ascending: true });
+  if (error) throw error;
+
+  const pending = ((data as any[]) || [])
+    .filter((d) => d.customer_id && d.customers)
+    .map((d) => ({
+      docId: d.id,
+      customerId: d.customer_id,
+      customerName: `${d.customers.vorname} ${d.customers.name}`,
+      createdAt: d.created_at,
+      treatmentType: null as 'tattoo' | 'piercing' | null,
+    }));
+  if (pending.length === 0) return pending;
+
+  // Interesse (Tattoo/Piercing) aus der Einverständniserklärung ergänzen -- jeweils die
+  // neueste Antwort pro Kunde, falls mehrfach ausgefüllt.
+  const customerIds = [...new Set(pending.map((p) => p.customerId))];
+  const { data: responses, error: respError } = await supabase
+    .from('health_questionnaire_responses')
+    .select('customer_id, detail_text, created_at')
+    .eq('question_key', 'treatment_type')
+    .in('customer_id', customerIds)
+    .order('created_at', { ascending: false });
+  if (respError) throw respError;
+
+  const latestByCustomer: Record<string, 'tattoo' | 'piercing'> = {};
+  for (const r of (responses as any[]) || []) {
+    if (!(r.customer_id in latestByCustomer) && (r.detail_text === 'tattoo' || r.detail_text === 'piercing')) {
+      latestByCustomer[r.customer_id] = r.detail_text;
+    }
+  }
+  for (const p of pending) {
+    p.treatmentType = latestByCustomer[p.customerId] || null;
+  }
+  return pending;
+}
+
+// ---------- Services / Products ----------
+export async function fetchServiceCategories() {
+  const { data, error } = await supabase.from('service_categories').select('*').order('sort_order');
+  if (error) throw error;
+  return data as ServiceCategory[];
+}
+
+export async function createServiceCategory(name: string) {
+  const { data, error } = await supabase.from('service_categories').insert({ name }).select().single();
+  if (error) throw error;
+  return data as ServiceCategory;
+}
+
+// Zählt, wie viele Dienstleistungen dieser Kategorie zugeordnet sind (unabhängig vom Aktiv-Status).
+export async function countServicesInCategory(categoryId: string) {
+  const { count, error } = await supabase.from('services').select('id', { count: 'exact', head: true }).eq('category_id', categoryId);
+  if (error) throw error;
+  return count || 0;
+}
+
+// Kategorie aktualisieren. Beim Deaktivieren werden alle zugeordneten Dienstleistungen
+// automatisch mitdeaktiviert (Kaskade), damit sie z.B. in der Kasse nicht mehr auswählbar sind.
+// Historische Daten (Termine, Bestellungen) bleiben davon unberührt — es wird nichts gelöscht.
+export async function updateServiceCategory(id: string, name: string, active: boolean) {
+  const { error } = await supabase.from('service_categories').update({ name, active }).eq('id', id);
+  if (error) throw error;
+  if (!active) {
+    const { error: cascadeError } = await supabase.from('services').update({ active: false }).eq('category_id', id);
+    if (cascadeError) throw cascadeError;
+  }
+}
+
+// Löschen ist nur erlaubt, wenn keine Dienstleistung (aktiv oder inaktiv) dieser Kategorie
+// zugeordnet ist — so bleibt die Historie unangetastet und es entstehen keine verwaisten Referenzen.
+export async function deleteServiceCategory(id: string) {
+  const count = await countServicesInCategory(id);
+  if (count > 0) {
+    throw new Error(
+      `Diese Kategorie enthält noch ${count} Dienstleistung${count === 1 ? '' : 'en'}. Kategorien mit zugeordneten Dienstleistungen können nicht gelöscht werden — stattdessen auf "Inaktiv" setzen.`
+    );
+  }
+  const { error } = await supabase.from('service_categories').delete().eq('id', id);
+  if (error) throw error;
+}
+
+export async function fetchServices() {
+  const { data, error } = await supabase.from('services').select('*').order('name');
+  if (error) throw error;
+  return data as Service[];
+}
+
+export async function createService(input: {
+  name: string;
+  price: number;
+  duration_minutes: number;
+  description: string | null;
+  category_id: string | null;
+  active: boolean;
+}) {
+  const { data, error } = await supabase.from('services').insert(input).select().single();
+  if (error) throw error;
+  return data as Service;
+}
+
+export async function updateService(id: string, patch: Partial<Service>) {
+  const { error } = await supabase.from('services').update(patch).eq('id', id);
+  if (error) throw error;
+}
+
+export async function deleteService(id: string) {
+  const { error } = await supabase.from('services').delete().eq('id', id);
+  if (error) throw error;
+}
+
+export async function fetchProductCategories() {
+  const { data, error } = await supabase.from('product_categories').select('*').order('sort_order');
+  if (error) throw error;
+  return data as ProductCategory[];
+}
+
+export async function createProductCategory(name: string) {
+  const { data, error } = await supabase.from('product_categories').insert({ name }).select().single();
+  if (error) throw error;
+  return data as ProductCategory;
+}
+
+export async function countProductsInCategory(categoryId: string) {
+  const { count, error } = await supabase.from('products').select('id', { count: 'exact', head: true }).eq('category_id', categoryId);
+  if (error) throw error;
+  return count || 0;
+}
+
+// Beim Deaktivieren werden alle zugeordneten Produkte automatisch mitdeaktiviert (Kaskade).
+// Historische Daten (Bestellungen) bleiben unberührt — es wird nichts gelöscht.
+export async function updateProductCategory(id: string, name: string, active: boolean) {
+  const { error } = await supabase.from('product_categories').update({ name, active }).eq('id', id);
+  if (error) throw error;
+  if (!active) {
+    const { error: cascadeError } = await supabase.from('products').update({ active: false }).eq('category_id', id);
+    if (cascadeError) throw cascadeError;
+  }
+}
+
+// Löschen nur erlaubt, wenn kein Produkt (aktiv oder inaktiv) dieser Kategorie zugeordnet ist.
+export async function deleteProductCategory(id: string) {
+  const count = await countProductsInCategory(id);
+  if (count > 0) {
+    throw new Error(
+      `Diese Kategorie enthält noch ${count} Produkt${count === 1 ? '' : 'e'}. Kategorien mit zugeordneten Produkten können nicht gelöscht werden — stattdessen auf "Inaktiv" setzen.`
+    );
+  }
+  const { error } = await supabase.from('product_categories').delete().eq('id', id);
+  if (error) throw error;
+}
+
+export async function fetchProducts() {
+  const { data, error } = await supabase.from('products').select('*').order('name');
+  if (error) throw error;
+  return data as Product[];
+}
+
+export async function createProduct(input: {
+  name: string;
+  price: number;
+  barcode: string | null;
+  description: string | null;
+  category_id: string | null;
+  active: boolean;
+}) {
+  const { data, error } = await supabase.from('products').insert(input).select().single();
+  if (error) throw error;
+  return data as Product;
+}
+
+export async function updateProduct(id: string, patch: Partial<Product>) {
+  const { error } = await supabase.from('products').update(patch).eq('id', id);
+  if (error) throw error;
+}
+
+export async function deleteProduct(id: string) {
+  const { error } = await supabase.from('products').delete().eq('id', id);
+  if (error) throw error;
+}
+
+// ---------- Appointments ----------
+export async function fetchAppointmentsForDay(dateISO: string, locationId?: string) {
+  const start = `${dateISO}T00:00:00`;
+  const end = `${dateISO}T23:59:59`;
+  let query = supabase
+    .from('appointments')
+    .select('*, customers(vorname, name, phone), artists(name, kuenstlername, calendar_color), appointment_line_items(service_id, services(name))')
+    .gte('start_time', start)
+    .lte('start_time', end)
+    .order('start_time');
+  if (locationId) query = query.eq('location_id', locationId);
+  const { data, error } = await query;
+  if (error) throw error;
+  return data;
+}
+
+// Für den "Offene vergangene Termine"-Filter in der Listenansicht: alle Termine, die schon
+// vorbei sind, aber noch nicht kassiert/storniert/nicht-erschienen gesetzt wurden.
+export async function fetchUnresolvedPastAppointments(locationId?: string) {
+  const nowIso = new Date().toISOString();
+  let query = supabase
+    .from('appointments')
+    .select('*, customers(vorname, name, phone), artists(name, kuenstlername, calendar_color), appointment_line_items(service_id, services(name))')
+    .eq('type', 'termin')
+    .eq('status', 'gebucht')
+    .lt('start_time', nowIso)
+    .order('start_time', { ascending: false });
+  if (locationId) query = query.eq('location_id', locationId);
+  const { data, error } = await query;
+  if (error) throw error;
+  return data;
+}
+
+export async function addAppointmentLineItems(appointmentId: string, items: { service_id: string; quantity: number; unit_price: number }[]) {
+  if (items.length === 0) return;
+  const { error } = await supabase.from('appointment_line_items').insert(items.map((i) => ({ ...i, appointment_id: appointmentId })));
+  if (error) throw error;
+}
+
+export async function fetchAppointmentLineItems(appointmentId: string) {
+  const { data, error } = await supabase.from('appointment_line_items').select('*, services(name, duration_minutes)').eq('appointment_id', appointmentId);
+  if (error) throw error;
+  return data;
+}
+
+export async function replaceAppointmentLineItems(appointmentId: string, items: { service_id: string; quantity: number; unit_price: number }[]) {
+  const { error: deleteError } = await supabase.from('appointment_line_items').delete().eq('appointment_id', appointmentId);
+  if (deleteError) throw deleteError;
+  await addAppointmentLineItems(appointmentId, items);
+}
+
+export async function fetchDocumentsForAppointment(appointmentId: string) {
+  const { data, error } = await supabase.from('customer_documents').select('*').eq('appointment_id', appointmentId).order('created_at', { ascending: false });
+  if (error) throw error;
+  return data as CustomerDocument[];
+}
+
+// Für Listenansichten (z.B. Artist-PWA-Agenda): welche dieser Termine haben bereits
+// mindestens ein Foto? Eine Bulk-Abfrage statt einer Abfrage pro Termin.
+export async function fetchAppointmentIdsWithPhotos(appointmentIds: string[]): Promise<Set<string>> {
+  if (appointmentIds.length === 0) return new Set();
+  const { data, error } = await supabase.from('customer_documents').select('appointment_id').eq('type', 'photo').in('appointment_id', appointmentIds);
+  if (error) throw error;
+  return new Set((data || []).map((d: any) => d.appointment_id).filter(Boolean));
+}
+
+export async function fetchAppointmentsForCustomer(customerId: string) {
+  const { data, error } = await supabase
+    .from('appointments')
+    .select('*, artists(name), appointment_line_items(quantity, unit_price, services(name)), orders(total, status)')
+    .eq('customer_id', customerId)
+    .order('start_time', { ascending: false });
+  if (error) throw error;
+  return data;
+}
+
+// Verkäufe ohne Termin (z.B. reiner Artikelverkauf an der Kasse) — damit sie trotzdem
+// im Kalender/Kassenbuch sichtbar sind, statt spurlos zu verschwinden.
+export async function fetchWalkInOrdersForDay(dateISO: string, locationId?: string) {
+  const start = `${dateISO}T00:00:00`;
+  const end = `${dateISO}T23:59:59`;
+  let query = supabase
+    .from('orders')
+    .select('*, customers(vorname, name, phone), order_line_items(description, quantity, unit_price)')
+    .is('appointment_id', null)
+    .eq('is_anzahlung', false)
+    .gte('created_at', start)
+    .lte('created_at', end)
+    .order('created_at');
+  if (locationId) query = query.eq('location_id', locationId);
+  const { data, error } = await query;
+  if (error) throw error;
+  return data;
+}
+
+export async function fetchOrderForAppointment(appointmentId: string) {
+  const { data: order, error } = await supabase.from('orders').select('*').eq('appointment_id', appointmentId).maybeSingle();
+  if (error) throw error;
+  if (!order) return null;
+  const [{ data: lineItems, error: liError }, { data: payments, error: payError }] = await Promise.all([
+    supabase.from('order_line_items').select('*, services(name), products(name)').eq('order_id', order.id),
+    supabase.from('payments').select('*').eq('order_id', order.id),
+  ]);
+  if (liError) throw liError;
+  if (payError) throw payError;
+  return { order, lineItems: lineItems || [], payments: payments || [] };
+}
+
+// Für Kassenbuch-Einträge ohne Termin (Laufkunden-Direktverkauf): Bestellung direkt per ID.
+export async function fetchOrderById(orderId: string) {
+  const { data: order, error } = await supabase.from('orders').select('*').eq('id', orderId).maybeSingle();
+  if (error) throw error;
+  if (!order) return null;
+  const [{ data: lineItems, error: liError }, { data: payments, error: payError }] = await Promise.all([
+    supabase.from('order_line_items').select('*, services(name), products(name)').eq('order_id', order.id),
+    supabase.from('payments').select('*').eq('order_id', order.id),
+  ]);
+  if (liError) throw liError;
+  if (payError) throw payError;
+  return { order, lineItems: lineItems || [], payments: payments || [] };
+}
+
+export async function fetchAppointment(id: string) {
+  const { data, error } = await supabase.from('appointments').select('*').eq('id', id).single();
+  if (error) throw error;
+  return data as Appointment;
+}
+
+export async function createAppointment(input: {
+  customer_id: string | null;
+  artist_id: string;
+  location_id?: string | null;
+  start_time: string;
+  end_time: string;
+  type?: 'termin' | 'absenz';
+}) {
+  const { data, error } = await supabase.from('appointments').insert(input).select().single();
+  if (error) throw error;
+  return data as Appointment;
+}
+
+export async function updateAppointment(id: string, patch: Partial<Appointment>) {
+  const { data, error } = await supabase.from('appointments').update(patch).eq('id', id).select().single();
+  if (error) throw error;
+  return data as Appointment;
+}
+
+export async function deleteAppointment(id: string) {
+  const { error } = await supabase.from('appointments').delete().eq('id', id);
+  if (error) throw error;
+}
+
+// ---------- Orders / Kasse ----------
+export async function fetchVoucherByCode(code: string) {
+  const { data, error } = await supabase.from('vouchers').select('*').ilike('code', code.trim()).maybeSingle();
+  if (error) throw error;
+  return data as Voucher | null;
+}
+
+// Aktives Anzahlungs-Guthaben eines Kunden (falls vorhanden) -- für den automatischen
+// "Anzahlung jetzt verrechnen?"-Hinweis und die Zahlungsart in der Kasse.
+// Alle aktiven Anzahlungen eines Kunden (kann mehrere geben, z.B. mehrfach eingezahlt).
+// Älteste zuerst, damit beim Verrechnen zuerst die älteste aufgebraucht wird.
+export async function fetchActiveAnzahlungenForCustomer(customerId: string): Promise<Voucher[]> {
+  const { data, error } = await supabase
+    .from('vouchers')
+    .select('*')
+    .eq('buyer_customer_id', customerId)
+    .eq('type', 'anzahlung')
+    .eq('status', 'aktiv')
+    .gt('remaining_value', 0)
+    .order('created_at', { ascending: true });
+  if (error) throw error;
+  return (data as Voucher[]) || [];
+}
+
+// Verkauft eine Anzahlung: Geld ist geflossen (payments-Eintrag existiert für die
+// Kassenbuch-Abstimmung), zählt aber bewusst NICHT als Umsatz/Artist-Ertrag -- dafür
+// wird die Bestellung mit is_anzahlung=true markiert, was alle Umsatz-Abfragen ausschliessen.
+export async function sellAnzahlung(opts: { customerId: string; locationId: string | null; amount: number; paymentMethod: string }) {
+  const code = '2SK-' + Math.random().toString(36).slice(2, 7).toUpperCase();
+
+  const { data: voucher, error: voucherError } = await supabase
+    .from('vouchers')
+    .insert({ code, value: opts.amount, remaining_value: opts.amount, status: 'aktiv', source: 'kasse', type: 'anzahlung', buyer_customer_id: opts.customerId, location_id: opts.locationId })
+    .select()
+    .single();
+  if (voucherError) throw voucherError;
+
+  const { data: order, error: orderError } = await supabase
+    .from('orders')
+    .insert({ location_id: opts.locationId, customer_id: opts.customerId, subtotal: opts.amount, total: opts.amount, status: 'bezahlt', is_anzahlung: true })
+    .select()
+    .single();
+  if (orderError) throw orderError;
+
+  const { error: liError } = await supabase.from('order_line_items').insert({
+    order_id: order.id,
+    service_id: null,
+    product_id: null,
+    description: `Anzahlung ${code}`,
+    quantity: 1,
+    unit_price: opts.amount,
+    line_total: opts.amount,
+  });
+  if (liError) throw liError;
+
+  const { error: payError } = await supabase.from('payments').insert({ order_id: order.id, method: opts.paymentMethod.toLowerCase(), amount: opts.amount, voucher_id: null });
+  if (payError) throw payError;
+
+  return voucher as Voucher;
+}
+
+export async function checkoutOrder(input: {
+  appointmentId: string | null;
+  customerId: string | null;
+  locationId: string | null;
+  subtotal: number;
+  discountType: 'percent' | 'chf' | null;
+  discountValue: number | null;
+  total: number;
+  lineItems: { service_id?: string | null; product_id?: string | null; description: string; quantity: number; unit_price: number; discount_type?: 'percent' | 'chf' | null; discount_value?: number | null; line_total: number }[];
+  payments: { method: string; amount: number; voucher_id?: string | null }[];
+  vouchersToCreate?: { code: string; value: number; buyer_customer_id?: string | null }[];
+}) {
+  const { data, error } = await supabase.rpc('checkout_order', {
+    p_appointment_id: input.appointmentId,
+    p_customer_id: input.customerId,
+    p_location_id: input.locationId,
+    p_subtotal: input.subtotal,
+    p_discount_type: input.discountType,
+    p_discount_value: input.discountValue,
+    p_total: input.total,
+    p_line_items: input.lineItems,
+    p_payments: input.payments,
+    p_vouchers: input.vouchersToCreate || [],
+  });
+  if (error) throw error;
+  return data as string;
+}
+
+export async function createOrder(input: {
+  appointment_id?: string | null;
+  customer_id?: string | null;
+  subtotal: number;
+  order_discount_type?: 'percent' | 'chf' | null;
+  order_discount_value?: number | null;
+  total: number;
+}) {
+  const { data, error } = await supabase.from('orders').insert({ ...input, status: 'bezahlt' }).select().single();
+  if (error) throw error;
+  return data;
+}
+
+export async function addOrderLineItems(
+  orderId: string,
+  items: { service_id?: string; product_id?: string; description: string; quantity: number; unit_price: number; line_total: number }[]
+) {
+  const { error } = await supabase.from('order_line_items').insert(items.map((i) => ({ ...i, order_id: orderId })));
+  if (error) throw error;
+}
+
+export async function addPayments(orderId: string, payments: { method: string; amount: number }[]) {
+  const { error } = await supabase.from('payments').insert(payments.map((p) => ({ ...p, order_id: orderId })));
+  if (error) throw error;
+}
+
+// ---------- Vouchers ----------
+export async function fetchVouchers() {
+  const { data, error } = await supabase.from('vouchers').select('*').eq('type', 'gutschein').order('created_at', { ascending: false });
+  if (error) throw error;
+  return data as Voucher[];
+}
+
+// Übersicht aller Anzahlungen (Kunden-Guthaben) -- separat von den normalen Gutscheinen.
+export async function fetchAnzahlungen() {
+  const { data, error } = await supabase.from('vouchers').select('*').eq('type', 'anzahlung').order('created_at', { ascending: false });
+  if (error) throw error;
+  return data as Voucher[];
+}
+
+export async function createVoucher(input: { code: string; value: number; buyer_customer_id?: string | null }) {
+  const { data, error } = await supabase
+    .from('vouchers')
+    .insert({ code: input.code, value: input.value, remaining_value: input.value, buyer_customer_id: input.buyer_customer_id ?? null })
+    .select()
+    .single();
+  if (error) throw error;
+  return data as Voucher;
+}
+
+// ---------- Absences / Shifts ----------
+export interface Absence {
+  id: string;
+  artist_id: string;
+  type: 'ferien' | 'krank' | 'abwesend';
+  start_date: string;
+  end_date: string;
+  half_day: 'none' | 'am' | 'pm';
+  notes: string | null;
+}
+
+export async function fetchAbsences() {
+  const { data, error } = await supabase.from('absences').select('*, artists(name)').order('start_date', { ascending: false });
+  if (error) throw error;
+  return data;
+}
+
+export async function createAbsence(input: {
+  artist_id: string;
+  type: 'ferien' | 'krank' | 'abwesend';
+  start_date: string;
+  end_date: string;
+  half_day?: 'none' | 'am' | 'pm';
+  notes?: string | null;
+}) {
+  const { data, error } = await supabase.from('absences').insert(input).select().single();
+  if (error) throw error;
+  return data;
+}
+
+export async function updateAbsence(id: string, patch: Partial<Absence>) {
+  const { error } = await supabase.from('absences').update(patch).eq('id', id);
+  if (error) throw error;
+}
+
+export async function deleteAbsence(id: string) {
+  const { error } = await supabase.from('absences').delete().eq('id', id);
+  if (error) throw error;
+}
+
+export interface Shift {
+  id: string;
+  artist_id: string;
+  location_id: string | null;
+  weekday: number;
+  start_time: string;
+  end_time: string;
+  valid_from: string;
+  valid_to: string | null;
+}
+
+export async function fetchShiftsForArtist(artistId: string, locationId: string) {
+  const { data, error } = await supabase.from('shifts').select('*').eq('artist_id', artistId).eq('location_id', locationId).order('weekday');
+  if (error) throw error;
+  return data as Shift[];
+}
+
+// Für die Doppelbuchungs-Warnung im Schichtplan: alle Schichten eines Artists an ALLEN
+// Locations (nicht nur der aktuell bearbeiteten), inkl. Location-Name.
+export async function fetchAllShiftsForArtist(artistId: string) {
+  const { data, error } = await supabase.from('shifts').select('*, locations(name)').eq('artist_id', artistId).order('weekday');
+  if (error) throw error;
+  return data as (Shift & { locations: { name: string } | null })[];
+}
+
+// Alle Artist-IDs, die IRGENDWO (egal welche Location/Wochentag) einen Schichtplan-Eintrag
+// haben. Dient als Rückfallebene: Artists ohne jegliche Schichtplanung erscheinen weiterhin
+// an ihrer Stamm-Location (Abwärtskompatibilität), sobald ein Schichtplan gepflegt ist,
+// zählt nur noch dieser.
+export async function fetchArtistIdsWithAnyShifts() {
+  const { data, error } = await supabase.from('shifts').select('artist_id');
+  if (error) throw error;
+  return new Set((data as { artist_id: string }[]).map((r) => r.artist_id));
+}
+
+// Ersetzt den Wochenplan eines Artists AN DIESER LOCATION durch die neuen Zeitfenster +
+// Gültigkeitszeitraum. Schichten an anderen Locations desselben Artists bleiben unangetastet
+// (ein Artist kann z.B. Mo bei Salon A und Di bei Salon B eingeplant sein).
+export async function replaceArtistShifts(
+  artistId: string,
+  locationId: string,
+  validFrom: string,
+  validTo: string | null,
+  slots: { weekday: number; start_time: string; end_time: string }[]
+) {
+  const { error: deleteError } = await supabase.from('shifts').delete().eq('artist_id', artistId).eq('location_id', locationId);
+  if (deleteError) throw deleteError;
+  if (slots.length === 0) return;
+  const { error: insertError } = await supabase.from('shifts').insert(
+    slots.map((s) => ({ artist_id: artistId, location_id: locationId, weekday: s.weekday, start_time: s.start_time, end_time: s.end_time, valid_from: validFrom, valid_to: validTo }))
+  );
+  if (insertError) throw insertError;
+}
+
+// Für den Kalender: alle Schichten für eine Liste von Artists an einem bestimmten Datum
+// (berücksichtigt Wochentag + Gültigkeitszeitraum).
+export async function fetchAbsencesForDate(artistIds: string[], dateISO: string) {
+  if (artistIds.length === 0) return [];
+  const { data, error } = await supabase
+    .from('absences')
+    .select('*')
+    .in('artist_id', artistIds)
+    .lte('start_date', dateISO)
+    .gte('end_date', dateISO);
+  if (error) throw error;
+  return data as Absence[];
+}
+
+export async function fetchShiftsForDate(artistIds: string[], dateISO: string) {
+  if (artistIds.length === 0) return [];
+  const weekday = (new Date(dateISO).getDay() + 6) % 7; // JS: So=0..Sa=6 -> wir wollen Mo=0..So=6
+  const { data, error } = await supabase
+    .from('shifts')
+    .select('*')
+    .in('artist_id', artistIds)
+    .eq('weekday', weekday)
+    .lte('valid_from', dateISO)
+    .or(`valid_to.is.null,valid_to.gte.${dateISO}`);
+  if (error) throw error;
+  return data as Shift[];
+}
+
+// ---------- Artist-PWA ----------
+
+// Eigener Tageskalender eines Artists (nur seine Termine, unabhängig von Location-Auswahl).
+export async function fetchAppointmentsForArtistDay(artistId: string, dateISO: string) {
+  const start = `${dateISO}T00:00:00`;
+  const end = `${dateISO}T23:59:59`;
+  const { data, error } = await supabase
+    .from('appointments')
+    .select('*, customers(vorname, name, phone), appointment_line_items(quantity, unit_price, services(name)), orders(total, status), locations(name)')
+    .eq('artist_id', artistId)
+    .eq('type', 'termin')
+    .gte('start_time', start)
+    .lte('start_time', end)
+    .order('start_time');
+  if (error) throw error;
+  return data;
+}
+
+// Für den Endlos-Scroll in der Artist-PWA: Termine über einen Datumsbereich (mehrere Tage) laden.
+export async function fetchAppointmentsForArtistRange(artistId: string, startDateISO: string, endDateISO: string) {
+  const start = `${startDateISO}T00:00:00`;
+  const end = `${endDateISO}T23:59:59`;
+  const { data, error } = await supabase
+    .from('appointments')
+    .select('*, customers(vorname, name, phone), appointment_line_items(quantity, unit_price, services(name)), orders(total, status), locations(name)')
+    .eq('artist_id', artistId)
+    .eq('type', 'termin')
+    .gte('start_time', start)
+    .lte('start_time', end)
+    .order('start_time');
+  if (error) throw error;
+  return data;
+}
+
+// Für Mitarbeiter (z.B. Empfang/Assistenz) in der Artist-PWA: alle Termine an ihrem
+// Standort, egal welcher Artist -- damit sie fehlende Fotos für alle nachholen können,
+// falls ein Artist es vergisst.
+export async function fetchAppointmentsForLocationRange(locationId: string, startDateISO: string, endDateISO: string) {
+  const start = `${startDateISO}T00:00:00`;
+  const end = `${endDateISO}T23:59:59`;
+  const { data, error } = await supabase
+    .from('appointments')
+    .select('*, customers(vorname, name, phone), artists(name, kuenstlername), appointment_line_items(quantity, unit_price, services(name)), orders(total, status), locations(name)')
+    .eq('location_id', locationId)
+    .eq('type', 'termin')
+    .gte('start_time', start)
+    .lte('start_time', end)
+    .order('start_time');
+  if (error) throw error;
+  return data;
+}
+
+// Eine einzelne "Ertragsposition" für die Umsatzstatistik der Artist-PWA:
+// bereits nach Miet-/Serviceanteil-% berechneter EIGENER Anteil des Artists
+// (nur auf Dienstleistungen, nicht auf Artikel — analog zum Feld "Miet- & Serviceanteil").
+export interface ArtistEarningEntry {
+  appointmentId: string;
+  date: string; // YYYY-MM-DD, lokales Datum des Termins
+  customerLabel: string;
+  services: string[];
+  amount: number;
+  locationId: string | null;
+  locationName: string;
+}
+
+export async function fetchArtistEarnings(artistId: string, startDateISO: string, endDateISO: string, sharePct: number) {
+  const start = `${startDateISO}T00:00:00`;
+  const end = `${endDateISO}T23:59:59`;
+  const { data, error } = await supabase
+    .from('appointments')
+    .select(
+      'id, start_time, location_id, locations(name), customers(vorname, name), appointment_line_items(service_id, services(name)), orders(id, subtotal, total, status, order_line_items(service_id, product_id, line_total))'
+    )
+    .eq('artist_id', artistId)
+    .eq('type', 'termin')
+    .gte('start_time', start)
+    .lte('start_time', end)
+    .order('start_time');
+  if (error) throw error;
+
+  const entries: ArtistEarningEntry[] = [];
+  for (const appt of (data as any[]) || []) {
+    const order = appt.orders?.[0];
+    if (!order || order.status !== 'bezahlt') continue;
+    const lineItems = order.order_line_items || [];
+    const serviceSubtotal = lineItems.filter((li: any) => li.service_id).reduce((s: number, li: any) => s + Number(li.line_total), 0);
+    if (serviceSubtotal <= 0) continue;
+    // Rabatte wirken auf die ganze Bestellung -> Anteil proportional runterskalieren.
+    const discountFactor = Number(order.subtotal) > 0 ? Number(order.total) / Number(order.subtotal) : 1;
+    const amount = serviceSubtotal * discountFactor * (1 - sharePct / 100); // sharePct = Salon-Anteil (Miet- & Serviceanteil), Artist bekommt den Rest
+    const services = (appt.appointment_line_items || []).map((li: any) => li.services?.name).filter(Boolean);
+    entries.push({
+      appointmentId: appt.id,
+      date: appt.start_time.slice(0, 10),
+      customerLabel: appt.customers ? `${appt.customers.vorname} ${appt.customers.name}` : 'Laufkunde',
+      services,
+      amount,
+      locationId: appt.location_id || null,
+      locationName: appt.locations?.name || '—',
+    });
+  }
+  return entries;
+}
+
+// ---------- Abrechnung (D4) ----------
+export interface LocationBillingArtistRow {
+  artistId: string;
+  artistName: string;
+  calendarColor: string;
+  revenue: number; // eigener Dienstleistungsanteil (vor Beteiligung)
+  sharePct: number;
+  payout: number; // revenue * (1 - sharePct/100) -- sharePct ist der Salon-Anteil
+  isEmployee: boolean;
+}
+
+export interface LocationBilling {
+  salonRevenue: number; // Summe aller bezahlten Bestellungen an dieser Location
+  artistRevenue: number; // Summe der Dienstleistungsanteile aller Artists (Tabellen-Summe)
+  orderCount: number;
+  avgOrderValue: number;
+  artistRows: LocationBillingArtistRow[];
+  salonServiceRevenue: number; // Salon-Anteil an Dienstleistungen (Miet- & Serviceanteil, summiert über alle Artists)
+  productRevenue: number; // 100% Salon
+  voucherRevenue: number; // 100% Salon
+  anzahlungRevenue: number; // Anzahlungs-Verkäufe -- Geld geflossen, zählt bewusst NICHT zum Umsatz
+  anzahlungRedeemedRevenue: number; // wie viel vom heutigen Umsatz mit einer früher verkauften Anzahlung beglichen wurde (informativ, bereits in Dienstleistungen/Produkte enthalten)
+  redeemedVouchers: RedeemedVoucherEntry[]; // welche konkreten Gutschein-/Anzahlung-Codes eingesetzt wurden
+}
+
+export interface RedeemedVoucherEntry {
+  code: string;
+  type: 'gutschein' | 'anzahlung';
+  amount: number;
+  customerLabel: string;
+  source: 'kasse' | 'online';
+}
+
+export async function fetchLocationBilling(locationId: string, startDateISO: string, endDateISO: string): Promise<LocationBilling> {
+  const start = `${startDateISO}T00:00:00`;
+  const end = `${endDateISO}T23:59:59`;
+
+  // Termine dieser Location im Zeitraum -- Basis für BEIDE Kennzahlen (Salon-Umsatz aus
+  // Terminen UND Pro-Artist-Umsatz), damit die beiden niemals auseinanderlaufen können
+  // (vorher: zwei getrennte Abfragen mit unterschiedlichem Datumsfeld, die vereinzelt
+  // Termine unterschiedlich zählten).
+  const { data: appts, error: apptError } = await supabase
+    .from('appointments')
+    .select(
+      'id, artist_id, artists(id, name, calendar_color, revenue_share_pct, is_employee), orders(total, subtotal, status, is_anzahlung, customers(vorname, name), order_line_items(service_id, product_id, line_total), payments(method, amount, voucher_id, vouchers(code, type, source)))'
+    )
+    .eq('location_id', locationId)
+    .eq('type', 'termin')
+    .gte('start_time', start)
+    .lte('start_time', end);
+  if (apptError) throw apptError;
+
+  const apptRows = (appts as any[]) || [];
+  const paidApptOrders = apptRows.map((a) => a.orders?.[0]).filter((o) => o && o.status === 'bezahlt' && !o.is_anzahlung);
+  const apptRevenue = paidApptOrders.reduce((s, o) => s + Number(o.total), 0);
+
+  // Laufkunden-Verkäufe ohne Termin (z.B. reiner Artikelverkauf an der Kasse) -- lassen
+  // sich nicht über Termine finden, daher separat über Bestelldatum.
+  const { data: walkInOrders, error: walkInError } = await supabase
+    .from('orders')
+    .select('id, total, subtotal, status, customers(vorname, name), order_line_items(service_id, product_id, line_total), payments(method, amount, voucher_id, vouchers(code, type, source))')
+    .eq('location_id', locationId)
+    .is('appointment_id', null)
+    .eq('status', 'bezahlt')
+    .eq('is_anzahlung', false)
+    .gte('created_at', start)
+    .lte('created_at', end);
+  if (walkInError) throw walkInError;
+  const walkInRows = (walkInOrders as any[]) || [];
+  const walkInRevenue = walkInRows.reduce((s, o) => s + Number(o.total), 0);
+
+  const salonRevenue = apptRevenue + walkInRevenue;
+  const orderCount = paidApptOrders.length + walkInRows.length;
+  const avgOrderValue = orderCount > 0 ? salonRevenue / orderCount : 0;
+
+  // Aktueller OFFENER Bestand an Anzahlungen dieser Location -- bewusst OHNE Zeitraum-Filter,
+  // da es ein Kontostand ist (sinkt automatisch, sobald eine Anzahlung als Zahlungsart
+  // eingesetzt wird), keine reine Verkaufssumme dieses Zeitraums.
+  const { data: anzahlungVouchers, error: anzahlungError } = await supabase
+    .from('vouchers')
+    .select('remaining_value')
+    .eq('type', 'anzahlung')
+    .eq('status', 'aktiv')
+    .eq('location_id', locationId);
+  if (anzahlungError) throw anzahlungError;
+  const anzahlungRevenue = ((anzahlungVouchers as any[]) || []).reduce((s, v) => s + Number(v.remaining_value), 0);
+
+  // Wie viel vom heutigen Umsatz wurde mit einer früher verkauften Anzahlung beglichen --
+  // aus denselben Terminen/Laufkunden-Bestellungen berechnet wie der übrige Umsatz (Termine
+  // nach start_time, Laufkunden nach Bestelldatum), NICHT nach Kassier-Zeitpunkt -- sonst
+  // laufen "Dienstleistungen" und "Anzahlung" bei rückwirkend kassierten Terminen auseinander.
+  let anzahlungRedeemedRevenue = 0;
+  const redeemedVouchers: RedeemedVoucherEntry[] = [];
+  for (const order of [...paidApptOrders, ...walkInRows]) {
+    const customerLabel = order.customers ? `${order.customers.vorname} ${order.customers.name}` : 'Laufkunde';
+    for (const p of order.payments || []) {
+      if (p.method === 'anzahlung') anzahlungRedeemedRevenue += Number(p.amount);
+      if (p.voucher_id && p.vouchers) {
+        redeemedVouchers.push({ code: p.vouchers.code, type: p.vouchers.type, amount: Number(p.amount), customerLabel, source: p.vouchers.source });
+      }
+    }
+  }
+
+  // Produkte & Gutscheine gehören zu 100% dem Salon -- über alle Bestellungen (Termine +
+  // Laufkunden) hinweg summiert, inkl. anteiligem Bestell-Rabatt (subtotal/total-Faktor).
+  let productRevenue = 0;
+  let voucherRevenue = 0;
+  for (const order of [...paidApptOrders, ...walkInRows]) {
+    const lineItems = order.order_line_items || [];
+    const discountFactor = Number(order.subtotal) > 0 ? Number(order.total) / Number(order.subtotal) : 1;
+    for (const li of lineItems) {
+      if (li.product_id) productRevenue += Number(li.line_total) * discountFactor;
+      else if (!li.service_id) voucherRevenue += Number(li.line_total) * discountFactor;
+    }
+  }
+
+  // Pro-Artist-Umsatz: aus denselben Terminen berechnet, exakt dieselbe Methode wie
+  // fetchArtistEarnings in der Artist-PWA, damit "Dein Anteil" dort und die Abrechnung
+  // hier für denselben Zeitraum immer übereinstimmen.
+
+  const byArtist: Record<string, LocationBillingArtistRow> = {};
+  for (const appt of (appts as any[]) || []) {
+    const artist = appt.artists;
+    if (!artist) continue;
+    const order = appt.orders?.[0];
+    if (!order || order.status !== 'bezahlt') continue;
+    const lineItems = order.order_line_items || [];
+    const serviceSubtotal = lineItems.filter((li: any) => li.service_id).reduce((s: number, li: any) => s + Number(li.line_total), 0);
+    if (serviceSubtotal <= 0) continue;
+    const discountFactor = Number(order.subtotal) > 0 ? Number(order.total) / Number(order.subtotal) : 1;
+    const revenue = serviceSubtotal * discountFactor;
+    if (!byArtist[artist.id]) {
+      byArtist[artist.id] = { artistId: artist.id, artistName: artist.name, calendarColor: artist.calendar_color, revenue: 0, sharePct: artist.revenue_share_pct || 0, payout: 0, isEmployee: !!artist.is_employee };
+    }
+    byArtist[artist.id].revenue += revenue;
+  }
+  const artistRows = Object.values(byArtist)
+    .map((r) => ({ ...r, payout: r.revenue * (1 - r.sharePct / 100) }))
+    .sort((a, b) => b.revenue - a.revenue);
+  const artistRevenue = artistRows.reduce((s, r) => s + r.revenue, 0);
+  const salonServiceRevenue = artistRows.reduce((s, r) => s + r.revenue * (r.sharePct / 100), 0);
+
+  return {
+    salonRevenue,
+    artistRevenue,
+    orderCount,
+    avgOrderValue,
+    artistRows,
+    salonServiceRevenue,
+    productRevenue,
+    voucherRevenue,
+    anzahlungRevenue,
+    anzahlungRedeemedRevenue,
+    redeemedVouchers,
+  };
+}
+
+export interface LocationArtistBillingEntry {
+  appointmentId: string;
+  date: string; // YYYY-MM-DD
+  time: string;
+  customerLabel: string;
+  services: string[];
+  revenue: number; // eigener Dienstleistungsanteil vor Beteiligung
+  payout: number; // revenue * (1 - sharePct/100) -- sharePct ist der Salon-Anteil
+}
+
+// Einzelaufschlüsselung für den "Detail"-Popup in der Abrechnung: alle Termine eines
+// Artists an dieser Location im Zeitraum, mit Umsatz und Auszahlung pro Termin.
+export async function fetchLocationArtistBillingDetail(
+  locationId: string,
+  artistId: string,
+  startDateISO: string,
+  endDateISO: string,
+  sharePct: number
+): Promise<LocationArtistBillingEntry[]> {
+  const start = `${startDateISO}T00:00:00`;
+  const end = `${endDateISO}T23:59:59`;
+  const { data, error } = await supabase
+    .from('appointments')
+    .select('id, start_time, customers(vorname, name), appointment_line_items(service_id, services(name)), orders(subtotal, total, status, order_line_items(service_id, product_id, line_total))')
+    .eq('location_id', locationId)
+    .eq('artist_id', artistId)
+    .eq('type', 'termin')
+    .gte('start_time', start)
+    .lte('start_time', end)
+    .order('start_time');
+  if (error) throw error;
+
+  const entries: LocationArtistBillingEntry[] = [];
+  for (const appt of (data as any[]) || []) {
+    const order = appt.orders?.[0];
+    if (!order || order.status !== 'bezahlt') continue;
+    const lineItems = order.order_line_items || [];
+    const serviceSubtotal = lineItems.filter((li: any) => li.service_id).reduce((s: number, li: any) => s + Number(li.line_total), 0);
+    if (serviceSubtotal <= 0) continue;
+    const discountFactor = Number(order.subtotal) > 0 ? Number(order.total) / Number(order.subtotal) : 1;
+    const revenue = serviceSubtotal * discountFactor;
+    const services = (appt.appointment_line_items || []).map((li: any) => li.services?.name).filter(Boolean);
+    entries.push({
+      appointmentId: appt.id,
+      date: appt.start_time.slice(0, 10),
+      time: new Date(appt.start_time).toLocaleTimeString('de-CH', { hour: '2-digit', minute: '2-digit' }),
+      customerLabel: appt.customers ? `${appt.customers.vorname} ${appt.customers.name}` : 'Laufkunde',
+      services,
+      revenue,
+      payout: revenue * (1 - sharePct / 100),
+    });
+  }
+  return entries;
+}
+
+// Für den "Dokumente fehlen"-Filter in der Kundenübersicht: alle Kunden, die mindestens
+// einen vergangenen Termin haben, bei dem nicht sowohl ein Dokument als auch ein Foto
+// hinterlegt sind (gleiche Logik wie das Ampel-Badge pro Terminkarte im Kundenprofil).
+export async function fetchCustomerIdsWithMissingDocs(): Promise<Set<string>> {
+  const nowIso = new Date().toISOString();
+  const { data: appts, error: apptError } = await supabase
+    .from('appointments')
+    .select('id, customer_id')
+    .eq('type', 'termin')
+    .neq('status', 'storniert')
+    .lt('start_time', nowIso)
+    .not('customer_id', 'is', null);
+  if (apptError) throw apptError;
+
+  const apptRows = (appts as any[]) || [];
+  if (apptRows.length === 0) return new Set();
+  const apptIds = apptRows.map((a) => a.id);
+
+  const { data: docs, error: docError } = await supabase.from('customer_documents').select('appointment_id, type').in('appointment_id', apptIds);
+  if (docError) throw docError;
+
+  const hasType: Record<string, { document: boolean; photo: boolean }> = {};
+  for (const d of (docs as any[]) || []) {
+    if (!d.appointment_id) continue;
+    const entry = (hasType[d.appointment_id] ||= { document: false, photo: false });
+    if (d.type === 'document') entry.document = true;
+    if (d.type === 'photo') entry.photo = true;
+  }
+
+  const customerIds = new Set<string>();
+  for (const appt of apptRows) {
+    const status = hasType[appt.id];
+    const complete = status?.document && status?.photo;
+    if (!complete) customerIds.add(appt.customer_id);
+  }
+  return customerIds;
+}
+
+// ---------- Statistiken (Analytik) ----------
+export interface CustomerStatsRow {
+  customerId: string;
+  name: string;
+  visits: number;
+  total: number;
+  avg: number;
+  isNew: boolean;
+}
+
+export interface CustomerStats {
+  totalCustomers: number;
+  newCustomers: number;
+  returningCustomers: number;
+  walkInCount: number; // Laufkunden-Verkäufe ohne Kundenprofil in diesem Zeitraum
+  rows: CustomerStatsRow[];
+}
+
+export async function fetchCustomerStatsForMonth(locationId: string, year: number, month: number): Promise<CustomerStats> {
+  const start = new Date(year, month, 1).toISOString();
+  const end = new Date(year, month + 1, 1).toISOString();
+
+  const { data: orders, error } = await supabase
+    .from('orders')
+    .select('customer_id, total, created_at, customers(vorname, name)')
+    .eq('location_id', locationId)
+    .eq('status', 'bezahlt')
+    .eq('is_anzahlung', false)
+    .not('customer_id', 'is', null)
+    .gte('created_at', start)
+    .lt('created_at', end);
+  if (error) throw error;
+
+  const { count: walkInCount, error: walkInError } = await supabase
+    .from('orders')
+    .select('id', { count: 'exact', head: true })
+    .eq('location_id', locationId)
+    .eq('status', 'bezahlt')
+    .is('customer_id', null)
+    .gte('created_at', start)
+    .lt('created_at', end);
+  if (walkInError) throw walkInError;
+
+  const orderRows = (orders as any[]) || [];
+  const byCustomer: Record<string, { name: string; visits: number; total: number }> = {};
+  for (const o of orderRows) {
+    const id = o.customer_id;
+    if (!byCustomer[id]) {
+      byCustomer[id] = { name: o.customers ? `${o.customers.vorname} ${o.customers.name}` : '—', visits: 0, total: 0 };
+    }
+    byCustomer[id].visits += 1;
+    byCustomer[id].total += Number(o.total);
+  }
+  const customerIds = Object.keys(byCustomer);
+
+  // Für jeden Kunden dieses Monats prüfen, ob er an dieser Location schon VOR diesem Monat
+  // eine bezahlte Bestellung hatte -> neu vs. wiederkehrend.
+  let priorCustomerIds = new Set<string>();
+  if (customerIds.length > 0) {
+    const { data: priorOrders, error: priorError } = await supabase
+      .from('orders')
+      .select('customer_id')
+      .eq('location_id', locationId)
+      .eq('status', 'bezahlt')
+      .in('customer_id', customerIds)
+      .lt('created_at', start);
+    if (priorError) throw priorError;
+    priorCustomerIds = new Set(((priorOrders as any[]) || []).map((o) => o.customer_id));
+  }
+
+  const rows: CustomerStatsRow[] = customerIds
+    .map((id) => {
+      const c = byCustomer[id];
+      return { customerId: id, name: c.name, visits: c.visits, total: c.total, avg: c.total / c.visits, isNew: !priorCustomerIds.has(id) };
+    })
+    .sort((a, b) => b.total - a.total);
+
+  const newCustomers = rows.filter((r) => r.isNew).length;
+
+  return {
+    totalCustomers: rows.length,
+    newCustomers,
+    returningCustomers: rows.length - newCustomers,
+    walkInCount: walkInCount || 0,
+    rows,
+  };
+}
+
+export interface PerformanceRow {
+  id: string;
+  name: string;
+  qty: number;
+  revenue: number;
+}
+
+export interface ServiceProductPerformance {
+  services: PerformanceRow[];
+  products: PerformanceRow[];
+  serviceTotal: number;
+  productTotal: number;
+}
+
+export async function fetchServiceProductPerformance(locationId: string, startDateISO: string, endDateISO: string): Promise<ServiceProductPerformance> {
+  const start = `${startDateISO}T00:00:00`;
+  const end = `${endDateISO}T23:59:59`;
+
+  const { data, error } = await supabase
+    .from('order_line_items')
+    .select('quantity, line_total, service_id, product_id, services(name), products(name), orders!inner(location_id, status, created_at, is_anzahlung)')
+    .eq('orders.location_id', locationId)
+    .eq('orders.status', 'bezahlt')
+    .eq('orders.is_anzahlung', false)
+    .gte('orders.created_at', start)
+    .lte('orders.created_at', end);
+  if (error) throw error;
+
+  const services: Record<string, PerformanceRow> = {};
+  const products: Record<string, PerformanceRow> = {};
+  for (const li of (data as any[]) || []) {
+    if (li.service_id) {
+      const key = li.service_id;
+      if (!services[key]) services[key] = { id: key, name: li.services?.name || '—', qty: 0, revenue: 0 };
+      services[key].qty += li.quantity;
+      services[key].revenue += Number(li.line_total);
+    } else if (li.product_id) {
+      const key = li.product_id;
+      if (!products[key]) products[key] = { id: key, name: li.products?.name || '—', qty: 0, revenue: 0 };
+      products[key].qty += li.quantity;
+      products[key].revenue += Number(li.line_total);
+    }
+  }
+
+  const serviceRows = Object.values(services).sort((a, b) => b.revenue - a.revenue);
+  const productRows = Object.values(products).sort((a, b) => b.revenue - a.revenue);
+
+  return {
+    services: serviceRows,
+    products: productRows,
+    serviceTotal: serviceRows.reduce((s, r) => s + r.revenue, 0),
+    productTotal: productRows.reduce((s, r) => s + r.revenue, 0),
+  };
+}
+
+export interface RevenuePoint {
+  label: string;
+  total: number;
+}
+
+const MONTH_SHORT = ['Jan', 'Feb', 'Mär', 'Apr', 'Mai', 'Jun', 'Jul', 'Aug', 'Sep', 'Okt', 'Nov', 'Dez'];
+
+export async function fetchMonthlyRevenueSeries(locationId: string, monthsBack = 12): Promise<RevenuePoint[]> {
+  const now = new Date();
+  const startDate = new Date(now.getFullYear(), now.getMonth() - (monthsBack - 1), 1);
+  const start = startDate.toISOString();
+  const end = new Date(now.getFullYear(), now.getMonth() + 1, 1).toISOString();
+
+  const { data, error } = await supabase.from('orders').select('total, created_at').eq('location_id', locationId).eq('status', 'bezahlt').eq('is_anzahlung', false).gte('created_at', start).lt('created_at', end);
+  if (error) throw error;
+
+  const buckets: Record<string, number> = {};
+  for (let i = 0; i < monthsBack; i++) {
+    const d = new Date(startDate.getFullYear(), startDate.getMonth() + i, 1);
+    buckets[`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`] = 0;
+  }
+  for (const o of (data as any[]) || []) {
+    const d = new Date(o.created_at);
+    const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+    if (key in buckets) buckets[key] += Number(o.total);
+  }
+  return Object.entries(buckets)
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([key, total]) => {
+      const [y, m] = key.split('-').map(Number);
+      return { label: `${MONTH_SHORT[m - 1]} ${String(y).slice(2)}`, total };
+    });
+}
+
+export async function fetchYearlyRevenueSeries(locationId: string, yearsBack = 5): Promise<RevenuePoint[]> {
+  const now = new Date();
+  const startYear = now.getFullYear() - (yearsBack - 1);
+  const start = `${startYear}-01-01T00:00:00`;
+  const end = `${now.getFullYear() + 1}-01-01T00:00:00`;
+
+  const { data, error } = await supabase.from('orders').select('total, created_at').eq('location_id', locationId).eq('status', 'bezahlt').eq('is_anzahlung', false).gte('created_at', start).lt('created_at', end);
+  if (error) throw error;
+
+  const buckets: Record<number, number> = {};
+  for (let y = startYear; y <= now.getFullYear(); y++) buckets[y] = 0;
+  for (const o of (data as any[]) || []) {
+    const y = new Date(o.created_at).getFullYear();
+    if (y in buckets) buckets[y] += Number(o.total);
+  }
+  return Object.entries(buckets)
+    .sort(([a], [b]) => Number(a) - Number(b))
+    .map(([y, total]) => ({ label: y, total }));
+}
+
+// Für den Standort-Vergleich (Hauptadmin): dieselben Serien für mehrere Locations parallel,
+// als eine Reihe pro Zeitpunkt mit den Werten je Location.
+export interface MultiLocationRevenuePoint {
+  label: string;
+  values: Record<string, number>; // locationId -> total
+}
+
+export async function fetchMonthlyRevenueSeriesMulti(locationIds: string[], monthsBack = 12): Promise<MultiLocationRevenuePoint[]> {
+  const perLocation = await Promise.all(locationIds.map((id) => fetchMonthlyRevenueSeries(id, monthsBack)));
+  const labels = perLocation[0]?.map((p) => p.label) || [];
+  return labels.map((label, i) => {
+    const values: Record<string, number> = {};
+    locationIds.forEach((id, li) => {
+      values[id] = perLocation[li][i]?.total || 0;
+    });
+    return { label, values };
+  });
+}
+
+export async function fetchYearlyRevenueSeriesMulti(locationIds: string[], yearsBack = 5): Promise<MultiLocationRevenuePoint[]> {
+  const perLocation = await Promise.all(locationIds.map((id) => fetchYearlyRevenueSeries(id, yearsBack)));
+  const labels = perLocation[0]?.map((p) => p.label) || [];
+  return labels.map((label, i) => {
+    const values: Record<string, number> = {};
+    locationIds.forEach((id, li) => {
+      values[id] = perLocation[li][i]?.total || 0;
+    });
+    return { label, values };
+  });
+}
+
+// Artist-Umsatz über ALLE Locations hinweg (bewusst ohne Location-Aufteilung) -- Umsatz =
+// Dienstleistungs-Bruttoumsatz, den der Artist erwirtschaftet hat (vor Miet-&Serviceanteil-Split).
+async function fetchArtistRevenueSeriesMulti(artistIds: string[], granularity: 'month' | 'year', periodsBack: number): Promise<MultiLocationRevenuePoint[]> {
+  if (artistIds.length === 0) return [];
+  const now = new Date();
+  const start = granularity === 'month' ? new Date(now.getFullYear(), now.getMonth() - (periodsBack - 1), 1) : new Date(now.getFullYear() - (periodsBack - 1), 0, 1);
+  const end = granularity === 'month' ? new Date(now.getFullYear(), now.getMonth() + 1, 1) : new Date(now.getFullYear() + 1, 0, 1);
+
+  const { data, error } = await supabase
+    .from('appointments')
+    .select('artist_id, start_time, orders(subtotal, total, status, order_line_items(service_id, line_total))')
+    .in('artist_id', artistIds)
+    .eq('type', 'termin')
+    .gte('start_time', start.toISOString())
+    .lt('start_time', end.toISOString());
+  if (error) throw error;
+
+  const keys: string[] = [];
+  const buckets: Record<string, Record<string, number>> = {};
+  for (let i = 0; i < periodsBack; i++) {
+    let key: string;
+    if (granularity === 'month') {
+      const d = new Date(start.getFullYear(), start.getMonth() + i, 1);
+      key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+    } else {
+      key = `${start.getFullYear() + i}`;
+    }
+    keys.push(key);
+    buckets[key] = {};
+    artistIds.forEach((id) => (buckets[key][id] = 0));
+  }
+
+  for (const appt of (data as any[]) || []) {
+    const order = appt.orders?.[0];
+    if (!order || order.status !== 'bezahlt') continue;
+    const lineItems = order.order_line_items || [];
+    const serviceSubtotal = lineItems.filter((li: any) => li.service_id).reduce((s: number, li: any) => s + Number(li.line_total), 0);
+    if (serviceSubtotal <= 0) continue;
+    const discountFactor = Number(order.subtotal) > 0 ? Number(order.total) / Number(order.subtotal) : 1;
+    const revenue = serviceSubtotal * discountFactor;
+    const d = new Date(appt.start_time);
+    const key = granularity === 'month' ? `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}` : `${d.getFullYear()}`;
+    if (buckets[key] && appt.artist_id in buckets[key]) buckets[key][appt.artist_id] += revenue;
+  }
+
+  return keys.map((key) => ({
+    label: granularity === 'month' ? `${MONTH_SHORT[Number(key.slice(5, 7)) - 1]} ${key.slice(2, 4)}` : key,
+    values: buckets[key],
+  }));
+}
+
+export async function fetchMonthlyArtistRevenueSeriesMulti(artistIds: string[], monthsBack = 12): Promise<MultiLocationRevenuePoint[]> {
+  return fetchArtistRevenueSeriesMulti(artistIds, 'month', monthsBack);
+}
+
+export async function fetchYearlyArtistRevenueSeriesMulti(artistIds: string[], yearsBack = 5): Promise<MultiLocationRevenuePoint[]> {
+  return fetchArtistRevenueSeriesMulti(artistIds, 'year', yearsBack);
+}
+
+export interface DiscountStats {
+  grossRevenue: number; // Summe Positionen vor jeglichem Rabatt (Menge × Einzelpreis)
+  netRevenue: number; // tatsächlich kassiert (orders.total)
+  discountAmount: number;
+  discountPct: number;
+}
+
+// Rabatt-Anteil am Umsatz für einen Zeitraum, über alle Standorte hinweg. Vergleicht die
+// Summe aller Positionen zum vollen Einzelpreis (vor Positions- UND Bestell-Rabatt) mit dem
+// tatsächlich kassierten Total.
+export async function fetchDiscountStats(startDateISO: string, endDateISO: string): Promise<DiscountStats> {
+  const start = `${startDateISO}T00:00:00`;
+  const end = `${endDateISO}T23:59:59`;
+  const { data, error } = await supabase
+    .from('orders')
+    .select('total, order_line_items(quantity, unit_price)')
+    .eq('status', 'bezahlt')
+    .eq('is_anzahlung', false)
+    .gte('created_at', start)
+    .lte('created_at', end);
+  if (error) throw error;
+
+  let grossRevenue = 0;
+  let netRevenue = 0;
+  for (const o of (data as any[]) || []) {
+    netRevenue += Number(o.total);
+    for (const li of o.order_line_items || []) {
+      grossRevenue += Number(li.quantity) * Number(li.unit_price);
+    }
+  }
+  const discountAmount = Math.max(0, grossRevenue - netRevenue);
+  const discountPct = grossRevenue > 0 ? (discountAmount / grossRevenue) * 100 : 0;
+  return { grossRevenue, netRevenue, discountAmount, discountPct };
+}
+
+// ---------- Kassenbestand ----------
+// Fixer Startbetrag pro Location (z.B. 300 CHF Wechselgeld) -- nur der Hauptadmin darf
+// diesen Basiswert ändern.
+export async function fetchCashStartingBalance(locationId: string): Promise<number> {
+  const { data, error } = await supabase.from('location_cash_settings').select('starting_balance').eq('location_id', locationId).maybeSingle();
+  if (error) throw error;
+  return data ? Number(data.starting_balance) : 0;
+}
+
+export async function setCashStartingBalance(locationId: string, amount: number, updatedBy?: string | null) {
+  const { error } = await supabase
+    .from('location_cash_settings')
+    .upsert({ location_id: locationId, starting_balance: amount, updated_at: new Date().toISOString(), updated_by: updatedBy || null });
+  if (error) throw error;
+}
+
+export interface CashAdjustment {
+  id: string;
+  location_id: string;
+  type: 'auslage' | 'differenz';
+  amount: number;
+  note: string | null;
+  created_at: string;
+}
+
+// Laufender Kassenbestand: Startbetrag + alle jemals eingegangenen Bar-Zahlungen + alle
+// Auslagen/Differenzen (können vom Salon Manager laufend erfasst werden, nicht nur vom
+// Hauptadmin) -- wächst also mit jeder Bar-Zahlung, bis jemand eine Auslage macht.
+export async function fetchCashBalance(locationId: string): Promise<number> {
+  const [startingBalance, { data: cashPayments, error: payError }, { data: adjustments, error: adjError }] = await Promise.all([
+    fetchCashStartingBalance(locationId),
+    supabase.from('payments').select('amount, orders!inner(location_id)').eq('method', 'bar').eq('orders.location_id', locationId),
+    supabase.from('cash_adjustments').select('amount').eq('location_id', locationId),
+  ]);
+  if (payError) throw payError;
+  if (adjError) throw adjError;
+  const cashTotal = ((cashPayments as any[]) || []).reduce((s, p) => s + Number(p.amount), 0);
+  const adjustmentTotal = ((adjustments as any[]) || []).reduce((s, a) => s + Number(a.amount), 0);
+  return startingBalance + cashTotal + adjustmentTotal;
+}
+
+// Auslage (Bargeld-Entnahme, üblicherweise negativ) oder Differenz (Kassensturz-Korrektur
+// am Morgen, kann + oder − sein) erfassen. Darf vom Salon Manager gemacht werden.
+export async function addCashAdjustment(locationId: string, type: 'auslage' | 'differenz', amount: number, note: string) {
+  const { error } = await supabase.from('cash_adjustments').insert({ location_id: locationId, type, amount, note: note || null });
+  if (error) throw error;
+}
+
+// Auslagen/Differenzen eines einzelnen Tages -- für die Anzeige im Tagesabschluss.
+export async function fetchCashAdjustmentsForDay(locationId: string, dateISO: string): Promise<CashAdjustment[]> {
+  const start = `${dateISO}T00:00:00`;
+  const end = `${dateISO}T23:59:59`;
+  const { data, error } = await supabase
+    .from('cash_adjustments')
+    .select('*')
+    .eq('location_id', locationId)
+    .gte('created_at', start)
+    .lte('created_at', end)
+    .order('created_at', { ascending: false });
+  if (error) throw error;
+  return (data as CashAdjustment[]) || [];
+}
+
+// ---------- App-Einstellungen (E-Mail-Automatisierung) ----------
+// Zentrale, salonweite Einstellungen: Pflegeanleitungstexte (Tattoo/Piercing) und
+// Konfiguration des automatischen Dankeschön-Gutscheins nach der Behandlung.
+export const APP_SETTINGS_KEYS = {
+  careInstructionsTattoo: 'care_instructions_tattoo',
+  careInstructionsPiercing: 'care_instructions_piercing',
+  thankYouVoucherEnabled: 'thank_you_voucher_enabled',
+  thankYouVoucherAmount: 'thank_you_voucher_amount',
+  thankYouVoucherValidityMonths: 'thank_you_voucher_validity_months',
+} as const;
+
+export interface AppSettings {
+  careInstructionsTattoo: string;
+  careInstructionsPiercing: string;
+  thankYouVoucherEnabled: boolean;
+  thankYouVoucherAmount: number;
+  thankYouVoucherValidityMonths: number;
+}
+
+const APP_SETTINGS_DEFAULTS: AppSettings = {
+  careInstructionsTattoo: '',
+  careInstructionsPiercing: '',
+  thankYouVoucherEnabled: false,
+  thankYouVoucherAmount: 10,
+  thankYouVoucherValidityMonths: 6,
+};
+
+export async function fetchAppSettings(): Promise<AppSettings> {
+  const { data, error } = await supabase.from('app_settings').select('key, value');
+  if (error) throw error;
+  const map = new Map((data || []).map((row: any) => [row.key, row.value as string | null]));
+  return {
+    careInstructionsTattoo: map.get(APP_SETTINGS_KEYS.careInstructionsTattoo) ?? APP_SETTINGS_DEFAULTS.careInstructionsTattoo,
+    careInstructionsPiercing: map.get(APP_SETTINGS_KEYS.careInstructionsPiercing) ?? APP_SETTINGS_DEFAULTS.careInstructionsPiercing,
+    thankYouVoucherEnabled: map.get(APP_SETTINGS_KEYS.thankYouVoucherEnabled) === 'true',
+    thankYouVoucherAmount: map.has(APP_SETTINGS_KEYS.thankYouVoucherAmount) ? Number(map.get(APP_SETTINGS_KEYS.thankYouVoucherAmount)) : APP_SETTINGS_DEFAULTS.thankYouVoucherAmount,
+    thankYouVoucherValidityMonths: map.has(APP_SETTINGS_KEYS.thankYouVoucherValidityMonths)
+      ? Number(map.get(APP_SETTINGS_KEYS.thankYouVoucherValidityMonths))
+      : APP_SETTINGS_DEFAULTS.thankYouVoucherValidityMonths,
+  };
+}
+
+export async function saveAppSettings(settings: AppSettings, updatedBy?: string | null) {
+  const rows = [
+    { key: APP_SETTINGS_KEYS.careInstructionsTattoo, value: settings.careInstructionsTattoo },
+    { key: APP_SETTINGS_KEYS.careInstructionsPiercing, value: settings.careInstructionsPiercing },
+    { key: APP_SETTINGS_KEYS.thankYouVoucherEnabled, value: String(settings.thankYouVoucherEnabled) },
+    { key: APP_SETTINGS_KEYS.thankYouVoucherAmount, value: String(settings.thankYouVoucherAmount) },
+    { key: APP_SETTINGS_KEYS.thankYouVoucherValidityMonths, value: String(settings.thankYouVoucherValidityMonths) },
+  ].map((r) => ({ ...r, updated_at: new Date().toISOString(), updated_by: updatedBy || null }));
+  const { error } = await supabase.from('app_settings').upsert(rows);
+  if (error) throw error;
+}
+
+// Nach einem Kasse-Checkout aufgerufen (fire-and-forget): löst serverseitig den Versand
+// der Pflegeanleitungs-Mail (inkl. Dankeschön-Gutschein) aus, falls der Kunde eine
+// E-Mail-Adresse und eine Einverständniserklärung mit Tattoo/Piercing-Angabe hat.
+// Schlägt bewusst niemals sichtbar fehl -- der Checkout an der Kasse darf davon nicht
+// abhängen; Fehler landen nur in der Konsole.
+export function triggerCareInstructionsEmail(orderId: string) {
+  fetch('/api/send-care-email', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ orderId }),
+  }).catch((e) => {
+    // eslint-disable-next-line no-console
+    console.warn('Pflegeanleitungs-Mail konnte nicht ausgelöst werden:', e);
+  });
+}
+
+
