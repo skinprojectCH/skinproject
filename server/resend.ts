@@ -45,7 +45,7 @@ export function emailLayout(bodyHtml: string) {
       ${bodyHtml}
     </div>
     <div style="padding: 20px 4px; border-top: 1px solid #eee; color: #999; font-size: 11px; text-align: center;">
-      SkinProject &middot; sknpr.ch
+      SkinProject &middot; <a href="https://www.skinproject.ch" style="color: #999;">www.skinproject.ch</a>
     </div>
   </div>`;
 }
