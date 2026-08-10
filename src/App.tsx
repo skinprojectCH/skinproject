@@ -7,6 +7,7 @@ import ResetPassword from './pages/ResetPassword';
 import Kalender from './pages/Kalender';
 import Kasse from './pages/Kasse';
 import Kunden from './pages/Kunden';
+import KundenImport from './pages/admin/KundenImport';
 import KundeDetail from './pages/KundeDetail';
 import AdminIndex from './pages/admin/AdminIndex';
 import Artists from './pages/admin/Artists';
@@ -46,6 +47,7 @@ export default function App() {
 
         <Route element={<RequireBackoffice />}>
           <Route path="/admin" element={<AdminIndex />} />
+          <Route path="/admin/kundenimport" element={<KundenImport />} />
           <Route path="/admin/artists" element={<Artists />} />
           <Route path="/admin/artists/:id" element={<ArtistDetail />} />
           <Route path="/admin/dienstleistungen" element={<Dienstleistungen />} />

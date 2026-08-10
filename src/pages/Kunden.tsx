@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { fetchCustomers, fetchCustomerIdsWithMissingDocs, type Customer } from '../lib/queries';
+import { useLocationContext } from '../lib/locationContext';
 
 function EditIcon() {
   return (
@@ -12,6 +13,7 @@ function EditIcon() {
 }
 
 export default function Kunden() {
+  const { canAccessBackoffice } = useLocationContext();
   const [search, setSearch] = useState('');
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [loading, setLoading] = useState(true);
@@ -79,6 +81,11 @@ export default function Kunden() {
           <button className="btn btn-primary" onClick={() => navigate('/kunden/new')}>
             + Neu
           </button>
+          {canAccessBackoffice && (
+            <button className="btn btn-secondary" onClick={() => navigate('/admin/kundenimport')}>
+              Importieren
+            </button>
+          )}
         </div>
       </div>
 

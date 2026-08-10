@@ -268,6 +268,29 @@ export async function deleteCustomer(id: string) {
   if (error) throw error;
 }
 
+// ---------- Kunden-CSV-Import ----------
+// Liefert alle bereits vorhandenen E-Mail-Adressen (klein geschrieben) -- dient dazu,
+// beim Import Duplikate zu erkennen, ohne 8000+ Einzel-Queries abzusetzen.
+export async function fetchExistingCustomerEmails(): Promise<Set<string>> {
+  const { data, error } = await supabase.from('customers').select('email').not('email', 'is', null);
+  if (error) throw error;
+  return new Set((data || []).map((r: any) => (r.email as string).toLowerCase()));
+}
+
+// Fügt Kunden in Batches ein (Supabase/Postgres mag keine Inserts mit tausenden
+// Zeilen in einem Rutsch). Gibt die Anzahl erfolgreich eingefügter Zeilen zurück.
+export async function bulkInsertCustomers(rows: Partial<Customer>[], batchSize = 300, onProgress?: (done: number, total: number) => void): Promise<number> {
+  let inserted = 0;
+  for (let i = 0; i < rows.length; i += batchSize) {
+    const batch = rows.slice(i, i + batchSize);
+    const { error } = await supabase.from('customers').insert(batch);
+    if (error) throw error;
+    inserted += batch.length;
+    onProgress?.(inserted, rows.length);
+  }
+  return inserted;
+}
+
 // ---------- Kunden-Dokumente & Fotos (Supabase Storage: Bucket "customer-files") ----------
 export interface CustomerDocument {
   id: string;
