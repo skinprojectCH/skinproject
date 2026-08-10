@@ -1,5 +1,5 @@
 import { createClient } from '@supabase/supabase-js';
-import { sendEmail, emailLayout } from './_lib/resend.js';
+import { sendEmail, emailLayout } from '../server/resend.js';
 
 // Läuft als Vercel Serverless Function unter /api/send-care-email.
 // Wird von der Kasse (Kasse.tsx) fire-and-forget nach einem erfolgreichen Checkout

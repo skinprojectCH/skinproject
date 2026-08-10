@@ -1,6 +1,6 @@
 import Stripe from 'stripe';
 import { createClient } from '@supabase/supabase-js';
-import { sendEmail, emailLayout } from './_lib/resend.js';
+import { sendEmail, emailLayout } from '../server/resend.js';
 
 // Läuft als Vercel Serverless Function unter /api/stripe-webhook.
 // Muss in Stripe als Webhook-Endpoint eingetragen werden, Event: checkout.session.completed.
