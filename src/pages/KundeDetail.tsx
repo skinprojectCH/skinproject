@@ -40,6 +40,7 @@ export default function KundeDetail() {
   const [name, setName] = useState('');
   const [birthdate, setBirthdate] = useState('');
   const [phone, setPhone] = useState('');
+  const [parentPhone, setParentPhone] = useState('');
   const [email, setEmail] = useState('');
   const [strasse, setStrasse] = useState('');
   const [plzOrt, setPlzOrt] = useState('');
@@ -110,6 +111,7 @@ export default function KundeDetail() {
         setName(c.name);
         setBirthdate(c.birthdate || '');
         setPhone(c.phone || '');
+        setParentPhone(c.parent_phone || '');
         setEmail(c.email || '');
         setStrasse(c.strasse || '');
         setPlzOrt(c.plz_ort || '');
@@ -329,6 +331,10 @@ export default function KundeDetail() {
     if (phone.trim()) setPhone(normalizePhone(phone));
   }
 
+  function handleParentPhoneBlur() {
+    if (parentPhone.trim()) setParentPhone(normalizePhone(parentPhone));
+  }
+
   async function handleSave() {
     setAttempted(true);
     if (!canSave || !id) return;
@@ -341,6 +347,7 @@ export default function KundeDetail() {
         name: name.trim(),
         birthdate: birthdate || null,
         phone: phone.trim() ? normalizePhone(phone) : null,
+        parent_phone: parentPhone.trim() ? normalizePhone(parentPhone) : null,
         email: email.trim() || null,
         strasse: strasse.trim() || null,
         plz_ort: plzOrt.trim() || null,
@@ -477,6 +484,19 @@ export default function KundeDetail() {
               onBlur={handlePhoneBlur}
               style={attempted && !phoneValid ? { ...inputStyle, border: '1px solid var(--color-destructive)' } : inputStyle}
               placeholder="+41791234567"
+            />
+          </div>
+
+          <div style={{ margin: '14px 0 6px' }}>
+            <div className="label-uppercase" style={{ marginBottom: 4 }}>
+              Mobile Eltern
+            </div>
+            <input
+              value={parentPhone}
+              onChange={(e) => setParentPhone(e.target.value)}
+              onBlur={handleParentPhoneBlur}
+              style={inputStyle}
+              placeholder="+41791234567 (bei minderjährigen Kunden)"
             />
           </div>
 
