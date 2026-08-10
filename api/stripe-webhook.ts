@@ -1,5 +1,6 @@
 import Stripe from 'stripe';
 import { createClient } from '@supabase/supabase-js';
+import { sendEmail, emailLayout } from './_lib/resend.js';
 
 // Läuft als Vercel Serverless Function unter /api/stripe-webhook.
 // Muss in Stripe als Webhook-Endpoint eingetragen werden, Event: checkout.session.completed.
@@ -162,6 +163,32 @@ export default async function handler(req: any, res: any) {
 
       await admin.from('payments').insert({ order_id: order.id, method: 'online', amount, voucher_id: null });
 
+      if (email) {
+        try {
+          await sendEmail({
+            to: email,
+            subject: 'Bestätigung deiner Anzahlung',
+            html: emailLayout(`
+              <h2 style="font-size: 18px; margin: 0 0 4px;">Danke für deine Anzahlung!</h2>
+              <p style="font-size: 14px; color: #555; margin: 0 0 20px;">Wir haben deine Zahlung erhalten und deinem Kundenkonto gutgeschrieben.</p>
+              <div style="padding: 18px 20px; border: 1px solid #eee; border-radius: 8px;">
+                <table style="width: 100%; font-size: 13px; border-collapse: collapse;">
+                  <tr><td style="padding: 4px 0; color: #888;">Code</td><td style="padding: 4px 0; text-align: right; font-weight: 600;">${code}</td></tr>
+                  <tr><td style="padding: 4px 0; color: #888;">Betrag</td><td style="padding: 4px 0; text-align: right; font-weight: 600;">CHF ${amount.toFixed(2)}</td></tr>
+                  <tr><td style="padding: 4px 0; color: #888;">Datum</td><td style="padding: 4px 0; text-align: right;">${new Date().toLocaleDateString('de-CH')}</td></tr>
+                </table>
+              </div>
+              <p style="font-size: 13px; color: #888; margin-top: 16px;">Dein Guthaben kannst du bei deinem nächsten Termin einlösen.</p>
+            `),
+          });
+        } catch (emailError: any) {
+          // Zahlung ist bereits verbucht -- ein Mail-Fehler darf den Webhook nicht
+          // fehlschlagen lassen (Stripe würde sonst unnötig erneut zustellen).
+          // eslint-disable-next-line no-console
+          console.error('Anzahlungs-Bestätigungsmail fehlgeschlagen:', emailError.message);
+        }
+      }
+
       res.status(200).json({ received: true, voucherCode: code });
       return;
     }
@@ -211,6 +238,31 @@ export default async function handler(req: any, res: any) {
     });
 
     await admin.from('payments').insert({ order_id: order.id, method: 'online', amount, voucher_id: null });
+
+    if (buyerEmail) {
+      try {
+        await sendEmail({
+          to: buyerEmail,
+          subject: 'Dein SkinProject-Gutschein',
+          html: emailLayout(`
+            <h2 style="font-size: 18px; margin: 0 0 4px;">Danke für deinen Kauf!</h2>
+            <p style="font-size: 14px; color: #555; margin: 0 0 20px;">Dein Gutschein ist bereit -- hier die Bestätigung und Quittung.</p>
+            <div style="padding: 18px 20px; border: 2px dashed #111; border-radius: 8px; text-align: center;">
+              <div style="font-size: 22px; font-weight: 700; letter-spacing: 1px;">${code}</div>
+              <div style="font-size: 13px; color: #555; margin-top: 6px;">CHF ${amount.toFixed(2)}</div>
+            </div>
+            <table style="width: 100%; font-size: 13px; border-collapse: collapse; margin-top: 16px;">
+              <tr><td style="padding: 4px 0; color: #888;">Käufer</td><td style="padding: 4px 0; text-align: right;">${buyerName || '—'}</td></tr>
+              <tr><td style="padding: 4px 0; color: #888;">Datum</td><td style="padding: 4px 0; text-align: right;">${new Date().toLocaleDateString('de-CH')}</td></tr>
+            </table>
+            <p style="font-size: 13px; color: #888; margin-top: 16px;">Die druckbare PDF-Quittung findest du auf der Bestätigungsseite direkt nach dem Kauf zum Download.</p>
+          `),
+        });
+      } catch (emailError: any) {
+        // eslint-disable-next-line no-console
+        console.error('Gutschein-Bestätigungsmail fehlgeschlagen:', emailError.message);
+      }
+    }
 
     res.status(200).json({ received: true, voucherCode: code });
   } catch (e: any) {

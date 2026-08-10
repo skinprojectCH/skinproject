@@ -16,6 +16,7 @@ import Absenzen from './pages/admin/Absenzen';
 import Statistiken from './pages/admin/Statistiken';
 import Abrechnung from './pages/admin/Abrechnung';
 import Locations from './pages/admin/Locations';
+import Einstellungen from './pages/admin/Einstellungen';
 import Gutscheine from './pages/admin/Gutscheine';
 import Anzahlungen from './pages/admin/Anzahlungen';
 import ArtistApp from './pages/artist/ArtistApp';
@@ -50,6 +51,7 @@ export default function App() {
         <Route path="/admin/statistiken" element={<Statistiken />} />
         <Route path="/admin/abrechnung" element={<Abrechnung />} />
         <Route path="/admin/locations" element={<Locations />} />
+        <Route path="/admin/einstellungen" element={<Einstellungen />} />
         <Route path="/admin/gutscheine" element={<Gutscheine />} />
         <Route path="/admin/anzahlungen" element={<Anzahlungen />} />
         </Route>

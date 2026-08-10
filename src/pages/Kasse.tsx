@@ -11,6 +11,7 @@ import {
   fetchLocations,
   fetchCurrentUserLocationId,
   checkoutOrder,
+  triggerCareInstructionsEmail,
   fetchVoucherByCode,
   fetchActiveAnzahlungenForCustomer,
   sellAnzahlung,
@@ -1235,7 +1236,7 @@ export default function Kasse() {
   }
 
   async function handleCheckoutComplete(payments: { method: string; amount: number; voucher_id?: string | null }[], total: number, discountType: 'percent' | 'chf' | null, discountValue: number) {
-    await checkoutOrder({
+    const orderId = await checkoutOrder({
       appointmentId: appointmentId || null,
       customerId: selectedCustomerId || null,
       locationId: selectedLocationId || null,
@@ -1258,6 +1259,12 @@ export default function Kasse() {
         .filter((i) => i.kind === 'voucher')
         .map((i) => ({ code: i.voucherCode || i.refId, value: i.unitPrice, buyer_customer_id: selectedCustomerId || null })),
     });
+    if (selectedCustomerId) {
+      // Fire-and-forget: löst serverseitig die Pflegeanleitungs-Mail aus, falls der
+      // Kunde eine E-Mail-Adresse und eine ausgefüllte Einverständniserklärung hat.
+      // Blockiert den Checkout nicht und wird nicht angezeigt, wenn es fehlschlägt.
+      triggerCareInstructionsEmail(orderId);
+    }
     setReceipt({
       items: [...items],
       total,

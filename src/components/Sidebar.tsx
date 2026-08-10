@@ -105,6 +105,7 @@ const NAV_ITEMS: NavItem[] = [
       { key: 'schichtplan', label: 'Schichtplan', path: '/admin/schichtplan' },
       { key: 'absenzen', label: 'Absenzen', path: '/admin/absenzen' },
       { key: 'locations', label: 'Locations', path: '/admin/locations' },
+      { key: 'einstellungen', label: 'E-Mail & Pflege', path: '/admin/einstellungen' },
     ],
   },
   {

@@ -1652,4 +1652,74 @@ export async function fetchCashAdjustmentsForDay(locationId: string, dateISO: st
   return (data as CashAdjustment[]) || [];
 }
 
+// ---------- App-Einstellungen (E-Mail-Automatisierung) ----------
+// Zentrale, salonweite Einstellungen: Pflegeanleitungstexte (Tattoo/Piercing) und
+// Konfiguration des automatischen Dankeschön-Gutscheins nach der Behandlung.
+export const APP_SETTINGS_KEYS = {
+  careInstructionsTattoo: 'care_instructions_tattoo',
+  careInstructionsPiercing: 'care_instructions_piercing',
+  thankYouVoucherEnabled: 'thank_you_voucher_enabled',
+  thankYouVoucherAmount: 'thank_you_voucher_amount',
+  thankYouVoucherValidityMonths: 'thank_you_voucher_validity_months',
+} as const;
+
+export interface AppSettings {
+  careInstructionsTattoo: string;
+  careInstructionsPiercing: string;
+  thankYouVoucherEnabled: boolean;
+  thankYouVoucherAmount: number;
+  thankYouVoucherValidityMonths: number;
+}
+
+const APP_SETTINGS_DEFAULTS: AppSettings = {
+  careInstructionsTattoo: '',
+  careInstructionsPiercing: '',
+  thankYouVoucherEnabled: false,
+  thankYouVoucherAmount: 10,
+  thankYouVoucherValidityMonths: 6,
+};
+
+export async function fetchAppSettings(): Promise<AppSettings> {
+  const { data, error } = await supabase.from('app_settings').select('key, value');
+  if (error) throw error;
+  const map = new Map((data || []).map((row: any) => [row.key, row.value as string | null]));
+  return {
+    careInstructionsTattoo: map.get(APP_SETTINGS_KEYS.careInstructionsTattoo) ?? APP_SETTINGS_DEFAULTS.careInstructionsTattoo,
+    careInstructionsPiercing: map.get(APP_SETTINGS_KEYS.careInstructionsPiercing) ?? APP_SETTINGS_DEFAULTS.careInstructionsPiercing,
+    thankYouVoucherEnabled: map.get(APP_SETTINGS_KEYS.thankYouVoucherEnabled) === 'true',
+    thankYouVoucherAmount: map.has(APP_SETTINGS_KEYS.thankYouVoucherAmount) ? Number(map.get(APP_SETTINGS_KEYS.thankYouVoucherAmount)) : APP_SETTINGS_DEFAULTS.thankYouVoucherAmount,
+    thankYouVoucherValidityMonths: map.has(APP_SETTINGS_KEYS.thankYouVoucherValidityMonths)
+      ? Number(map.get(APP_SETTINGS_KEYS.thankYouVoucherValidityMonths))
+      : APP_SETTINGS_DEFAULTS.thankYouVoucherValidityMonths,
+  };
+}
+
+export async function saveAppSettings(settings: AppSettings, updatedBy?: string | null) {
+  const rows = [
+    { key: APP_SETTINGS_KEYS.careInstructionsTattoo, value: settings.careInstructionsTattoo },
+    { key: APP_SETTINGS_KEYS.careInstructionsPiercing, value: settings.careInstructionsPiercing },
+    { key: APP_SETTINGS_KEYS.thankYouVoucherEnabled, value: String(settings.thankYouVoucherEnabled) },
+    { key: APP_SETTINGS_KEYS.thankYouVoucherAmount, value: String(settings.thankYouVoucherAmount) },
+    { key: APP_SETTINGS_KEYS.thankYouVoucherValidityMonths, value: String(settings.thankYouVoucherValidityMonths) },
+  ].map((r) => ({ ...r, updated_at: new Date().toISOString(), updated_by: updatedBy || null }));
+  const { error } = await supabase.from('app_settings').upsert(rows);
+  if (error) throw error;
+}
+
+// Nach einem Kasse-Checkout aufgerufen (fire-and-forget): löst serverseitig den Versand
+// der Pflegeanleitungs-Mail (inkl. Dankeschön-Gutschein) aus, falls der Kunde eine
+// E-Mail-Adresse und eine Einverständniserklärung mit Tattoo/Piercing-Angabe hat.
+// Schlägt bewusst niemals sichtbar fehl -- der Checkout an der Kasse darf davon nicht
+// abhängen; Fehler landen nur in der Konsole.
+export function triggerCareInstructionsEmail(orderId: string) {
+  fetch('/api/send-care-email', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ orderId }),
+  }).catch((e) => {
+    // eslint-disable-next-line no-console
+    console.warn('Pflegeanleitungs-Mail konnte nicht ausgelöst werden:', e);
+  });
+}
+
 
