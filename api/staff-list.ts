@@ -20,17 +20,19 @@ export default async function handler(req: any, res: any) {
   const admin = createClient(supabaseUrl, serviceRoleKey, { auth: { autoRefreshToken: false, persistSession: false } });
 
   try {
-    const [adminsRes, managersRes] = await Promise.all([
+    const [adminsRes, managersRes, locationsRes] = await Promise.all([
       admin.from('admin_accounts').select('id, vorname, name, status, pin_hash').eq('status', 'active'),
       admin.from('location_managers').select('id, vorname, name, role, location_id, status, pin_hash').eq('status', 'active'),
+      admin.from('locations').select('id, name').order('name'),
     ]);
     if (adminsRes.error) throw adminsRes.error;
     if (managersRes.error) throw managersRes.error;
+    if (locationsRes.error) throw locationsRes.error;
 
     const admins = (adminsRes.data || []).map((a: any) => ({ id: a.id, role: 'admin', vorname: a.vorname, name: a.name, locationId: null, pinConfigured: !!a.pin_hash }));
     const staff = (managersRes.data || []).map((m: any) => ({ id: m.id, role: m.role, vorname: m.vorname, name: m.name, locationId: m.location_id, pinConfigured: !!m.pin_hash }));
 
-    res.status(200).json({ staff: [...admins, ...staff] });
+    res.status(200).json({ staff: [...admins, ...staff], locations: locationsRes.data || [] });
   } catch (e: any) {
     res.status(500).json({ error: e.message || 'Unbekannter Fehler.' });
   }
