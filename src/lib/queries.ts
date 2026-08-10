@@ -27,6 +27,7 @@ export interface Customer {
   name: string;
   email: string | null;
   phone: string | null;
+  parent_phone: string | null;
   birthdate: string | null;
   notes: string | null;
   health_notice: string | null;
