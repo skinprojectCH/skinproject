@@ -512,10 +512,6 @@ function CheckoutModal({
   onClose: () => void;
   onComplete: (payments: { method: string; amount: number; voucher_id?: string | null }[], total: number, discountType: 'percent' | 'chf' | null, discountValue: number) => Promise<void>;
 }) {
-  const [discountMode, setDiscountMode] = useState<'percent' | 'chf'>('percent');
-  const [discountInput, setDiscountInput] = useState('');
-  const [appliedDiscountPct, setAppliedDiscountPct] = useState(0);
-
   // Verteilt einen Zielbetrag über eine oder mehrere Anzahlungen (älteste zuerst), da ein
   // Kunde mehrere aktive Anzahlungen gleichzeitig haben kann (z.B. mehrfach eingezahlt).
   function allocateAnzahlungRows(list: Voucher[], targetAmount: number, excludeIds: Set<string> = new Set()): { rows: SplitPayment[]; remaining: number } {
@@ -577,8 +573,7 @@ function CheckoutModal({
     });
   }
 
-  const discountAmount = discountMode === 'percent' ? (subtotal * appliedDiscountPct) / 100 : appliedDiscountPct;
-  const total = roundToRappen(Math.max(0, subtotal - discountAmount));
+  const total = roundToRappen(subtotal);
   const paid = payments.reduce((sum, p) => sum + p.amount, 0);
   const gutscheinRowsValid = payments
     .filter((p) => p.method === 'Gutschein' || p.method === 'Anzahlung')
@@ -596,11 +591,6 @@ function CheckoutModal({
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [total]);
-
-  function applyDiscount() {
-    const val = parseFloat(discountInput);
-    if (!isNaN(val) && val >= 0) setAppliedDiscountPct(val);
-  }
 
   function addPayment() {
     const remaining = Math.max(0, total - paid);
@@ -661,8 +651,8 @@ function CheckoutModal({
       await onComplete(
         payments.map((p) => ({ method: p.method, amount: p.amount, voucher_id: p.voucherId || null })),
         total,
-        appliedDiscountPct > 0 ? discountMode : null,
-        appliedDiscountPct
+        null,
+        0
       );
     } catch (e: any) {
       setError(e.message);
@@ -676,32 +666,6 @@ function CheckoutModal({
       <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, color: '#777', marginBottom: 4 }}>
         <div>Zwischentotal</div>
         <div>{chf(subtotal)}</div>
-      </div>
-
-      <div style={{ border: '1px solid #eee', borderRadius: 6, padding: 12, margin: '10px 0 16px' }}>
-        <div className="label-uppercase" style={{ marginBottom: 8 }}>
-          Discount
-        </div>
-        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-          <div style={{ display: 'flex', border: '1px solid #ddd', borderRadius: 4, overflow: 'hidden', fontSize: 12 }}>
-            <button onClick={() => setDiscountMode('percent')} style={{ padding: '8px 12px', background: discountMode === 'percent' ? '#111' : 'transparent', color: discountMode === 'percent' ? '#fff' : '#777', border: 'none' }}>
-              %
-            </button>
-            <button onClick={() => setDiscountMode('chf')} style={{ padding: '8px 12px', background: discountMode === 'chf' ? '#111' : 'transparent', color: discountMode === 'chf' ? '#fff' : '#777', border: 'none' }}>
-              CHF
-            </button>
-          </div>
-          <input value={discountInput} onChange={(e) => setDiscountInput(e.target.value)} style={{ flex: 1, border: '1px solid #ddd', borderRadius: 4, padding: '8px 10px', fontSize: 13 }} />
-          <button className="btn btn-primary" onClick={applyDiscount}>
-            Anwenden
-          </button>
-        </div>
-        {appliedDiscountPct > 0 && (
-          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, color: 'var(--color-destructive)', marginTop: 8 }}>
-            <div>Discount ({discountMode === 'percent' ? `${appliedDiscountPct}%` : chf(appliedDiscountPct)})</div>
-            <div>– {chf(discountAmount)}</div>
-          </div>
-        )}
       </div>
 
       <div style={{ display: 'flex', justifyContent: 'space-between', fontFamily: 'var(--font-heading)', fontSize: 20, fontWeight: 700, borderTop: '1.5px solid #111', paddingTop: 12, marginBottom: 18 }}>
@@ -1778,7 +1742,7 @@ export default function Kasse() {
             className="btn btn-outline"
             style={{ width: '100%', justifyContent: 'center', marginBottom: 10 }}
           >
-            <GridIcon /> Split Payment / Gutschein / Discount
+            <GridIcon /> Split Payment / Gutschein
           </button>
 
           <button
