@@ -3,12 +3,16 @@ import { sendEmail, emailLayout } from '../server/resend.js';
 
 // Läuft als Vercel Serverless Function unter /api/send-care-email.
 // Wird von der Kasse (Kasse.tsx) fire-and-forget nach einem erfolgreichen Checkout
-// aufgerufen. Schickt die zum Behandlungstyp (Tattoo/Piercing) passende
-// Pflegeanleitung an den Kunden, plus einen automatisch erzeugten, auf Produkte
-// beschränkten Dankeschön-Gutschein (falls in den Einstellungen aktiviert).
+// aufgerufen -- aber nur, wenn der Checkout zu einem konkreten Termin gehört UND
+// diesem Termin explizit eine Einverständniserklärung zugewiesen wurde (Kunden-
+// Detailseite -> Dokument -> "Termin zuweisen"). Laufkunden-Verkäufe ohne Termin
+// und Termine ohne zugewiesenes Formular lösen NIE eine Mail aus.
+// Schickt die zum Behandlungstyp (Tattoo/Piercing) passende Pflegeanleitung an
+// den Kunden, plus einen automatisch erzeugten, auf Produkte beschränkten
+// Dankeschön-Gutschein (falls in den Einstellungen aktiviert).
 //
-// Bricht überall dort still ab (200 OK, kein Versand), wo Daten fehlen -- der
-// Checkout an der Kasse darf dadurch nie fehlschlagen oder blockiert werden.
+// Bricht überall dort still ab (200 OK, kein Versand), wo Bedingungen fehlen --
+// der Checkout an der Kasse darf dadurch nie fehlschlagen oder blockiert werden.
 
 function generateVoucherCode() {
   return '2SK-' + Math.random().toString(36).slice(2, 7).toUpperCase();
@@ -35,9 +39,26 @@ export default async function handler(req: any, res: any) {
   const admin = createClient(supabaseUrl, serviceRoleKey, { auth: { autoRefreshToken: false, persistSession: false } });
 
   try {
-    const { data: order } = await admin.from('orders').select('id, customer_id, care_email_sent_at').eq('id', orderId).maybeSingle();
-    if (!order || !order.customer_id || order.care_email_sent_at) {
-      res.status(200).json({ ok: true, skipped: true });
+    const { data: order } = await admin.from('orders').select('id, customer_id, appointment_id, care_email_sent_at').eq('id', orderId).maybeSingle();
+    if (!order || !order.customer_id || !order.appointment_id || order.care_email_sent_at) {
+      // Kein Termin verknüpft (z.B. Laufkunden-Verkauf) -> kein automatischer Versand.
+      res.status(200).json({ ok: true, skipped: true, reason: !order?.appointment_id ? 'no-appointment' : undefined });
+      return;
+    }
+
+    // Die Einverständniserklärung muss dem Personal explizit diesem Termin zugewiesen
+    // worden sein (Kunden-Detailseite -> Dokument -> "Termin zuweisen") -- ein
+    // irgendwann in der Vergangenheit ausgefülltes Formular reicht nicht, wenn es
+    // nicht für DIESEN Besuch zugeordnet wurde.
+    const { data: assignedConsentDoc } = await admin
+      .from('customer_documents')
+      .select('id')
+      .eq('appointment_id', order.appointment_id)
+      .eq('type', 'document')
+      .limit(1)
+      .maybeSingle();
+    if (!assignedConsentDoc) {
+      res.status(200).json({ ok: true, skipped: true, reason: 'no-consent-form-assigned-to-appointment' });
       return;
     }
 
