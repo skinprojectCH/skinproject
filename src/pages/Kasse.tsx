@@ -1246,7 +1246,7 @@ if (voucher.status === 'eingelöst' || voucher.remaining_value <= 0) {
   artist: activeArtist,
   location: locations.find((l) => l.id === selectedLocationId) || null,
 
-}});
+});
 setShowCheckout(false);
 setCompleted(true);
 setItems([]);
