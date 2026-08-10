@@ -3,6 +3,7 @@ import AppLayout from './components/AppLayout';
 import RequireAuth from './components/RequireAuth';
 import RequireBackoffice from './components/RequireBackoffice';
 import Login from './pages/Login';
+import ResetPassword from './pages/ResetPassword';
 import Kalender from './pages/Kalender';
 import Kasse from './pages/Kasse';
 import Kunden from './pages/Kunden';
@@ -29,6 +30,7 @@ export default function App() {
   return (
     <Routes>
       <Route path="/login" element={<Login />} />
+      <Route path="/reset-password" element={<ResetPassword />} />
       <Route path="/artist/:artistId" element={<ArtistApp />} />
       <Route path="/register/:locationId" element={<RegisterCustomer />} />
       <Route path="/gutschein-kaufen" element={<GutscheinKaufen />} />
