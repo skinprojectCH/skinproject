@@ -125,7 +125,7 @@ function ArtistLoginScreen({ artistId, onLoggedIn }: { artistId: string; onLogge
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    fetch(`/api/artist-info?id=${artistId}`)
+    fetch(`/api/entity-info?type=artist&id=${artistId}`)
       .then((r) => r.json())
       .then((body) => {
         if (body.error) {

@@ -312,7 +312,7 @@ export default function RegisterCustomer() {
 
   useEffect(() => {
     if (!locationId) return;
-    fetch(`/api/location-info?id=${locationId}`)
+    fetch(`/api/entity-info?type=location&id=${locationId}`)
       .then((r) => r.json())
       .then((body) => {
         if (body.error) {
