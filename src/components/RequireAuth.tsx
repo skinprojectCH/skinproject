@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Navigate, Outlet } from 'react-router-dom';
+import { Navigate, Outlet, useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabaseClient';
 import type { Session } from '@supabase/supabase-js';
 
@@ -10,6 +10,7 @@ const DEV_PASSWORD = import.meta.env.VITE_DEV_LOGIN_PASSWORD as string | undefin
 export default function RequireAuth() {
   const [session, setSession] = useState<Session | null | undefined>(undefined);
   const [devError, setDevError] = useState<string | null>(null);
+  const navigate = useNavigate();
 
   useEffect(() => {
     let active = true;
@@ -41,13 +42,22 @@ export default function RequireAuth() {
     }
 
     init();
-    const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
-      if (active) setSession(session);
+    const { data: listener } = supabase.auth.onAuthStateChange((event, session) => {
+      if (!active) return;
+      // Ein Klick auf den Passwort-Reset-Link erzeugt automatisch eine Session --
+      // ohne diese Weiche würde der Nutzer einfach direkt eingeloggt, statt ein
+      // neues Passwort setzen zu können.
+      if (event === 'PASSWORD_RECOVERY') {
+        navigate('/reset-password', { replace: true });
+        return;
+      }
+      setSession(session);
     });
     return () => {
       active = false;
       listener.subscription.unsubscribe();
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   if (session === undefined) return <div style={{ padding: 40, fontSize: 13, color: '#999' }}>Lädt…</div>;
