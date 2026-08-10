@@ -1259,9 +1259,10 @@ export default function Kasse() {
         .filter((i) => i.kind === 'voucher')
         .map((i) => ({ code: i.voucherCode || i.refId, value: i.unitPrice, buyer_customer_id: selectedCustomerId || null })),
     });
-    if (selectedCustomerId) {
-      // Fire-and-forget: löst serverseitig die Pflegeanleitungs-Mail aus, falls der
-      // Kunde eine E-Mail-Adresse und eine ausgefüllte Einverständniserklärung hat.
+    if (selectedCustomerId && appointmentId) {
+      // Fire-and-forget: löst serverseitig die Pflegeanleitungs-Mail aus, aber nur
+      // wenn diesem konkreten Termin eine Einverständniserklärung zugewiesen wurde
+      // (server-seitig geprüft) -- Laufkunden-Verkäufe ohne Termin lösen nie aus.
       // Blockiert den Checkout nicht und wird nicht angezeigt, wenn es fehlschlägt.
       triggerCareInstructionsEmail(orderId);
     }
