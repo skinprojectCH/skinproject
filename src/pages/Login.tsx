@@ -11,6 +11,11 @@ interface StaffListEntry {
   pinConfigured: boolean;
 }
 
+interface LocationEntry {
+  id: string;
+  name: string;
+}
+
 const ROLE_LABELS: Record<string, string> = {
   admin: 'Admin',
   manager: 'Salon Manager',
@@ -98,6 +103,8 @@ function PinPad({ value, onChange, onSubmit, maxLength = 6 }: { value: string; o
 export default function Login() {
   const navigate = useNavigate();
   const [staff, setStaff] = useState<StaffListEntry[] | null>(null);
+  const [locations, setLocations] = useState<LocationEntry[]>([]);
+  const [locationFilter, setLocationFilter] = useState<string | null>(null);
   const [staffError, setStaffError] = useState<string | null>(null);
   const [selected, setSelected] = useState<StaffListEntry | null>(null);
   const [pin, setPin] = useState('');
@@ -111,6 +118,7 @@ export default function Login() {
       .then((body) => {
         if (body.error) throw new Error(body.error);
         setStaff(body.staff || []);
+        setLocations(body.locations || []);
       })
       .catch((e) => setStaffError(e.message));
   }, []);
@@ -221,8 +229,49 @@ export default function Login() {
         </p>
         {staffError && <p style={{ color: 'var(--color-destructive)', fontSize: 12, marginBottom: 12 }}>{staffError}</p>}
         {!staff && !staffError && <p style={{ fontSize: 13, color: '#999', textAlign: 'center' }}>Lädt…</p>}
+
+        {locations.length > 1 && (
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, justifyContent: 'center', marginBottom: 14 }}>
+            <button
+              onClick={() => setLocationFilter(null)}
+              style={{
+                padding: '6px 12px',
+                borderRadius: 20,
+                border: '1px solid ' + (locationFilter === null ? 'var(--color-accent)' : '#ddd'),
+                background: locationFilter === null ? 'var(--color-accent)' : '#fff',
+                color: locationFilter === null ? '#fff' : '#555',
+                fontSize: 12,
+                cursor: 'pointer',
+                fontFamily: 'var(--font-body)',
+              }}
+            >
+              Alle Standorte
+            </button>
+            {locations.map((l) => (
+              <button
+                key={l.id}
+                onClick={() => setLocationFilter(l.id)}
+                style={{
+                  padding: '6px 12px',
+                  borderRadius: 20,
+                  border: '1px solid ' + (locationFilter === l.id ? 'var(--color-accent)' : '#ddd'),
+                  background: locationFilter === l.id ? 'var(--color-accent)' : '#fff',
+                  color: locationFilter === l.id ? '#fff' : '#555',
+                  fontSize: 12,
+                  cursor: 'pointer',
+                  fontFamily: 'var(--font-body)',
+                }}
+              >
+                {l.name}
+              </button>
+            ))}
+          </div>
+        )}
+
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8, maxHeight: 340, overflowY: 'auto' }}>
-          {staff?.map((s) => (
+          {staff
+            ?.filter((s) => !locationFilter || s.locationId === locationFilter || s.role === 'admin')
+            .map((s) => (
             <button
               key={s.id}
               onClick={() => setSelected(s)}
