@@ -20,7 +20,7 @@ const ARTIST_COLORS = [
   '#A65B6B', '#5B4A6B',
 ];
 
-const ARTIST_PWA_ORIGIN = 'https://skinproject-nine.vercel.app';
+const ARTIST_PWA_ORIGIN = 'https://www.sknpr.ch';
 
 const inputStyle: React.CSSProperties = { border: '1px solid #ddd', borderRadius: 4, padding: '9px 10px', fontSize: 13, width: '100%', fontFamily: 'var(--font-body)' };
 
