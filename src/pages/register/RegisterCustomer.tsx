@@ -292,6 +292,7 @@ export default function RegisterCustomer() {
   const [profileError, setProfileError] = useState<string | null>(null);
 
   const [birthdate, setBirthdate] = useState('');
+  const [parentPhone, setParentPhone] = useState('');
   const [savingBirthdate, setSavingBirthdate] = useState(false);
 
   const [uploadingId, setUploadingId] = useState(false);
@@ -426,13 +427,19 @@ export default function RegisterCustomer() {
       setProfileError('Bitte Geburtsdatum angeben.');
       return;
     }
+    if (isMinor && !parentPhone.trim()) {
+      setProfileError('Bitte Mobile-Nummer der Eltern angeben.');
+      return;
+    }
     setSavingBirthdate(true);
     setProfileError(null);
     try {
+      const patch: Record<string, any> = { birthdate };
+      if (isMinor) patch.parent_phone = parentPhone.trim();
       const res = await fetch('/api/registration-save-profile', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ customerId, locationId, patch: { birthdate } }),
+        body: JSON.stringify({ customerId, locationId, patch }),
       });
       const body = await res.json();
       if (!res.ok) throw new Error(body.error || 'Unbekannter Fehler.');
@@ -638,7 +645,19 @@ export default function RegisterCustomer() {
               onChange={(e) => setBirthdate(e.target.value)}
               style={{ border: '1px solid #ddd', borderRadius: 8, padding: 14, fontSize: 14, marginBottom: 14, width: '100%', fontFamily: "'Work Sans', sans-serif" }}
             />
-            {isMinor && <div style={noticeBox}>Bist du unter 18? Beim nächsten Schritt wird zusätzlich der Ausweis eines Elternteils benötigt.</div>}
+            {isMinor && (
+              <>
+                <div style={noticeBox}>Bist du unter 18? Beim nächsten Schritt wird zusätzlich der Ausweis eines Elternteils benötigt.</div>
+                <div style={{ fontSize: 11, color: '#999', margin: '14px 0 6px' }}>Mobile-Nummer der Eltern</div>
+                <input
+                  type="tel"
+                  value={parentPhone}
+                  onChange={(e) => setParentPhone(normalizePhoneDisplay(e.target.value))}
+                  style={{ border: '1px solid #ddd', borderRadius: 8, padding: 14, fontSize: 14, marginBottom: 14, width: '100%', fontFamily: "'Work Sans', sans-serif" }}
+                  placeholder="+41 79 123 45 67"
+                />
+              </>
+            )}
             <div style={{ flex: 1 }} />
             {profileError && <div style={{ fontSize: 11, color: 'var(--color-destructive)', marginBottom: 8 }}>{profileError}</div>}
             <button style={{ ...primaryBtn, marginTop: 20, opacity: savingBirthdate ? 0.6 : 1 }} disabled={savingBirthdate} onClick={handleBirthdateSubmit}>
