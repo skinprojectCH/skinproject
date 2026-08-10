@@ -1,5 +1,6 @@
-import { NavLink, useLocation } from 'react-router-dom';
+import { NavLink, useLocation, useNavigate } from 'react-router-dom';
 import { useLocationContext } from '../lib/locationContext';
+import { supabase } from '../lib/supabaseClient';
 
 interface NavItem {
   key: string;
@@ -196,7 +197,13 @@ function LocationSwitcher() {
 
 export default function Sidebar() {
   const location = useLocation();
+  const navigate = useNavigate();
   const { canAccessBackoffice } = useLocationContext();
+
+  async function handleLogout() {
+    await supabase.auth.signOut();
+    navigate('/login', { replace: true });
+  }
 
   // Angestellte dürfen nur das Tagesgeschäft sehen -- Settings, Gutschein & Anzahlung,
   // Service & Artikel und Analytik sind Admin/Manager vorbehalten (serverseitig via RLS
@@ -212,6 +219,9 @@ export default function Sidebar() {
         flexShrink: 0,
         fontFamily: 'var(--font-body)',
         fontSize: 13,
+        display: 'flex',
+        flexDirection: 'column',
+        minHeight: '100vh',
       }}
     >
       <nav style={{ display: 'flex', flexDirection: 'column' }}>
@@ -264,6 +274,29 @@ export default function Sidebar() {
           );
         })}
       </nav>
+
+      <div style={{ marginTop: 'auto', padding: '14px 10px 4px' }}>
+        <button
+          onClick={handleLogout}
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: 6,
+            width: '100%',
+            padding: '10px 6px',
+            borderRadius: 10,
+            background: 'transparent',
+            border: '1px solid rgba(255,255,255,0.12)',
+            color: '#999',
+            fontSize: 11,
+            fontFamily: 'var(--font-body)',
+            cursor: 'pointer',
+          }}
+        >
+          Abmelden
+        </button>
+      </div>
     </div>
   );
 }
