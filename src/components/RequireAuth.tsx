@@ -16,6 +16,16 @@ export default function RequireAuth() {
     let active = true;
 
     async function init() {
+      // Fängt den Fall ab, dass Supabase den PASSWORD_RECOVERY-Event bereits VOR
+      // dem Mounten dieser Komponente ausgelöst hat (Race Condition beim initialen
+      // Laden) -- ohne diesen direkten URL-Check würde getSession() unten einfach
+      // eine ganz normale, bereits eingeloggte Session zurückgeben und der Nutzer
+      // direkt in die App gelangen, statt ein neues Passwort setzen zu können.
+      if (window.location.hash.includes('type=recovery')) {
+        navigate('/reset-password', { replace: true });
+        return;
+      }
+
       const { data } = await supabase.auth.getSession();
       if (!active) return;
 
