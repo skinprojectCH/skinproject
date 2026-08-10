@@ -196,6 +196,12 @@ function LocationSwitcher() {
 
 export default function Sidebar() {
   const location = useLocation();
+  const { canAccessBackoffice } = useLocationContext();
+
+  // Angestellte dürfen nur das Tagesgeschäft sehen -- Settings, Gutschein & Anzahlung,
+  // Service & Artikel und Analytik sind Admin/Manager vorbehalten (serverseitig via RLS
+  // zusätzlich abgesichert, das hier ist nur die UI-Sicht).
+  const visibleNavItems = canAccessBackoffice ? NAV_ITEMS : NAV_ITEMS.filter((item) => ['kalender', 'kasse', 'kunden'].includes(item.key));
 
   return (
     <div
@@ -211,7 +217,7 @@ export default function Sidebar() {
       <nav style={{ display: 'flex', flexDirection: 'column' }}>
         <LocationSwitcher />
 
-        {NAV_ITEMS.map((item) => {
+        {visibleNavItems.map((item) => {
           const isActive = item.children ? location.pathname.startsWith('/admin/') && item.children.some((c) => location.pathname.startsWith(c.path)) : location.pathname.startsWith(item.path);
           return (
             <div key={item.key}>

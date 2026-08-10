@@ -1,6 +1,7 @@
 import { Routes, Route, Navigate } from 'react-router-dom';
 import AppLayout from './components/AppLayout';
 import RequireAuth from './components/RequireAuth';
+import RequireBackoffice from './components/RequireBackoffice';
 import Login from './pages/Login';
 import Kalender from './pages/Kalender';
 import Kasse from './pages/Kasse';
@@ -41,19 +42,21 @@ export default function App() {
         <Route path="/kunden" element={<Kunden />} />
         <Route path="/kunden/:id" element={<KundeDetail />} />
 
-        <Route path="/admin" element={<AdminIndex />} />
-        <Route path="/admin/artists" element={<Artists />} />
-        <Route path="/admin/artists/:id" element={<ArtistDetail />} />
-        <Route path="/admin/dienstleistungen" element={<Dienstleistungen />} />
-        <Route path="/admin/produkte" element={<Produkte />} />
-        <Route path="/admin/schichtplan" element={<Schichtplan />} />
-        <Route path="/admin/absenzen" element={<Absenzen />} />
-        <Route path="/admin/statistiken" element={<Statistiken />} />
-        <Route path="/admin/abrechnung" element={<Abrechnung />} />
-        <Route path="/admin/locations" element={<Locations />} />
-        <Route path="/admin/einstellungen" element={<Einstellungen />} />
-        <Route path="/admin/gutscheine" element={<Gutscheine />} />
-        <Route path="/admin/anzahlungen" element={<Anzahlungen />} />
+        <Route element={<RequireBackoffice />}>
+          <Route path="/admin" element={<AdminIndex />} />
+          <Route path="/admin/artists" element={<Artists />} />
+          <Route path="/admin/artists/:id" element={<ArtistDetail />} />
+          <Route path="/admin/dienstleistungen" element={<Dienstleistungen />} />
+          <Route path="/admin/produkte" element={<Produkte />} />
+          <Route path="/admin/schichtplan" element={<Schichtplan />} />
+          <Route path="/admin/absenzen" element={<Absenzen />} />
+          <Route path="/admin/statistiken" element={<Statistiken />} />
+          <Route path="/admin/abrechnung" element={<Abrechnung />} />
+          <Route path="/admin/locations" element={<Locations />} />
+          <Route path="/admin/einstellungen" element={<Einstellungen />} />
+          <Route path="/admin/gutscheine" element={<Gutscheine />} />
+          <Route path="/admin/anzahlungen" element={<Anzahlungen />} />
+        </Route>
         </Route>
       </Route>
     </Routes>

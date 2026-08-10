@@ -99,15 +99,28 @@ export interface LocationManager {
   name: string;
   email: string | null;
   telefon: string | null;
+  role: 'manager' | 'employee';
+  status: 'active' | 'inactive';
+  pinConfigured?: boolean;
 }
 
 // ---------- Locations ----------
-export async function fetchCurrentUserLocationId() {
+export interface CurrentAppUser {
+  role: 'admin' | 'manager' | 'employee' | 'artist' | null;
+  location_id: string | null;
+}
+
+export async function fetchCurrentAppUser(): Promise<CurrentAppUser> {
   const { data: userData } = await supabase.auth.getUser();
-  if (!userData.user) return null;
-  const { data, error } = await supabase.from('app_users').select('location_id').eq('id', userData.user.id).maybeSingle();
-  if (error) return null; // z.B. noch kein app_users-Eintrag für diesen Login vorhanden
-  return data?.location_id ?? null;
+  if (!userData.user) return { role: null, location_id: null };
+  const { data, error } = await supabase.from('app_users').select('role, location_id').eq('id', userData.user.id).maybeSingle();
+  if (error || !data) return { role: null, location_id: null };
+  return { role: data.role, location_id: data.location_id };
+}
+
+export async function fetchCurrentUserLocationId() {
+  const { location_id } = await fetchCurrentAppUser();
+  return location_id;
 }
 
 export async function fetchLocations() {
@@ -139,12 +152,17 @@ export async function setMainLocation(id: string) {
 
 // ---------- Location-Manager ----------
 export async function fetchLocationManagers(locationId: string) {
-  const { data, error } = await supabase.from('location_managers').select('*').eq('location_id', locationId);
+  // Bewusst keine pin_hash/pin_salt-Spalten selektieren -- die dürfen den Browser nie
+  // erreichen, auch nicht gehasht. pin_hash wird separat nur für "ist PIN gesetzt?" gebraucht.
+  const { data, error } = await supabase
+    .from('location_managers')
+    .select('id, location_id, vorname, name, email, telefon, role, status, pin_hash')
+    .eq('location_id', locationId);
   if (error) throw error;
-  return data as LocationManager[];
+  return (data || []).map((row: any) => ({ ...row, pinConfigured: !!row.pin_hash, pin_hash: undefined })) as LocationManager[];
 }
 
-export async function createLocationManager(input: { location_id: string; vorname: string; name: string; email: string | null; telefon: string | null }) {
+export async function createLocationManager(input: { location_id: string; vorname: string; name: string; email: string | null; telefon: string | null; role: 'manager' | 'employee' }) {
   const { data, error } = await supabase.from('location_managers').insert(input).select().single();
   if (error) throw error;
   return data as LocationManager;

@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import Modal from '../../components/Modal';
+import { useLocationContext } from '../../lib/locationContext';
 import {
   fetchLocations,
   createLocation,
@@ -21,14 +22,149 @@ interface ManagerDraft {
   name: string;
   email: string;
   telefon: string;
+  role: 'manager' | 'employee';
+  pinConfigured: boolean;
   deleted: boolean;
 }
 
-interface LoginState {
-  password: string;
+interface PinState {
+  pin: string;
   creating: boolean;
   error: string | null;
   success: boolean;
+}
+
+// Admin-Accounts sind nicht an einen Standort gebunden, daher separat von den
+// Standort-Teams verwaltet. Nur für Admins sichtbar (siehe Aufrufstelle unten).
+function AdminAccountsSection() {
+  const [admins, setAdmins] = useState<{ id: string; vorname: string; name: string; pinConfigured: boolean }[] | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [showAdd, setShowAdd] = useState(false);
+  const [newVorname, setNewVorname] = useState('');
+  const [newName, setNewName] = useState('');
+  const [newPin, setNewPin] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [addError, setAddError] = useState<string | null>(null);
+  const [pinEdits, setPinEdits] = useState<Record<string, string>>({});
+  const [pinSaving, setPinSaving] = useState<Record<string, boolean>>({});
+  const [pinErrors, setPinErrors] = useState<Record<string, string>>({});
+
+  function load() {
+    fetch('/api/staff-list')
+      .then((r) => r.json())
+      .then((body) => {
+        if (body.error) throw new Error(body.error);
+        setAdmins((body.staff || []).filter((s: any) => s.role === 'admin'));
+      })
+      .catch((e) => setLoadError(e.message));
+  }
+
+  useEffect(() => load(), []);
+
+  async function handleAdd() {
+    if (!newVorname.trim() || !newName.trim() || !/^\d{4,6}$/.test(newPin)) {
+      setAddError('Vorname, Name und ein 4-6-stelliger PIN sind erforderlich.');
+      return;
+    }
+    setSaving(true);
+    setAddError(null);
+    try {
+      const res = await fetch('/api/create-staff-pin', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ role: 'admin', vorname: newVorname.trim(), name: newName.trim(), pin: newPin }),
+      });
+      const body = await res.json();
+      if (!res.ok) throw new Error(body.error || 'Unbekannter Fehler.');
+      setNewVorname('');
+      setNewName('');
+      setNewPin('');
+      setShowAdd(false);
+      load();
+    } catch (e: any) {
+      setAddError(e.message);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function handleChangePin(id: string) {
+    const pin = pinEdits[id] || '';
+    if (!/^\d{4,6}$/.test(pin)) {
+      setPinErrors((prev) => ({ ...prev, [id]: 'PIN muss 4 bis 6 Ziffern haben.' }));
+      return;
+    }
+    setPinSaving((prev) => ({ ...prev, [id]: true }));
+    setPinErrors((prev) => ({ ...prev, [id]: '' }));
+    try {
+      const res = await fetch('/api/create-staff-pin', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ role: 'admin', staffId: id, pin }),
+      });
+      const body = await res.json();
+      if (!res.ok) throw new Error(body.error || 'Unbekannter Fehler.');
+      setPinEdits((prev) => ({ ...prev, [id]: '' }));
+      load();
+    } catch (e: any) {
+      setPinErrors((prev) => ({ ...prev, [id]: e.message }));
+    } finally {
+      setPinSaving((prev) => ({ ...prev, [id]: false }));
+    }
+  }
+
+  return (
+    <div style={{ border: '1px solid var(--color-border)', borderRadius: 8, padding: 16, marginBottom: 24, background: 'var(--color-surface)' }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+        <div style={{ fontSize: 13, fontWeight: 700 }}>Admin-Zugänge (alle Standorte)</div>
+        <div onClick={() => setShowAdd((v) => !v)} style={{ fontSize: 11, color: 'var(--color-accent)', fontWeight: 600, cursor: 'pointer' }}>
+          {showAdd ? 'Abbrechen' : '+ Admin hinzufügen'}
+        </div>
+      </div>
+
+      {loadError && <div style={{ fontSize: 12, color: 'var(--color-destructive)', marginBottom: 10 }}>{loadError}</div>}
+
+      {showAdd && (
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr auto', gap: 10, marginBottom: 14, alignItems: 'start' }}>
+          <input value={newVorname} onChange={(e) => setNewVorname(e.target.value)} placeholder="Vorname" style={inputStyle} />
+          <input value={newName} onChange={(e) => setNewName(e.target.value)} placeholder="Name" style={inputStyle} />
+          <input
+            value={newPin}
+            onChange={(e) => setNewPin(e.target.value.replace(/\D/g, ''))}
+            placeholder="4-6-stelliger PIN"
+            inputMode="numeric"
+            maxLength={6}
+            style={inputStyle}
+          />
+          <button className="btn btn-primary" style={{ whiteSpace: 'nowrap', opacity: saving ? 0.6 : 1 }} disabled={saving} onClick={handleAdd}>
+            {saving ? 'Speichert…' : 'Anlegen'}
+          </button>
+        </div>
+      )}
+      {addError && <div style={{ fontSize: 12, color: 'var(--color-destructive)', marginBottom: 10 }}>{addError}</div>}
+
+      {admins?.map((a) => (
+        <div key={a.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 0', borderTop: '1px solid #f0f0f0' }}>
+          <div style={{ flex: 1, fontSize: 13 }}>
+            {a.vorname} {a.name} {a.pinConfigured && <span style={{ color: '#1a7a3f', fontSize: 11 }}>· PIN eingerichtet</span>}
+          </div>
+          <input
+            value={pinEdits[a.id] || ''}
+            onChange={(e) => setPinEdits((prev) => ({ ...prev, [a.id]: e.target.value.replace(/\D/g, '') }))}
+            placeholder="Neuer PIN"
+            inputMode="numeric"
+            maxLength={6}
+            style={{ ...inputStyle, width: 130 }}
+          />
+          <button className="btn btn-secondary" style={{ whiteSpace: 'nowrap' }} disabled={pinSaving[a.id]} onClick={() => handleChangePin(a.id)}>
+            {pinSaving[a.id] ? 'Speichert…' : 'PIN setzen'}
+          </button>
+          {pinErrors[a.id] && <div style={{ fontSize: 11, color: 'var(--color-destructive)' }}>{pinErrors[a.id]}</div>}
+        </div>
+      ))}
+      {admins?.length === 0 && <div style={{ fontSize: 12, color: '#999' }}>Noch keine weiteren Admin-Accounts.</div>}
+    </div>
+  );
 }
 
 function NewLocationModal({ onClose, onCreated }: { onClose: () => void; onCreated: () => void }) {
@@ -145,6 +281,7 @@ function NewLocationModal({ onClose, onCreated }: { onClose: () => void; onCreat
 }
 
 export default function Locations() {
+  const { isAdmin } = useLocationContext();
   const [locations, setLocations] = useState<Location[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -160,7 +297,7 @@ export default function Locations() {
   const [mwstProzent, setMwstProzent] = useState('');
   const [saldosteuersatz, setSaldosteuersatz] = useState('');
   const [managers, setManagers] = useState<ManagerDraft[]>([]);
-  const [loginStates, setLoginStates] = useState<Record<string, LoginState>>({});
+  const [pinStates, setPinStates] = useState<Record<string, PinState>>({});
 
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
@@ -197,12 +334,12 @@ export default function Locations() {
     setSaved(false);
     setAttempted(false);
     fetchLocationManagers(selected.id)
-      .then((data) => setManagers(data.map((m) => ({ key: m.id, id: m.id, vorname: m.vorname, name: m.name, email: m.email || '', telefon: m.telefon || '', deleted: false }))))
+      .then((data) => setManagers(data.map((m) => ({ key: m.id, id: m.id, vorname: m.vorname, name: m.name, email: m.email || '', telefon: m.telefon || '', role: m.role, pinConfigured: !!m.pinConfigured, deleted: false }))))
       .catch((e) => setSaveError(e.message));
   }, [selectedId, locations]);
 
   function addManager() {
-    setManagers((prev) => [...prev, { key: `new-${crypto.randomUUID()}`, id: null, vorname: '', name: '', email: '', telefon: '', deleted: false }]);
+    setManagers((prev) => [...prev, { key: `new-${crypto.randomUUID()}`, id: null, vorname: '', name: '', email: '', telefon: '', role: 'manager', pinConfigured: false, deleted: false }]);
   }
 
   function updateManagerField(key: string, field: keyof ManagerDraft, value: string) {
@@ -213,35 +350,36 @@ export default function Locations() {
     setManagers((prev) => prev.map((m) => (m.key === key ? { ...m, deleted: true } : m)).filter((m) => !(m.id === null && m.key === key)));
   }
 
-  function setLoginState(key: string, patch: Partial<LoginState>) {
-    setLoginStates((prev) => {
-      const current: LoginState = prev[key] || { password: '', creating: false, error: null, success: false };
+  function setPinState(key: string, patch: Partial<PinState>) {
+    setPinStates((prev) => {
+      const current: PinState = prev[key] || { pin: '', creating: false, error: null, success: false };
       return { ...prev, [key]: { ...current, ...patch } };
     });
   }
 
-  async function handleCreateLogin(manager: ManagerDraft) {
-    const state = loginStates[manager.key] || { password: '', creating: false, error: null, success: false };
-    if (!manager.email.trim()) {
-      setLoginState(manager.key, { error: 'Bitte zuerst eine E-Mail-Adresse beim Manager eintragen.' });
+  async function handleSetPin(manager: ManagerDraft) {
+    const state = pinStates[manager.key] || { pin: '', creating: false, error: null, success: false };
+    if (!manager.id) {
+      setPinState(manager.key, { error: 'Bitte zuerst speichern, bevor du einen PIN vergibst.' });
       return;
     }
-    if (state.password.length < 8) {
-      setLoginState(manager.key, { error: 'Passwort muss mindestens 8 Zeichen haben.' });
+    if (!/^\d{4,6}$/.test(state.pin)) {
+      setPinState(manager.key, { error: 'PIN muss 4 bis 6 Ziffern haben.' });
       return;
     }
-    setLoginState(manager.key, { creating: true, error: null });
+    setPinState(manager.key, { creating: true, error: null });
     try {
-      const res = await fetch('/api/create-manager-login', {
+      const res = await fetch('/api/create-staff-pin', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: manager.email.trim(), password: state.password, location_id: selectedId }),
+        body: JSON.stringify({ role: manager.role, staffId: manager.id, pin: state.pin }),
       });
       const body = await res.json();
       if (!res.ok) throw new Error(body.error || 'Unbekannter Fehler.');
-      setLoginState(manager.key, { creating: false, success: true, password: '' });
+      setPinState(manager.key, { creating: false, success: true, pin: '' });
+      setManagers((prev) => prev.map((m) => (m.key === manager.key ? { ...m, pinConfigured: true } : m)));
     } catch (e: any) {
-      setLoginState(manager.key, { creating: false, error: e.message });
+      setPinState(manager.key, { creating: false, error: e.message });
     }
   }
 
@@ -271,9 +409,9 @@ export default function Locations() {
         if (m.deleted && m.id) {
           await deleteLocationManager(m.id);
         } else if (!m.deleted && m.id) {
-          await updateLocationManager(m.id, { vorname: m.vorname.trim(), name: m.name.trim(), email: m.email.trim() || null, telefon: m.telefon.trim() || null });
+          await updateLocationManager(m.id, { vorname: m.vorname.trim(), name: m.name.trim(), email: m.email.trim() || null, telefon: m.telefon.trim() || null, role: m.role });
         } else if (!m.deleted && !m.id && (m.vorname.trim() || m.name.trim())) {
-          await createLocationManager({ location_id: selectedId, vorname: m.vorname.trim(), name: m.name.trim(), email: m.email.trim() || null, telefon: m.telefon.trim() || null });
+          await createLocationManager({ location_id: selectedId, vorname: m.vorname.trim(), name: m.name.trim(), email: m.email.trim() || null, telefon: m.telefon.trim() || null, role: m.role });
         }
       }
 
@@ -291,13 +429,17 @@ export default function Locations() {
   if (error) return <div style={{ fontSize: 13, color: 'var(--color-destructive)' }}>Fehler: {error}</div>;
 
   return (
-    <div style={{ display: 'flex', gap: 28 }}>
+    <div>
+      {isAdmin && <AdminAccountsSection />}
+      <div style={{ display: 'flex', gap: 28 }}>
       <div style={{ width: 300, flexShrink: 0 }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
           <div style={{ fontSize: 13, fontWeight: 700 }}>Locations</div>
-          <button className="btn btn-primary" style={{ padding: '6px 12px', fontSize: 11 }} onClick={() => setShowNew(true)}>
-            + Neu
-          </button>
+          {isAdmin && (
+            <button className="btn btn-primary" style={{ padding: '6px 12px', fontSize: 11 }} onClick={() => setShowNew(true)}>
+              + Neu
+            </button>
+          )}
         </div>
         {locations.map((l) => (
           <div
@@ -458,9 +600,9 @@ export default function Locations() {
           </div>
 
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
-            <div style={{ fontSize: 13, fontWeight: 700 }}>Location-Manager</div>
+            <div style={{ fontSize: 13, fontWeight: 700 }}>Team</div>
             <div onClick={addManager} style={{ fontSize: 11, color: 'var(--color-accent)', fontWeight: 600, cursor: 'pointer' }}>
-              + Manager hinzufügen
+              + Teammitglied hinzufügen
             </div>
           </div>
 
@@ -494,6 +636,28 @@ export default function Locations() {
                     <input value={m.vorname} onChange={(e) => updateManagerField(m.key, 'vorname', e.target.value)} style={inputStyle} />
                   </div>
                 </div>
+
+                <div style={{ marginBottom: 6 }}>
+                  <div className="label-uppercase" style={{ marginBottom: 4 }}>
+                    Rolle
+                  </div>
+                  <div style={{ display: 'flex', border: '1px solid #ddd', borderRadius: 4, overflow: 'hidden', width: 'fit-content' }}>
+                    <button
+                      type="button"
+                      onClick={() => setManagers((prev) => prev.map((mm) => (mm.key === m.key ? { ...mm, role: 'manager' } : mm)))}
+                      style={{ padding: '7px 14px', fontSize: 12, background: m.role === 'manager' ? '#111' : 'transparent', color: m.role === 'manager' ? '#fff' : '#777', border: 'none', cursor: 'pointer' }}
+                    >
+                      Salon Manager
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setManagers((prev) => prev.map((mm) => (mm.key === m.key ? { ...mm, role: 'employee' } : mm)))}
+                      style={{ padding: '7px 14px', fontSize: 12, background: m.role === 'employee' ? '#111' : 'transparent', color: m.role === 'employee' ? '#fff' : '#777', border: 'none', cursor: 'pointer' }}
+                    >
+                      Angestellte/r
+                    </button>
+                  </div>
+                </div>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14, marginTop: 14 }}>
                   <div>
                     <div className="label-uppercase" style={{ marginBottom: 4 }}>
@@ -511,27 +675,33 @@ export default function Locations() {
 
                 <div style={{ borderTop: '1px solid var(--color-border)', marginTop: 14, paddingTop: 14 }}>
                   <div className="label-uppercase" style={{ marginBottom: 6 }}>
-                    Login-Zugang (lädt automatisch den Kalender dieser Location)
+                    PIN-Login {m.pinConfigured && <span style={{ color: '#1a7a3f', textTransform: 'none' }}>· eingerichtet</span>}
                   </div>
-                  <div style={{ display: 'flex', gap: 8, alignItems: 'flex-start' }}>
-                    <input
-                      type="password"
-                      value={loginStates[m.key]?.password || ''}
-                      onChange={(e) => setLoginState(m.key, { password: e.target.value, success: false })}
-                      style={{ ...inputStyle, flex: 1 }}
-                      placeholder="Neues Passwort vergeben (min. 8 Zeichen)"
-                    />
-                    <button
-                      className="btn btn-secondary"
-                      style={{ whiteSpace: 'nowrap', opacity: loginStates[m.key]?.creating ? 0.6 : 1 }}
-                      disabled={loginStates[m.key]?.creating}
-                      onClick={() => handleCreateLogin(m)}
-                    >
-                      {loginStates[m.key]?.creating ? 'Speichert…' : 'Login erstellen / Passwort setzen'}
-                    </button>
-                  </div>
-                  {loginStates[m.key]?.success && <div style={{ fontSize: 11, color: '#1a7a3f', marginTop: 6 }}>✓ Login-Zugang für {m.email} ist eingerichtet.</div>}
-                  {loginStates[m.key]?.error && <div style={{ fontSize: 11, color: 'var(--color-destructive)', marginTop: 6 }}>{loginStates[m.key]?.error}</div>}
+                  {!m.id ? (
+                    <div style={{ fontSize: 11, color: '#999' }}>Zuerst speichern, dann kannst du einen PIN vergeben.</div>
+                  ) : (
+                    <div style={{ display: 'flex', gap: 8, alignItems: 'flex-start' }}>
+                      <input
+                        type="text"
+                        inputMode="numeric"
+                        maxLength={6}
+                        value={pinStates[m.key]?.pin || ''}
+                        onChange={(e) => setPinState(m.key, { pin: e.target.value.replace(/\D/g, ''), success: false })}
+                        style={{ ...inputStyle, flex: 1 }}
+                        placeholder="4-6-stelliger PIN vergeben"
+                      />
+                      <button
+                        className="btn btn-secondary"
+                        style={{ whiteSpace: 'nowrap', opacity: pinStates[m.key]?.creating ? 0.6 : 1 }}
+                        disabled={pinStates[m.key]?.creating}
+                        onClick={() => handleSetPin(m)}
+                      >
+                        {pinStates[m.key]?.creating ? 'Speichert…' : m.pinConfigured ? 'PIN ändern' : 'PIN vergeben'}
+                      </button>
+                    </div>
+                  )}
+                  {pinStates[m.key]?.success && <div style={{ fontSize: 11, color: '#1a7a3f', marginTop: 6 }}>✓ PIN ist eingerichtet.</div>}
+                  {pinStates[m.key]?.error && <div style={{ fontSize: 11, color: 'var(--color-destructive)', marginTop: 6 }}>{pinStates[m.key]?.error}</div>}
                 </div>
               </div>
             ))}
@@ -555,6 +725,7 @@ export default function Locations() {
           }}
         />
       )}
+    </div>
     </div>
   );
 }

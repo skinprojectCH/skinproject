@@ -1,5 +1,5 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from 'react';
-import { fetchLocations, fetchCurrentUserLocationId, type Location } from './queries';
+import { fetchLocations, fetchCurrentAppUser, type Location, type CurrentAppUser } from './queries';
 
 const FAVORITE_LOCATION_KEY = 'skinproject:favoriteLocationId';
 
@@ -12,6 +12,14 @@ interface LocationContextValue {
   toggleFavorite: () => void;
   isLocationLocked: boolean;
   accountLocationId: string | null;
+  role: CurrentAppUser['role'];
+  isAdmin: boolean;
+  isManager: boolean;
+  isEmployee: boolean;
+  isArtist: boolean;
+  // "Backoffice"-Rollen (Admin + Manager) dürfen Settings/Gutscheine/Service &
+  // Artikel/Analytik öffnen -- Angestellte nicht.
+  canAccessBackoffice: boolean;
 }
 
 const LocationContext = createContext<LocationContextValue | null>(null);
@@ -23,16 +31,19 @@ export function LocationProvider({ children }: { children: ReactNode }) {
   const [favoriteLocationId, setFavoriteLocationId] = useState<string | null>(() => localStorage.getItem(FAVORITE_LOCATION_KEY));
   const [isLocationLocked, setIsLocationLocked] = useState(false);
   const [accountLocationId, setAccountLocationId] = useState<string | null>(null);
+  const [role, setRole] = useState<CurrentAppUser['role']>(null);
 
   // Locations einmalig laden, danach Standort vorauswählen:
   // 1. Standort, der dem eingeloggten Account fest zugewiesen ist (app_users.location_id)
-  //    -> Salon-Manager-Login ist an eine Location geknüpft, Dropdown wird gesperrt
-  // 2. sonst lokaler Browser-Favorit (nur Hauptadmin ohne feste Location)
+  //    -> Manager/Angestellte/Artist sind an eine Location geknüpft, Dropdown wird gesperrt
+  // 2. sonst lokaler Browser-Favorit (nur Admin ohne feste Location)
   // 3. sonst die erste Location
   useEffect(() => {
-    Promise.all([fetchLocations(), fetchCurrentUserLocationId()])
-      .then(([data, accountLocationId]) => {
+    Promise.all([fetchLocations(), fetchCurrentAppUser()])
+      .then(([data, appUser]) => {
         setLocations(data);
+        setRole(appUser.role);
+        const accountLocationId = appUser.location_id;
         const fav = localStorage.getItem(FAVORITE_LOCATION_KEY);
         const accountValid = accountLocationId && data.some((l) => l.id === accountLocationId);
         const favValid = fav && data.some((l) => l.id === fav);
@@ -54,9 +65,29 @@ export function LocationProvider({ children }: { children: ReactNode }) {
     }
   }
 
+  const isAdmin = role === 'admin';
+  const isManager = role === 'manager';
+  const isEmployee = role === 'employee';
+  const isArtist = role === 'artist';
+
   return (
     <LocationContext.Provider
-      value={{ locations, locationsLoaded, selectedLocationId, setSelectedLocationId, favoriteLocationId, toggleFavorite, isLocationLocked, accountLocationId }}
+      value={{
+        locations,
+        locationsLoaded,
+        selectedLocationId,
+        setSelectedLocationId,
+        favoriteLocationId,
+        toggleFavorite,
+        isLocationLocked,
+        accountLocationId,
+        role,
+        isAdmin,
+        isManager,
+        isEmployee,
+        isArtist,
+        canAccessBackoffice: isAdmin || isManager,
+      }}
     >
       {children}
     </LocationContext.Provider>

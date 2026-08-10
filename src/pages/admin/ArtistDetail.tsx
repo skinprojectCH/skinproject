@@ -184,10 +184,10 @@ export default function ArtistDetail() {
     setPinError(null);
     setPinSuccess(false);
     try {
-      const res = await fetch('/api/create-artist-pin', {
+      const res = await fetch('/api/create-staff-pin', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ artistId: artist.id, pin: pinInput }),
+        body: JSON.stringify({ role: 'artist', staffId: artist.id, pin: pinInput }),
       });
       const body = await res.json();
       if (!res.ok) throw new Error(body.error || 'Unbekannter Fehler.');

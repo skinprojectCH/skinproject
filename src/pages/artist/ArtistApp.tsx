@@ -142,10 +142,10 @@ function ArtistLoginScreen({ artistId, onLoggedIn }: { artistId: string; onLogge
     setError(null);
     setLoading(true);
     try {
-      const res = await fetch('/api/artist-pin-login', {
+      const res = await fetch('/api/staff-pin-login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ artistId, pin }),
+        body: JSON.stringify({ role: 'artist', staffId: artistId, pin }),
       });
       const body = await res.json();
       if (!res.ok) throw new Error(body.error || 'Login fehlgeschlagen.');
