@@ -7,7 +7,8 @@ import {
   fetchProducts,
   fetchServiceCategories,
   fetchProductCategories,
-  fetchCustomers,
+  fetchCustomersByIds,
+  searchCustomers,
   fetchLocations,
   fetchCurrentUserLocationId,
   checkoutOrder,
@@ -829,19 +830,38 @@ function CheckoutModal({
   );
 }
 
-function CustomerSearchSelect({ customers, value, onChange }: { customers: Customer[]; value: string; onChange: (id: string) => void }) {
-  const selected = customers.find((c) => c.id === value) || null;
-  const [query, setQuery] = useState(selected ? `${selected.vorname} ${selected.name}` : '');
+function CustomerSearchSelect({
+  selectedCustomer,
+  onSelect,
+}: {
+  selectedCustomer: Customer | null;
+  onSelect: (customer: Customer | null) => void;
+}) {
+  const [query, setQuery] = useState(selectedCustomer ? `${selectedCustomer.vorname} ${selectedCustomer.name}` : '');
   const [open, setOpen] = useState(false);
+  const [results, setResults] = useState<Customer[]>([]);
+  const [searching, setSearching] = useState(false);
 
   useEffect(() => {
-    setQuery(selected ? `${selected.vorname} ${selected.name}` : '');
-  }, [value]); // eslint-disable-line react-hooks/exhaustive-deps
+    setQuery(selectedCustomer ? `${selectedCustomer.vorname} ${selectedCustomer.name}` : '');
+  }, [selectedCustomer?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const filtered = customers.filter((c) => {
-    const haystack = `${c.vorname} ${c.name} ${c.phone || ''}`.toLowerCase();
-    return haystack.includes(query.trim().toLowerCase());
-  });
+  // Serverseitige Suche statt aus einer vorgeladenen 8000+ Kunden-Liste zu filtern --
+  // sucht in Name, Vorname und Telefonnummer.
+  useEffect(() => {
+    const q = query.trim();
+    if (!q || (selectedCustomer && q === `${selectedCustomer.vorname} ${selectedCustomer.name}`)) {
+      setResults([]);
+      return;
+    }
+    setSearching(true);
+    const timeout = setTimeout(() => {
+      searchCustomers(q, 20)
+        .then(setResults)
+        .finally(() => setSearching(false));
+    }, 250);
+    return () => clearTimeout(timeout);
+  }, [query]); // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
     <div style={{ position: 'relative', width: 280 }}>
@@ -875,7 +895,7 @@ function CustomerSearchSelect({ customers, value, onChange }: { customers: Custo
         >
           <div
             onMouseDown={() => {
-              onChange('');
+              onSelect(null);
               setQuery('');
               setOpen(false);
             }}
@@ -883,11 +903,12 @@ function CustomerSearchSelect({ customers, value, onChange }: { customers: Custo
           >
             Laufkunde (kein Kunde)
           </div>
-          {filtered.map((c) => (
+          {searching && <div style={{ padding: '9px 12px', fontSize: 12, color: '#999' }}>Sucht…</div>}
+          {results.map((c) => (
             <div
               key={c.id}
               onMouseDown={() => {
-                onChange(c.id);
+                onSelect(c);
                 setQuery(`${c.vorname} ${c.name}`);
                 setOpen(false);
               }}
@@ -899,7 +920,7 @@ function CustomerSearchSelect({ customers, value, onChange }: { customers: Custo
               {c.phone && <div style={{ color: '#999' }}>{c.phone}</div>}
             </div>
           ))}
-          {filtered.length === 0 && <div style={{ padding: '9px 12px', fontSize: 13, color: '#999' }}>Keine Treffer.</div>}
+          {!searching && results.length === 0 && query.trim() && <div style={{ padding: '9px 12px', fontSize: 13, color: '#999' }}>Keine Treffer.</div>}
         </div>
       )}
     </div>
@@ -941,8 +962,8 @@ export default function Kasse() {
   const [activeArtist, setActiveArtist] = useState<Artist | null>(null);
   const [contextError, setContextError] = useState<string | null>(null);
   const [alreadyKassiert, setAlreadyKassiert] = useState(false);
-  const [customers, setCustomers] = useState<Customer[]>([]);
   const [selectedCustomerId, setSelectedCustomerId] = useState<string>('');
+  const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
   const [locations, setLocations] = useState<Location[]>([]);
   const [selectedLocationId, setSelectedLocationId] = useState<string>('');
   const [paymentMethod, setPaymentMethod] = useState<string | null>(null);
@@ -966,13 +987,12 @@ export default function Kasse() {
   const apptPhotoInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    Promise.all([fetchServices(), fetchProducts(), fetchServiceCategories(), fetchProductCategories(), fetchCustomers(), fetchLocations(), fetchCurrentUserLocationId()])
-      .then(([s, p, sc, pc, c, locs, accountLocationId]) => {
+    Promise.all([fetchServices(), fetchProducts(), fetchServiceCategories(), fetchProductCategories(), fetchLocations(), fetchCurrentUserLocationId()])
+      .then(([s, p, sc, pc, locs, accountLocationId]) => {
         setServices(s.filter((sv) => sv.active));
         setProducts(p.filter((pr) => pr.active));
         setServiceCategories(sc);
         setProductCategories(pc);
-        setCustomers(c);
         setLocations(locs);
         const accountValid = accountLocationId && locs.some((l) => l.id === accountLocationId);
         setSelectedLocationId(accountValid ? accountLocationId! : locs[0]?.id || '');
@@ -986,7 +1006,7 @@ export default function Kasse() {
     if (!directOrderId || appointmentId) return;
     (async () => {
       try {
-        const [orderData, allLocations, allCustomers] = await Promise.all([fetchOrderById(directOrderId), fetchLocations(), fetchCustomers()]);
+        const [orderData, allLocations] = await Promise.all([fetchOrderById(directOrderId), fetchLocations()]);
         if (!orderData) return;
         const { order, lineItems: dbLineItems, payments: dbPayments } = orderData;
         const reconstructedItems: LineItem[] = dbLineItems.map((li: any) => ({
@@ -999,7 +1019,7 @@ export default function Kasse() {
           discountType: li.discount_type || null,
           discountValue: li.discount_value != null ? Number(li.discount_value) : null,
         }));
-        const customer = allCustomers.find((c) => c.id === order.customer_id);
+        const customer = order.customer_id ? (await fetchCustomersByIds([order.customer_id]))[0] : undefined;
         setReceipt({
           items: reconstructedItems,
           total: Number(order.total),
@@ -1030,7 +1050,7 @@ export default function Kasse() {
         if (appt.status === 'kassiert') {
           setAlreadyKassiert(true);
           try {
-            const [orderData, allLocations, allCustomers] = await Promise.all([fetchOrderForAppointment(appointmentId), fetchLocations(), fetchCustomers()]);
+            const [orderData, allLocations] = await Promise.all([fetchOrderForAppointment(appointmentId), fetchLocations()]);
             if (orderData) {
               const { order, lineItems: dbLineItems, payments: dbPayments } = orderData;
               const reconstructedItems: LineItem[] = dbLineItems.map((li: any) => ({
@@ -1043,7 +1063,7 @@ export default function Kasse() {
                 discountType: li.discount_type || null,
                 discountValue: li.discount_value != null ? Number(li.discount_value) : null,
               }));
-              const customer = allCustomers.find((c) => c.id === appt.customer_id);
+              const customer = appt.customer_id ? (await fetchCustomersByIds([appt.customer_id]))[0] : undefined;
               setReceipt({
                 items: reconstructedItems,
                 total: Number(order.total),
@@ -1063,6 +1083,9 @@ export default function Kasse() {
         }
         if (appt.customer_id) {
           setSelectedCustomerId(appt.customer_id);
+          fetchCustomersByIds([appt.customer_id])
+            .then((list) => setSelectedCustomer(list[0] || null))
+            .catch(() => {});
           fetchActiveAnzahlungenForCustomer(appt.customer_id)
             .then((list) => {
               if (list.length > 0) setAnzahlungPrompt(list);
@@ -1234,7 +1257,7 @@ export default function Kasse() {
       items: [...items],
       total,
       payments,
-      customerLabel: customers.find((c) => c.id === selectedCustomerId) ? `${customers.find((c) => c.id === selectedCustomerId)!.vorname} ${customers.find((c) => c.id === selectedCustomerId)!.name}` : 'Laufkunde',
+      customerLabel: selectedCustomer ? `${selectedCustomer.vorname} ${selectedCustomer.name}` : 'Laufkunde',
       contextLabel,
       date: new Date().toLocaleString('de-CH', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }),
       artist: activeArtist,
@@ -1464,7 +1487,13 @@ export default function Kasse() {
                   <div className="label-uppercase" style={{ marginBottom: 4 }}>
                     Kunde
                   </div>
-                  <CustomerSearchSelect customers={customers} value={selectedCustomerId} onChange={setSelectedCustomerId} />
+                  <CustomerSearchSelect
+                    selectedCustomer={selectedCustomer}
+                    onSelect={(c) => {
+                      setSelectedCustomer(c);
+                      setSelectedCustomerId(c?.id || '');
+                    }}
+                  />
                 </div>
                 <div>
                   <div className="label-uppercase" style={{ marginBottom: 4 }}>
@@ -1832,7 +1861,7 @@ export default function Kasse() {
       {showAnzahlungModal && selectedCustomerId && (
         <SellAnzahlungModal
           customerId={selectedCustomerId}
-          customerName={customers.find((c) => c.id === selectedCustomerId) ? `${customers.find((c) => c.id === selectedCustomerId)!.vorname} ${customers.find((c) => c.id === selectedCustomerId)!.name}` : ''}
+          customerName={selectedCustomer ? `${selectedCustomer.vorname} ${selectedCustomer.name}` : ''}
           locationId={selectedLocationId || null}
           onClose={() => setShowAnzahlungModal(false)}
           onSold={() => setShowAnzahlungModal(false)}

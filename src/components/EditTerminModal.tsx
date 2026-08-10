@@ -8,7 +8,7 @@ import {
   fetchAppointmentLineItems,
   replaceAppointmentLineItems,
   fetchArtists,
-  fetchCustomers,
+  fetchCustomersByIds,
   fetchServices,
   fetchServiceCategories,
   fetchArtistServiceIds,
@@ -18,6 +18,7 @@ import {
   type ServiceCategory,
 } from '../lib/queries';
 import NewCustomerModal from './NewCustomerModal';
+import CustomerAutocomplete from './CustomerAutocomplete';
 import { formatCHF } from '../lib/format';
 
 interface Props {
@@ -54,7 +55,7 @@ export default function EditTerminModal({ appointmentId, onClose }: Props) {
   const [status, setStatus] = useState<string>('gebucht');
 
   const [artists, setArtists] = useState<Artist[]>([]);
-  const [customers, setCustomers] = useState<Customer[]>([]);
+  const [selectedCustomerObj, setSelectedCustomerObj] = useState<Customer | null>(null);
   const [services, setServices] = useState<Service[]>([]);
   const [categories, setCategories] = useState<ServiceCategory[]>([]);
   const [categoryFilter, setCategoryFilter] = useState('');
@@ -79,18 +80,22 @@ export default function EditTerminModal({ appointmentId, onClose }: Props) {
           navigate('/kasse', { state: { appointmentId } });
           return null;
         }
-        return Promise.all([Promise.resolve(appt), fetchAppointmentLineItems(appointmentId), fetchArtists(), fetchCustomers(), fetchServices(), fetchServiceCategories()]);
+        return Promise.all([Promise.resolve(appt), fetchAppointmentLineItems(appointmentId), fetchArtists(), fetchServices(), fetchServiceCategories()]);
       })
       .then((result) => {
         if (!result) return;
-        const [appt, lineItems, allArtists, allCustomers, allServices, allCategories] = result;
+        const [appt, lineItems, allArtists, allServices, allCategories] = result;
         setStatus(appt.status);
         setSelectedCustomer(appt.customer_id || '');
         setSelectedArtist(appt.artist_id || '');
         setDate(toDateInput(appt.start_time));
         setTime(toTimeInput(appt.start_time));
         setArtists(allArtists.filter((a) => a.status === 'active'));
-        setCustomers(allCustomers);
+        if (appt.customer_id) {
+          fetchCustomersByIds([appt.customer_id])
+            .then((list) => setSelectedCustomerObj(list[0] || null))
+            .catch(() => {});
+        }
         setServices(allServices.filter((s) => s.active));
         setCategories(allCategories);
         setSelectedServices(lineItems.length ? lineItems.map((li: any) => li.service_id) : ['']);
@@ -196,7 +201,7 @@ export default function EditTerminModal({ appointmentId, onClose }: Props) {
   }
 
   if (status === 'nicht_erschienen') {
-    const customer = customers.find((c) => c.id === selectedCustomer);
+    const customer = selectedCustomerObj;
     const artist = artists.find((a) => a.id === selectedArtist);
 
     return (
@@ -247,15 +252,13 @@ export default function EditTerminModal({ appointmentId, onClose }: Props) {
       <Modal title="Termin bearbeiten" onClose={onClose}>
       <div style={{ marginBottom: 14 }}>
         {fieldLabel('Kunde')}
-        <select value={selectedCustomer} onChange={(e) => setSelectedCustomer(e.target.value)} style={boxStyle}>
-          <option value="">Laufkunde (kein Kunde)</option>
-          {customers.map((c) => (
-            <option key={c.id} value={c.id}>
-              {c.vorname} {c.name}
-              {c.phone ? ` · ${c.phone}` : ''}
-            </option>
-          ))}
-        </select>
+        <CustomerAutocomplete
+          selectedCustomer={selectedCustomerObj}
+          onSelect={(c) => {
+            setSelectedCustomerObj(c);
+            setSelectedCustomer(c?.id || '');
+          }}
+        />
         <div onClick={() => setShowNewCustomer(true)} style={{ fontSize: 11, color: 'var(--color-accent)', fontWeight: 600, cursor: 'pointer', marginTop: 6 }}>
           + Neuen Kunden erfassen
         </div>
@@ -370,8 +373,8 @@ export default function EditTerminModal({ appointmentId, onClose }: Props) {
         <NewCustomerModal
           onClose={() => setShowNewCustomer(false)}
           onCreated={async (id) => {
-            const updated = await fetchCustomers();
-            setCustomers(updated);
+            const [created] = await fetchCustomersByIds([id]);
+            setSelectedCustomerObj(created || null);
             setSelectedCustomer(id);
             setShowNewCustomer(false);
           }}

@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import Modal from './Modal';
 import {
   fetchArtists,
-  fetchCustomers,
+  fetchCustomersByIds,
   fetchServices,
   fetchServiceCategories,
   fetchShiftsForDate,
@@ -20,6 +20,7 @@ import {
   type PendingHealthDoc,
 } from '../lib/queries';
 import NewCustomerModal from './NewCustomerModal';
+import CustomerAutocomplete from './CustomerAutocomplete';
 import { formatCHF } from '../lib/format';
 
 const ABSENCE_TYPES: { key: 'ferien' | 'krank' | 'abwesend'; label: string }[] = [
@@ -46,18 +47,17 @@ export default function TerminModal({ onClose, onSave, locationId, initialDate, 
   const [allArtists, setAllArtists] = useState<Artist[]>([]);
   const [idsWithShifts, setIdsWithShifts] = useState<Set<string>>(new Set());
   const [artists, setArtists] = useState<Artist[]>([]);
-  const [customers, setCustomers] = useState<Customer[]>([]);
+  const [selectedCustomerObj, setSelectedCustomerObj] = useState<Customer | null>(null);
   const [services, setServices] = useState<Service[]>([]);
   const [categories, setCategories] = useState<ServiceCategory[]>([]);
   const [categoryFilter, setCategoryFilter] = useState<string>('');
 
   useEffect(() => {
-    Promise.all([fetchArtists(), fetchCustomers(), fetchServices(), fetchServiceCategories(), fetchArtistIdsWithAnyShifts(), fetchCustomersWithPendingHealthDocs()])
-      .then(([a, c, s, cats, withShifts, pending]) => {
+    Promise.all([fetchArtists(), fetchServices(), fetchServiceCategories(), fetchArtistIdsWithAnyShifts(), fetchCustomersWithPendingHealthDocs()])
+      .then(([a, s, cats, withShifts, pending]) => {
         const active = a.filter((art) => art.status === 'active');
         setAllArtists(active);
         setIdsWithShifts(withShifts);
-        setCustomers(c);
         setServices(s.filter((sv) => sv.active));
         setCategories(cats);
         setPendingDocs(pending);
@@ -253,21 +253,14 @@ export default function TerminModal({ onClose, onSave, locationId, initialDate, 
           )}
           <div style={{ marginBottom: 14 }}>
             {fieldLabel('Kunde auswählen')}
-            <select
-              value={selectedCustomer}
-              onChange={(e) => {
-                setSelectedCustomer(e.target.value);
+            <CustomerAutocomplete
+              selectedCustomer={selectedCustomerObj}
+              onSelect={(c) => {
+                setSelectedCustomerObj(c);
+                setSelectedCustomer(c?.id || '');
                 setSelectedPendingDocId('');
               }}
-              style={{ ...boxStyle, width: '100%' }}
-            >
-              <option value="">Laufkunde (kein Kunde)</option>
-              {customers.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.vorname} {c.name}
-                </option>
-              ))}
-            </select>
+            />
             <div onClick={() => setShowNewCustomer(true)} style={{ fontSize: 11, color: 'var(--color-accent)', fontWeight: 600, cursor: 'pointer', marginTop: 6 }}>
               + Neuen Kunden erfassen
             </div>
@@ -445,8 +438,8 @@ export default function TerminModal({ onClose, onSave, locationId, initialDate, 
         <NewCustomerModal
           onClose={() => setShowNewCustomer(false)}
           onCreated={async (id) => {
-            const updated = await fetchCustomers();
-            setCustomers(updated);
+            const [created] = await fetchCustomersByIds([id]);
+            setSelectedCustomerObj(created || null);
             setSelectedCustomer(id);
             setShowNewCustomer(false);
           }}

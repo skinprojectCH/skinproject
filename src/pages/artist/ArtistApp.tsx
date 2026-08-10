@@ -14,7 +14,7 @@ import {
   deleteCustomerDocument,
   updateAppointment,
   deleteAppointment,
-  fetchCustomers,
+  fetchCustomersByIds,
   fetchServices,
   fetchServiceCategories,
   fetchArtistServiceIds,
@@ -31,6 +31,7 @@ import {
 } from '../../lib/queries';
 import { formatCHF } from '../../lib/format';
 import NewCustomerModal from '../../components/NewCustomerModal';
+import CustomerAutocomplete from '../../components/CustomerAutocomplete';
 
 function todayISO() {
   return new Date().toISOString().slice(0, 10);
@@ -243,7 +244,7 @@ function TerminForm({
 }) {
   const isEdit = !!editAppointment;
   const [loading, setLoading] = useState(true);
-  const [customers, setCustomers] = useState<Customer[]>([]);
+  const [selectedCustomerObj, setSelectedCustomerObj] = useState<Customer | null>(null);
   const [services, setServices] = useState<Service[]>([]);
   const [categories, setCategories] = useState<ServiceCategory[]>([]);
   const [categoryFilter, setCategoryFilter] = useState('');
@@ -259,14 +260,12 @@ function TerminForm({
 
   useEffect(() => {
     Promise.all([
-      fetchCustomers(),
       fetchServices(),
       fetchServiceCategories(),
       fetchArtistServiceIds(artistId),
       isEdit ? fetchAppointmentLineItems(editAppointment.id) : Promise.resolve([]),
     ])
-      .then(([c, s, cats, allowedIds, lineItems]) => {
-        setCustomers(c);
+      .then(([s, cats, allowedIds, lineItems]) => {
         const activeServices = s.filter((sv) => sv.active);
         // Auf die dem Artist zugewiesenen Services einschränken -- leere Zuordnung
         // (nie eingerichtet) bleibt unrestriktiert.
@@ -274,6 +273,11 @@ function TerminForm({
         setCategories(cats);
         if (isEdit) {
           setSelectedCustomer(editAppointment.customer_id || '');
+          if (editAppointment.customer_id) {
+            fetchCustomersByIds([editAppointment.customer_id])
+              .then((list) => setSelectedCustomerObj(list[0] || null))
+              .catch(() => {});
+          }
           setDate(toDateInput(editAppointment.start_time));
           setTime(toTimeInput(editAppointment.start_time));
           setSelectedServices((lineItems as any[]).length ? (lineItems as any[]).map((li) => li.service_id) : ['']);
@@ -341,15 +345,13 @@ function TerminForm({
     <>
       <div style={{ marginBottom: 14 }}>
         {formFieldLabel('Kunde')}
-        <select value={selectedCustomer} onChange={(e) => setSelectedCustomer(e.target.value)} style={formBoxStyle}>
-          <option value="">Laufkunde (kein Kunde)</option>
-          {customers.map((c) => (
-            <option key={c.id} value={c.id}>
-              {c.vorname} {c.name}
-              {c.phone ? ` · ${c.phone}` : ''}
-            </option>
-          ))}
-        </select>
+        <CustomerAutocomplete
+          selectedCustomer={selectedCustomerObj}
+          onSelect={(c) => {
+            setSelectedCustomerObj(c);
+            setSelectedCustomer(c?.id || '');
+          }}
+        />
         <div onClick={() => setShowNewCustomer(true)} style={{ fontSize: 11, color: 'var(--color-accent)', fontWeight: 600, cursor: 'pointer', marginTop: 6 }}>
           + Neuen Kunden erfassen
         </div>
@@ -433,8 +435,8 @@ function TerminForm({
         <NewCustomerModal
           onClose={() => setShowNewCustomer(false)}
           onCreated={async (id) => {
-            const updated = await fetchCustomers();
-            setCustomers(updated);
+            const [created] = await fetchCustomersByIds([id]);
+            setSelectedCustomerObj(created || null);
             setSelectedCustomer(id);
             setShowNewCustomer(false);
           }}

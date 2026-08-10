@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { fetchAnzahlungen, fetchCustomers, type Voucher, type Customer } from '../../lib/queries';
+import { fetchAnzahlungen, fetchCustomersByIds, type Voucher, type Customer } from '../../lib/queries';
 import { formatCHF } from '../../lib/format';
 
 export default function Anzahlungen() {
@@ -10,11 +10,13 @@ export default function Anzahlungen() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    Promise.all([fetchAnzahlungen(), fetchCustomers()])
-      .then(([a, c]) => {
+    fetchAnzahlungen()
+      .then((a) => {
         setAnzahlungen(a);
-        setCustomers(c);
+        const ids = Array.from(new Set(a.map((row) => row.buyer_customer_id).filter((id): id is string => !!id)));
+        return fetchCustomersByIds(ids);
       })
+      .then(setCustomers)
       .catch((e) => setError(e.message))
       .finally(() => setLoading(false));
   }, []);

@@ -246,6 +246,31 @@ export async function fetchCustomers() {
   return data as Customer[];
 }
 
+// Serverseitige Suche statt alle 8000+ Kunden ins Frontend zu laden -- sucht in
+// Name und Vorname, unabhängig von Gross-/Kleinschreibung. Begrenzt auf `limit`
+// Treffer, da Personal ohnehin gezielt nach einem Namen sucht.
+export async function searchCustomers(query: string, limit = 50) {
+  const q = query.trim().replace(/,/g, '');
+  if (!q) return [] as Customer[];
+  const { data, error } = await supabase
+    .from('customers')
+    .select('*')
+    .or(`name.ilike.%${q}%,vorname.ilike.%${q}%,phone.ilike.%${q}%`)
+    .order('name')
+    .limit(limit);
+  if (error) throw error;
+  return data as Customer[];
+}
+
+// Für den "Dokumente fehlen"-Filter: lädt nur die Kunden-Datensätze zu einer
+// bekannten Liste von IDs, statt alle Kunden vorzuladen.
+export async function fetchCustomersByIds(ids: string[]) {
+  if (ids.length === 0) return [] as Customer[];
+  const { data, error } = await supabase.from('customers').select('*').in('id', ids).order('name');
+  if (error) throw error;
+  return data as Customer[];
+}
+
 export async function fetchCustomer(id: string) {
   const { data, error } = await supabase.from('customers').select('*').eq('id', id).single();
   if (error) throw error;

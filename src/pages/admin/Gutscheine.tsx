@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { fetchVouchers, fetchCustomers, type Voucher, type Customer } from '../../lib/queries';
+import { fetchVouchers, fetchCustomersByIds, type Voucher, type Customer } from '../../lib/queries';
 import { formatCHF } from '../../lib/format';
 
 export default function Gutscheine() {
@@ -10,11 +10,13 @@ export default function Gutscheine() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    Promise.all([fetchVouchers(), fetchCustomers()])
-      .then(([v, c]) => {
+    fetchVouchers()
+      .then((v) => {
         setVouchers(v);
-        setCustomers(c);
+        const ids = Array.from(new Set(v.map((row) => row.buyer_customer_id).filter((id): id is string => !!id)));
+        return fetchCustomersByIds(ids);
       })
+      .then(setCustomers)
       .catch((e) => setError(e.message))
       .finally(() => setLoading(false));
   }, []);
