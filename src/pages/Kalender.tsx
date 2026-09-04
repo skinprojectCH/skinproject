@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import TerminModal from '../components/TerminModal';
 import EditTerminModal from '../components/EditTerminModal';
 import Modal from '../components/Modal';
-import { fetchAppointmentsForDay, fetchUnresolvedPastAppointments, fetchArtists, fetchShiftsForDate, fetchArtistIdsWithAnyShifts, fetchAbsencesForDate, fetchWalkInOrdersForDay, deleteAbsence, type Artist, type Shift, type Absence } from '../lib/queries';
+import { fetchAppointmentsForDay, fetchUnresolvedPastAppointments, fetchArtists, fetchShiftsForDate, fetchAbsencesForDate, fetchWalkInOrdersForDay, deleteAbsence, type Artist, type Shift, type Absence } from '../lib/queries';
 import { useLocationContext } from '../lib/locationContext';
 import { formatCHF } from '../lib/format';
 
@@ -1227,18 +1227,17 @@ export default function Kalender() {
   async function reload() {
     if (!selectedLocationId) return;
     try {
-      const [rawAppointments, artistList, idsWithShifts] = await Promise.all([
+      const [rawAppointments, artistList] = await Promise.all([
         fetchAppointmentsForDay(date, selectedLocationId),
         fetchArtists(),
-        fetchArtistIdsWithAnyShifts(),
       ]);
       const activeArtists = artistList.filter((a) => a.status === 'active');
       const allDayShifts = await fetchShiftsForDate(activeArtists.map((a) => a.id), date);
       const shiftsHere = allDayShifts.filter((s) => s.location_id === selectedLocationId);
       const idsHere = new Set(shiftsHere.map((s) => s.artist_id));
-      // Artist erscheint hier, wenn er laut Schichtplan heute an dieser Location arbeitet —
-      // oder (Rückfallebene) noch gar keinen Schichtplan hat und diese seine Stamm-Location ist.
-      const scopedArtists = activeArtists.filter((a) => idsHere.has(a.id) || (!idsWithShifts.has(a.id) && a.location_id === selectedLocationId));
+      // Artist erscheint hier nur, wenn er laut Schichtplan heute an dieser Location einen
+      // aktiven (gültigen) Schichteintrag hat. Kein Schichtplan = nicht im Kalender.
+      const scopedArtists = activeArtists.filter((a) => idsHere.has(a.id));
       setArtists(scopedArtists);
       setShifts(shiftsHere);
       const dayAbsences = await fetchAbsencesForDate(scopedArtists.map((a) => a.id), date);
