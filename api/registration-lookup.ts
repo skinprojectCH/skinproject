@@ -42,7 +42,7 @@ export default async function handler(req: any, res: any) {
   try {
     const { data: customer, error } = await admin
       .from('customers')
-      .select('id, vorname, name, email, phone, birthdate, strasse, plz_ort')
+      .select('id, vorname, name, email, phone, birthdate, strasse, plz_ort, whatsapp_opt_in, werbung_opt_in')
       .eq('phone', normalized)
       .maybeSingle();
     if (error) {

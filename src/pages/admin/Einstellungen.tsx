@@ -130,6 +130,23 @@ export default function Einstellungen() {
         />
       </div>
 
+      <h3 style={{ fontSize: 18, marginBottom: 6 }}>Einverständniserklärung</h3>
+      <p style={{ color: '#999', fontSize: 13, marginBottom: 16 }}>
+        Dieser Text wird bei der Online-Registrierung angezeigt (Schritt "Einverständniserklärung") und im Registrierungs-PDF verwendet. Ein Absatz = eine Leerzeile.
+      </p>
+      <div style={{ marginBottom: 32 }}>
+        <div className="label-uppercase" style={{ marginBottom: 6 }}>
+          Text
+        </div>
+        <textarea
+          value={settings.consentText}
+          onChange={(e) => setSettings({ ...settings, consentText: e.target.value })}
+          style={textareaStyle}
+          placeholder="z.B. Mit meiner Unterschrift bestätige ich, dass ich die gesundheitlichen Fragen wahrheitsgemäss beantwortet habe…"
+          disabled={readOnly}
+        />
+      </div>
+
       {error && <div style={{ color: 'var(--color-destructive)', fontSize: 12.5, marginBottom: 14 }}>{error}</div>}
 
       {!readOnly && (

@@ -22,6 +22,13 @@ const FLAGGED_QUESTIONS = [
 
 const ALL_YESNO_QUESTIONS = [...GENERAL_QUESTIONS, ...FLAGGED_QUESTIONS];
 
+// Fallback, falls der Admin unter "E-Mail & Pflege" noch keinen eigenen Text hinterlegt hat.
+const DEFAULT_CONSENT_TEXT = [
+  'Mit meiner Unterschrift bestätige ich, dass ich die gesundheitlichen Fragen wahrheitsgemäss beantwortet habe und über die Risiken der Behandlung (Tattoo/Piercing) informiert wurde.',
+  'Ich erkläre mich mit der Durchführung der Behandlung einverstanden und entbinde SkinProject von Ansprüchen, die auf unvollständigen oder unrichtigen Angaben beruhen.',
+  'Meine Daten werden gemäss Datenschutzbestimmungen ausschliesslich zur Kundenverwaltung gespeichert.',
+].join('\n\n');
+
 // ---------- Styling exakt nach Design-Spec (2ndSkin Design.dc.html, N1-N8) ----------
 const card: React.CSSProperties = { width: '100%', maxWidth: 380, margin: '0 auto', background: '#fff', borderRadius: 20, overflow: 'hidden', fontFamily: "'Work Sans', sans-serif", boxShadow: '0 1px 3px rgba(0,0,0,0.08)' };
 const cardInner: React.CSSProperties = { padding: 24, minHeight: '70vh', display: 'flex', flexDirection: 'column' };
@@ -155,6 +162,7 @@ async function buildAndUploadPdf(opts: {
   sonstiges: string;
   signatureDataUrl: string | null;
   idPhotoDataUrl: string | null;
+  consentText: string;
 }) {
   const { jsPDF } = await import('jspdf');
   const doc = new jsPDF();
@@ -221,12 +229,12 @@ async function buildAndUploadPdf(opts: {
   y += 7;
   doc.setFontSize(9);
   doc.setTextColor(90);
-  const consentParas = [
-    'Mit meiner Unterschrift bestätige ich, dass ich die gesundheitlichen Fragen wahrheitsgemäss beantwortet habe und über die Risiken der Behandlung (Tattoo/Piercing) informiert wurde.',
-    'Ich erkläre mich mit der Durchführung der Behandlung einverstanden und entbinde SkinProject von Ansprüchen, die auf unvollständigen oder unrichtigen Angaben beruhen.',
-    'Meine Daten werden gemäss Datenschutzbestimmungen ausschliesslich zur Kundenverwaltung gespeichert.',
-  ];
+  const consentParas = opts.consentText.split(/\n{2,}/).filter((p) => p.trim());
   for (const p of consentParas) {
+    if (y > 280) {
+      doc.addPage();
+      y = 20;
+    }
     const wrapped = doc.splitTextToSize(p, 180);
     doc.text(wrapped, 14, y);
     y += 5 * wrapped.length + 2;
@@ -287,6 +295,8 @@ export default function RegisterCustomer() {
   const [strasse, setStrasse] = useState('');
   const [plzOrt, setPlzOrt] = useState('');
   const [email, setEmail] = useState('');
+  const [whatsappOptIn, setWhatsappOptIn] = useState(false);
+  const [werbungOptIn, setWerbungOptIn] = useState(false);
   const [treatmentType, setTreatmentType] = useState<'tattoo' | 'piercing'>('tattoo');
   const [savingProfile, setSavingProfile] = useState(false);
   const [profileError, setProfileError] = useState<string | null>(null);
@@ -310,6 +320,7 @@ export default function RegisterCustomer() {
   const [consentChecked, setConsentChecked] = useState(false);
   const [finalizing, setFinalizing] = useState(false);
   const [finalizeError, setFinalizeError] = useState<string | null>(null);
+  const [consentText, setConsentText] = useState(DEFAULT_CONSENT_TEXT);
 
   useEffect(() => {
     if (!locationId) return;
@@ -321,6 +332,7 @@ export default function RegisterCustomer() {
           return;
         }
         setLocationName(body.location.name);
+        if (body.consentText && body.consentText.trim()) setConsentText(body.consentText);
       })
       .catch(() => setLoadError('Verbindung fehlgeschlagen.'))
       .finally(() => setLoading(false));
@@ -338,6 +350,8 @@ export default function RegisterCustomer() {
       setStrasse('');
       setPlzOrt('');
       setEmail('');
+      setWhatsappOptIn(false);
+      setWerbungOptIn(false);
       setTreatmentType('tattoo');
       setProfileError(null);
       setBirthdate('');
@@ -379,6 +393,8 @@ export default function RegisterCustomer() {
         setEmail(c.email || '');
         setPhone(c.phone || phone);
         if (c.birthdate) setBirthdate(c.birthdate);
+        setWhatsappOptIn(!!c.whatsapp_opt_in);
+        setWerbungOptIn(!!c.werbung_opt_in);
       } else {
         setPhone(body.normalizedPhone || phone);
       }
@@ -405,6 +421,8 @@ export default function RegisterCustomer() {
         plz_ort: plzOrt.trim(),
         phone: phone.trim(),
         email: email.trim() || null,
+        whatsapp_opt_in: whatsappOptIn,
+        werbung_opt_in: werbungOptIn,
       };
       const res = await fetch('/api/registration-save-profile', {
         method: 'POST',
@@ -518,6 +536,7 @@ export default function RegisterCustomer() {
           sonstiges,
           signatureDataUrl,
           idPhotoDataUrl,
+          consentText,
         });
       } catch {
         // still proceed - PDF is a nice-to-have, not a blocker
@@ -546,8 +565,7 @@ export default function RegisterCustomer() {
         {/* N1 WILLKOMMEN */}
         {step === 'phone' && (
           <div style={cardInner}>
-            <div style={{ width: 48, height: 48, borderRadius: '50%', background: 'var(--color-primary)', margin: '0 auto 12px' }} />
-            <div style={{ textAlign: 'center', fontFamily: "'Space Grotesk', sans-serif", fontSize: 19, fontWeight: 700, letterSpacing: 0.5, marginBottom: 28 }}>SkinProject</div>
+            <img src="/logo-email.png" alt="SkinProject" style={{ display: 'block', width: 120, height: 'auto', margin: '0 auto 24px' }} />
             <div style={heading}>Willkommen!</div>
             <div style={subtext}>Schön, dass du da bist. Bevor es losgeht, erstellen wir kurz dein Kundenprofil — das dauert nur 2–3 Minuten.</div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 'auto' }}>
@@ -612,6 +630,14 @@ export default function RegisterCustomer() {
                 E-Mail <span style={{ textTransform: 'none', color: '#bbb' }}>(optional)</span>
               </div>
               <input value={email} onChange={(e) => setEmail(e.target.value)} style={underlineInput} type="email" />
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', margin: '18px 0 10px', borderTop: '1px solid #f0f0f0', paddingTop: 14 }}>
+              <div style={{ fontSize: 12 }}>Kontakt per WhatsApp erlaubt?</div>
+              <YesNoPill value={whatsappOptIn} onChange={setWhatsappOptIn} />
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', margin: '0 0 6px' }}>
+              <div style={{ fontSize: 12 }}>Werbung & Angebote erhalten?</div>
+              <YesNoPill value={werbungOptIn} onChange={setWerbungOptIn} />
             </div>
             <div style={{ margin: '16px 0 20px' }}>
               <div style={{ ...fieldLabel, marginBottom: 6 }}>Ich interessiere mich für</div>
@@ -811,15 +837,7 @@ export default function RegisterCustomer() {
               </div>
               <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 15, fontWeight: 700 }}>Einverständniserklärung</div>
             </div>
-            <div style={{ flex: 1, fontSize: 11, color: '#666', lineHeight: 1.7, overflowY: 'auto' }}>
-              <p style={{ margin: '0 0 10px' }}>
-                Mit meiner Unterschrift bestätige ich, dass ich die gesundheitlichen Fragen wahrheitsgemäss beantwortet habe und über die Risiken der Behandlung (Tattoo/Piercing) informiert wurde.
-              </p>
-              <p style={{ margin: '0 0 10px' }}>
-                Ich erkläre mich mit der Durchführung der Behandlung einverstanden und entbinde 2ndSkin von Ansprüchen, die auf unvollständigen oder unrichtigen Angaben beruhen.
-              </p>
-              <p style={{ margin: 0 }}>Meine Daten werden gemäss Datenschutzbestimmungen ausschliesslich zur Kundenverwaltung gespeichert.</p>
-            </div>
+            <div style={{ flex: 1, fontSize: 11, color: '#666', lineHeight: 1.7, overflowY: 'auto', whiteSpace: 'pre-wrap' }}>{consentText}</div>
             <button style={{ ...secondaryBtn, width: '100%', marginTop: 16 }} onClick={() => setStep('einverstaendnis')}>
               Zurück
             </button>

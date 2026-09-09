@@ -47,7 +47,11 @@ export default async function handler(req: any, res: any) {
       res.status(404).json({ error: 'Location nicht gefunden.' });
       return;
     }
-    res.status(200).json({ location });
+    // Admin-editierbarer Einverständniserklärung-Text (Einstellungen -> E-Mail & Pflege) für
+    // die Registrierungsseite -- unkritisch, daher hier mit Service-Role statt eigenem Endpoint
+    // ausgeliefert (Vercel Hobby-Plan: max. 12 Serverless Functions pro Deployment).
+    const { data: consentRow } = await admin.from('app_settings').select('value').eq('key', 'consent_text').maybeSingle();
+    res.status(200).json({ location, consentText: consentRow?.value || null });
   } catch (e: any) {
     res.status(500).json({ error: e.message || 'Unbekannter Fehler.' });
   }

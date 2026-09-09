@@ -33,6 +33,8 @@ export interface Customer {
   health_notice: string | null;
   strasse: string | null;
   plz_ort: string | null;
+  whatsapp_opt_in: boolean;
+  werbung_opt_in: boolean;
 }
 
 export interface ServiceCategory {
@@ -1725,6 +1727,7 @@ export const APP_SETTINGS_KEYS = {
   thankYouVoucherEnabled: 'thank_you_voucher_enabled',
   thankYouDiscountPercent: 'thank_you_discount_percent',
   thankYouDiscountText: 'thank_you_discount_text',
+  consentText: 'consent_text',
 } as const;
 
 export interface AppSettings {
@@ -1733,7 +1736,16 @@ export interface AppSettings {
   thankYouVoucherEnabled: boolean;
   thankYouDiscountPercent: number;
   thankYouDiscountText: string;
+  consentText: string;
 }
+
+// Fallback, solange der Admin unter "E-Mail & Pflege" noch keinen eigenen Text hinterlegt hat
+// -- identisch mit dem bisherigen fest codierten Text auf der Registrierungsseite.
+const DEFAULT_CONSENT_TEXT = [
+  'Mit meiner Unterschrift bestätige ich, dass ich die gesundheitlichen Fragen wahrheitsgemäss beantwortet habe und über die Risiken der Behandlung (Tattoo/Piercing) informiert wurde.',
+  'Ich erkläre mich mit der Durchführung der Behandlung einverstanden und entbinde SkinProject von Ansprüchen, die auf unvollständigen oder unrichtigen Angaben beruhen.',
+  'Meine Daten werden gemäss Datenschutzbestimmungen ausschliesslich zur Kundenverwaltung gespeichert.',
+].join('\n\n');
 
 const APP_SETTINGS_DEFAULTS: AppSettings = {
   careInstructionsTattoo: '',
@@ -1741,6 +1753,7 @@ const APP_SETTINGS_DEFAULTS: AppSettings = {
   thankYouVoucherEnabled: false,
   thankYouDiscountPercent: 20,
   thankYouDiscountText: 'Gültig auf Piercingschmuck und Schmuck. Nicht kumulierbar, Änderungen vorbehalten.',
+  consentText: DEFAULT_CONSENT_TEXT,
 };
 
 export async function fetchAppSettings(): Promise<AppSettings> {
@@ -1753,6 +1766,7 @@ export async function fetchAppSettings(): Promise<AppSettings> {
     thankYouVoucherEnabled: map.get(APP_SETTINGS_KEYS.thankYouVoucherEnabled) === 'true',
     thankYouDiscountPercent: map.has(APP_SETTINGS_KEYS.thankYouDiscountPercent) ? Number(map.get(APP_SETTINGS_KEYS.thankYouDiscountPercent)) : APP_SETTINGS_DEFAULTS.thankYouDiscountPercent,
     thankYouDiscountText: map.get(APP_SETTINGS_KEYS.thankYouDiscountText) ?? APP_SETTINGS_DEFAULTS.thankYouDiscountText,
+    consentText: map.get(APP_SETTINGS_KEYS.consentText) ?? APP_SETTINGS_DEFAULTS.consentText,
   };
 }
 
@@ -1763,6 +1777,7 @@ export async function saveAppSettings(settings: AppSettings, updatedBy?: string 
     { key: APP_SETTINGS_KEYS.thankYouVoucherEnabled, value: String(settings.thankYouVoucherEnabled) },
     { key: APP_SETTINGS_KEYS.thankYouDiscountPercent, value: String(settings.thankYouDiscountPercent) },
     { key: APP_SETTINGS_KEYS.thankYouDiscountText, value: settings.thankYouDiscountText },
+    { key: APP_SETTINGS_KEYS.consentText, value: settings.consentText },
   ].map((r) => ({ ...r, updated_at: new Date().toISOString(), updated_by: updatedBy || null }));
   const { error } = await supabase.from('app_settings').upsert(rows);
   if (error) throw error;
