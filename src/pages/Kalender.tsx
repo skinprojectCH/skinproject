@@ -1235,9 +1235,15 @@ export default function Kalender() {
       const allDayShifts = await fetchShiftsForDate(activeArtists.map((a) => a.id), date);
       const shiftsHere = allDayShifts.filter((s) => s.location_id === selectedLocationId);
       const idsHere = new Set(shiftsHere.map((s) => s.artist_id));
-      // Artist erscheint hier nur, wenn er laut Schichtplan heute an dieser Location einen
-      // aktiven (gültigen) Schichteintrag hat. Kein Schichtplan = nicht im Kalender.
-      const scopedArtists = activeArtists.filter((a) => idsHere.has(a.id));
+      // Zusätzlich: Artist erscheint auch OHNE eigenen Schichtplan-Eintrag, wenn er heute an
+      // dieser Location einen Termin hat -- z.B. als kurzfristiger Ersatz für einen kranken
+      // Kollegen (Termin im Bearbeiten-Dialog auf einen anderen Artist umgebucht). Die
+      // Kopfzeile zeigt für so einen Artist weiterhin "Kein Dienst heute" als Hinweis, dass er
+      // offiziell nicht eingeplant ist.
+      const idsWithAppointmentHere = new Set((rawAppointments as any[]).map((a) => a.artist_id).filter(Boolean));
+      // Artist erscheint hier, wenn er laut Schichtplan heute an dieser Location einen aktiven
+      // (gültigen) Schichteintrag ODER einen Termin hat. Sonst nicht im Kalender.
+      const scopedArtists = activeArtists.filter((a) => idsHere.has(a.id) || idsWithAppointmentHere.has(a.id));
       setArtists(scopedArtists);
       setShifts(shiftsHere);
       const dayAbsences = await fetchAbsencesForDate(scopedArtists.map((a) => a.id), date);
