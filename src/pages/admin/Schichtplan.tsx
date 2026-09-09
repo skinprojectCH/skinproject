@@ -51,6 +51,53 @@ function addMonths(year: number, month0: number, delta: number) {
   return { year: Math.floor(total / 12), month0: ((total % 12) + 12) % 12 };
 }
 
+async function downloadMonthPdf(opts: {
+  artistName: string;
+  monthLabel: string;
+  days: { date: string; day: number; weekday: number }[];
+  schedule: Record<string, Slot[]>;
+  locationNameById: Record<string, string>;
+}) {
+  const { jsPDF } = await import('jspdf');
+  const doc = new jsPDF();
+  let y = 20;
+
+  doc.setFontSize(16);
+  doc.text('Schichtplan', 14, y);
+  y += 7;
+  doc.setFontSize(10);
+  doc.setTextColor(120);
+  doc.text(`${opts.artistName} · ${opts.monthLabel}`, 14, y);
+  y += 12;
+  doc.setTextColor(0);
+  doc.setFontSize(10);
+
+  for (const d of opts.days) {
+    if (y > 280) {
+      doc.addPage();
+      y = 20;
+    }
+    const slots = opts.schedule[d.date] || [];
+    const dateLabel = `${WEEKDAY_LABELS[d.weekday]} ${pad2(d.day)}.`;
+    if (slots.length === 0) {
+      doc.setTextColor(170);
+      doc.text(dateLabel, 14, y);
+      doc.text('frei', 55, y);
+      doc.setTextColor(0);
+      y += 6;
+    } else {
+      doc.text(dateLabel, 14, y);
+      const text = slots.map((s) => `${s.from}–${s.to} (${opts.locationNameById[s.locationId] || '—'})`).join('   ·   ');
+      const wrapped = doc.splitTextToSize(text, 140);
+      doc.text(wrapped, 55, y);
+      y += 6 * wrapped.length;
+    }
+  }
+
+  const filenameSafe = (s: string) => s.replace(/[^\w-]+/g, '_');
+  doc.save(`Schichtplan_${filenameSafe(opts.artistName)}_${filenameSafe(opts.monthLabel)}.pdf`);
+}
+
 export default function Schichtplan() {
   const [locations, setLocations] = useState<Location[]>([]);
   const [artists, setArtists] = useState<Artist[]>([]);
@@ -279,6 +326,21 @@ export default function Schichtplan() {
                   </div>
                 </div>
                 <div style={{ display: 'flex', gap: 8, flexShrink: 0, marginLeft: 14 }}>
+                  <button
+                    className="btn btn-secondary"
+                    style={{ whiteSpace: 'nowrap' }}
+                    onClick={() =>
+                      downloadMonthPdf({
+                        artistName: activeArtists.find((a) => a.id === selectedArtistId)?.name || '',
+                        monthLabel: `${MONTH_LABELS[month0]} ${year}`,
+                        days,
+                        schedule,
+                        locationNameById: Object.fromEntries(locations.map((l) => [l.id, l.name])),
+                      })
+                    }
+                  >
+                    PDF herunterladen
+                  </button>
                   <button className="btn btn-secondary" style={{ whiteSpace: 'nowrap' }} onClick={copyToNextMonth}>
                     In {MONTH_LABELS[addMonths(year, month0, 1).month0]} {addMonths(year, month0, 1).year} kopieren →
                   </button>
