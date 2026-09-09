@@ -898,62 +898,73 @@ export async function deleteAbsence(id: string) {
   if (error) throw error;
 }
 
-export interface Shift {
+// Konkreter Schicht-Tag (ersetzt die frühere wöchentlich wiederholende Vorlage) -- ein
+// Artist kann pro Tag mehrere Zeitfenster/Locations haben (z.B. Vormittag Salon A, Nachmittag
+// Salon B), jede Zeile ist genau ein Zeitfenster an einem konkreten Datum.
+export interface ShiftDay {
   id: string;
   artist_id: string;
-  location_id: string | null;
-  weekday: number;
+  location_id: string;
+  shift_date: string; // YYYY-MM-DD
   start_time: string;
   end_time: string;
-  valid_from: string;
-  valid_to: string | null;
 }
 
-export async function fetchShiftsForArtist(artistId: string, locationId: string) {
-  const { data, error } = await supabase.from('shifts').select('*').eq('artist_id', artistId).eq('location_id', locationId).order('weekday');
+// Rückwärtskompatibler Alias -- Kalender.tsx/TerminModal.tsx lesen nur artist_id, location_id,
+// start_time, end_time und kennen shift_date nicht, daher genügt hier ein Typalias.
+export type Shift = ShiftDay;
+
+// Alle Schicht-Tage einer bestimmten Location an einem konkreten Datum (für den Kalender:
+// welche Artists arbeiten heute wo, und in welchem Zeitfenster).
+export async function fetchShiftsForDate(artistIds: string[], dateISO: string) {
+  if (artistIds.length === 0) return [];
+  const { data, error } = await supabase.from('shift_days').select('*').in('artist_id', artistIds).eq('shift_date', dateISO);
   if (error) throw error;
-  return data as Shift[];
+  return data as ShiftDay[];
 }
 
-// Für die Doppelbuchungs-Warnung im Schichtplan: alle Schichten eines Artists an ALLEN
-// Locations (nicht nur der aktuell bearbeiteten), inkl. Location-Name.
-export async function fetchAllShiftsForArtist(artistId: string) {
-  const { data, error } = await supabase.from('shifts').select('*, locations(name)').eq('artist_id', artistId).order('weekday');
-  if (error) throw error;
-  return data as (Shift & { locations: { name: string } | null })[];
-}
-
-// Alle Artist-IDs, die IRGENDWO (egal welche Location/Wochentag) einen Schichtplan-Eintrag
-// haben. Dient als Rückfallebene: Artists ohne jegliche Schichtplanung erscheinen weiterhin
-// an ihrer Stamm-Location (Abwärtskompatibilität), sobald ein Schichtplan gepflegt ist,
-// zählt nur noch dieser.
+// Alle Artist-IDs, die IRGENDWANN (Vergangenheit oder Zukunft, egal welche Location) einen
+// Schichtplan-Eintrag haben. Dient als Rückfallebene: Artists ganz ohne Schichtplanung
+// erscheinen nicht als buchbar (siehe TerminModal).
 export async function fetchArtistIdsWithAnyShifts() {
-  const { data, error } = await supabase.from('shifts').select('artist_id');
+  const { data, error } = await supabase.from('shift_days').select('artist_id');
   if (error) throw error;
   return new Set((data as { artist_id: string }[]).map((r) => r.artist_id));
 }
 
-// Ersetzt den Wochenplan eines Artists AN DIESER LOCATION durch die neuen Zeitfenster +
-// Gültigkeitszeitraum. Schichten an anderen Locations desselben Artists bleiben unangetastet
-// (ein Artist kann z.B. Mo bei Salon A und Di bei Salon B eingeplant sein).
-export async function replaceArtistShifts(
+// Alle Schicht-Tage eines Artists in einem Kalendermonat (über ALLE Locations, inkl.
+// Location-Name -- für die Doppelbuchungs-Übersicht im Monatsplaner). monthStart/monthEnd
+// als YYYY-MM-DD (inklusive).
+export async function fetchShiftDaysForMonth(artistId: string, monthStart: string, monthEnd: string) {
+  const { data, error } = await supabase
+    .from('shift_days')
+    .select('*, locations(name)')
+    .eq('artist_id', artistId)
+    .gte('shift_date', monthStart)
+    .lte('shift_date', monthEnd)
+    .order('shift_date');
+  if (error) throw error;
+  return data as (ShiftDay & { locations: { name: string } | null })[];
+}
+
+// Ersetzt den KOMPLETTEN Monatsplan eines Artists (alle Locations, alle Tage im Bereich
+// monthStart..monthEnd) durch die übergebenen Einträge. Wird für "Speichern", "Monat leeren"
+// (entries = []) und nach "Monat kopieren" verwendet.
+export async function replaceArtistShiftDaysForMonth(
   artistId: string,
-  locationId: string,
-  validFrom: string,
-  validTo: string | null,
-  slots: { weekday: number; start_time: string; end_time: string }[]
+  monthStart: string,
+  monthEnd: string,
+  entries: { date: string; locationId: string; start_time: string; end_time: string }[]
 ) {
-  const { error: deleteError } = await supabase.from('shifts').delete().eq('artist_id', artistId).eq('location_id', locationId);
+  const { error: deleteError } = await supabase.from('shift_days').delete().eq('artist_id', artistId).gte('shift_date', monthStart).lte('shift_date', monthEnd);
   if (deleteError) throw deleteError;
-  if (slots.length === 0) return;
-  const { error: insertError } = await supabase.from('shifts').insert(
-    slots.map((s) => ({ artist_id: artistId, location_id: locationId, weekday: s.weekday, start_time: s.start_time, end_time: s.end_time, valid_from: validFrom, valid_to: validTo }))
+  if (entries.length === 0) return;
+  const { error: insertError } = await supabase.from('shift_days').insert(
+    entries.map((e) => ({ artist_id: artistId, location_id: e.locationId, shift_date: e.date, start_time: e.start_time, end_time: e.end_time }))
   );
   if (insertError) throw insertError;
 }
 
-// Für den Kalender: alle Schichten für eine Liste von Artists an einem bestimmten Datum
-// (berücksichtigt Wochentag + Gültigkeitszeitraum).
 export async function fetchAbsencesForDate(artistIds: string[], dateISO: string) {
   if (artistIds.length === 0) return [];
   const { data, error } = await supabase
@@ -964,20 +975,6 @@ export async function fetchAbsencesForDate(artistIds: string[], dateISO: string)
     .gte('end_date', dateISO);
   if (error) throw error;
   return data as Absence[];
-}
-
-export async function fetchShiftsForDate(artistIds: string[], dateISO: string) {
-  if (artistIds.length === 0) return [];
-  const weekday = (new Date(dateISO).getDay() + 6) % 7; // JS: So=0..Sa=6 -> wir wollen Mo=0..So=6
-  const { data, error } = await supabase
-    .from('shifts')
-    .select('*')
-    .in('artist_id', artistIds)
-    .eq('weekday', weekday)
-    .lte('valid_from', dateISO)
-    .or(`valid_to.is.null,valid_to.gte.${dateISO}`);
-  if (error) throw error;
-  return data as Shift[];
 }
 
 // ---------- Artist-PWA ----------
