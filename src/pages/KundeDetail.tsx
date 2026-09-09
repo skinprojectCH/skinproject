@@ -44,6 +44,8 @@ export default function KundeDetail() {
   const [email, setEmail] = useState('');
   const [strasse, setStrasse] = useState('');
   const [plzOrt, setPlzOrt] = useState('');
+  const [whatsappOptIn, setWhatsappOptIn] = useState(false);
+  const [werbungOptIn, setWerbungOptIn] = useState(false);
   const [notes, setNotes] = useState('');
 
   const [documents, setDocuments] = useState<CustomerDocument[]>([]);
@@ -115,6 +117,8 @@ export default function KundeDetail() {
         setEmail(c.email || '');
         setStrasse(c.strasse || '');
         setPlzOrt(c.plz_ort || '');
+        setWhatsappOptIn(!!c.whatsapp_opt_in);
+        setWerbungOptIn(!!c.werbung_opt_in);
         setNotes(c.notes || '');
       })
       .catch((e) => setError(e.message))
@@ -351,6 +355,8 @@ export default function KundeDetail() {
         email: email.trim() || null,
         strasse: strasse.trim() || null,
         plz_ort: plzOrt.trim() || null,
+        whatsapp_opt_in: whatsappOptIn,
+        werbung_opt_in: werbungOptIn,
         notes: notes.trim() || null,
       };
       if (isNew) {
@@ -523,6 +529,47 @@ export default function KundeDetail() {
           {attempted && (!birthdateValid || !phoneValid || !emailValid || !strasseValid || !plzOrtValid) && (
             <div style={{ fontSize: 11, color: 'var(--color-destructive)', marginBottom: 8 }}>Geburtsdatum, Mobile, E-Mail, Strasse und PLZ/Ort sind Pflichtfelder.</div>
           )}
+
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', margin: '14px 0 6px' }}>
+            <div className="label-uppercase">WhatsApp erlaubt</div>
+            <div style={{ display: 'flex', border: '1px solid #ddd', borderRadius: 4, overflow: 'hidden' }}>
+              <button
+                type="button"
+                onClick={() => setWhatsappOptIn(true)}
+                style={{ padding: '6px 14px', fontSize: 12, background: whatsappOptIn ? '#111' : 'transparent', color: whatsappOptIn ? '#fff' : '#777', border: 'none', cursor: 'pointer' }}
+              >
+                Ja
+              </button>
+              <button
+                type="button"
+                onClick={() => setWhatsappOptIn(false)}
+                style={{ padding: '6px 14px', fontSize: 12, background: !whatsappOptIn ? '#111' : 'transparent', color: !whatsappOptIn ? '#fff' : '#777', border: 'none', cursor: 'pointer' }}
+              >
+                Nein
+              </button>
+            </div>
+          </div>
+
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', margin: '6px 0 6px' }}>
+            <div className="label-uppercase">Werbung erlaubt</div>
+            <div style={{ display: 'flex', border: '1px solid #ddd', borderRadius: 4, overflow: 'hidden' }}>
+              <button
+                type="button"
+                onClick={() => setWerbungOptIn(true)}
+                style={{ padding: '6px 14px', fontSize: 12, background: werbungOptIn ? '#111' : 'transparent', color: werbungOptIn ? '#fff' : '#777', border: 'none', cursor: 'pointer' }}
+              >
+                Ja
+              </button>
+              <button
+                type="button"
+                onClick={() => setWerbungOptIn(false)}
+                style={{ padding: '6px 14px', fontSize: 12, background: !werbungOptIn ? '#111' : 'transparent', color: !werbungOptIn ? '#fff' : '#777', border: 'none', cursor: 'pointer' }}
+              >
+                Nein
+              </button>
+            </div>
+          </div>
+
           <div style={{ marginBottom: 12 }} />
 
           <div style={{ border: '1px solid var(--color-border)', borderRadius: 6, padding: 14, marginBottom: 20, background: 'var(--color-surface)' }}>
