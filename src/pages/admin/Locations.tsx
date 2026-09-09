@@ -415,13 +415,22 @@ export default function Locations() {
         }
       }
 
-      reload(selectedId);
       setSaved(true);
       setTimeout(() => setSaved(false), 2500);
     } catch (e: any) {
-      setSaveError(e.message);
+      // Fremdschlüssel-Verletzung (z.B. Manager hat noch einen PIN/app_users-Eintrag):
+      // klarere Meldung statt der rohen Postgres-Fehlermeldung.
+      if (e?.code === '23503') {
+        setSaveError('Dieses Teammitglied kann nicht gelöscht werden, solange noch ein PIN-Login dafür existiert. Bitte die Migration 036 ausführen oder den PIN-Login zuerst entfernen.');
+      } else {
+        setSaveError(e.message);
+      }
     } finally {
       setSaving(false);
+      // Immer den echten DB-Stand neu laden -- damit ein fehlgeschlagenes Löschen
+      // (z.B. durch eine DB-Konfliktregel) sofort sichtbar ist und nicht erst nach
+      // einem manuellen Seiten-Refresh auffällt.
+      reload(selectedId);
     }
   }
 
