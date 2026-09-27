@@ -21,6 +21,13 @@ export default async function handler(req: any, res: any) {
     return;
   }
 
+  // Zweite Funktion im selben Endpoint (Vercel Hobby: max. 12 Functions):
+  // action='receipt' -> Quittung per E-Mail an den Kunden senden (manuell aus der Kasse).
+  if (req.body?.action === 'receipt') {
+    await handleReceiptEmail(req, res);
+    return;
+  }
+
   const { orderId } = req.body || {};
   if (!orderId) {
     res.status(400).json({ error: 'orderId fehlt.' });
@@ -134,5 +141,52 @@ export default async function handler(req: any, res: any) {
     // eslint-disable-next-line no-console
     console.error('send-care-email fehlgeschlagen:', e.message);
     res.status(200).json({ ok: false, error: e.message });
+  }
+}
+
+// Quittung per E-Mail. Nur für eingeloggte Mitarbeitende (Supabase-Session-Token im
+// Authorization-Header), damit der Endpoint nicht als offenes Mail-Relay missbraucht
+// werden kann. Das Quittungs-HTML wird in der Kasse aus denselben Daten erzeugt, die
+// dort angezeigt/gedruckt werden -- so sind Anzeige, Druck und Mail immer identisch.
+async function handleReceiptEmail(req: any, res: any) {
+  const supabaseUrl = process.env.VITE_SUPABASE_URL;
+  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!supabaseUrl || !serviceRoleKey) {
+    res.status(500).json({ error: 'Server nicht korrekt konfiguriert.' });
+    return;
+  }
+  const admin = createClient(supabaseUrl, serviceRoleKey, { auth: { autoRefreshToken: false, persistSession: false } });
+
+  const token = String(req.headers?.authorization || '').replace(/^Bearer\s+/i, '');
+  const { data: userData } = token ? await admin.auth.getUser(token) : { data: { user: null } };
+  if (!userData?.user) {
+    res.status(401).json({ error: 'Nicht angemeldet.' });
+    return;
+  }
+
+  const { to, receiptHtml, customerVorname } = req.body || {};
+  const email = String(to || '').trim();
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    res.status(400).json({ error: 'Ungültige E-Mail-Adresse.' });
+    return;
+  }
+  if (!receiptHtml || typeof receiptHtml !== 'string') {
+    res.status(400).json({ error: 'Quittung fehlt.' });
+    return;
+  }
+
+  try {
+    const greeting = customerVorname ? `Hallo ${String(customerVorname).replace(/[<>&]/g, '')},` : 'Hallo,';
+    const html = emailLayout(`
+      <h2 style="font-size: 18px; margin: 0 0 4px;">${greeting}</h2>
+      <p style="font-size: 14px; color: #555; margin: 0 0 20px;">danke für deinen Besuch! Hier ist deine Quittung.</p>
+      ${receiptHtml}
+    `);
+    await sendEmail({ to: email, subject: 'Deine Quittung – SkinProject', html });
+    res.status(200).json({ ok: true });
+  } catch (e: any) {
+    // eslint-disable-next-line no-console
+    console.error('Quittungs-Mail fehlgeschlagen:', e.message);
+    res.status(500).json({ error: e.message });
   }
 }

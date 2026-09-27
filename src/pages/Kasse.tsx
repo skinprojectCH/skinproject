@@ -25,6 +25,8 @@ fetchArtists,
 updateAppointment,
 deleteAppointment,
 deleteAppointmentFull,
+sendReceiptEmail,
+updateCustomer,
 fetchDocumentsForAppointment,
 uploadCustomerFile,
 getCustomerFileUrl,
@@ -944,6 +946,7 @@ if (voucher.status === 'eingelöst' || voucher.remaining_value <= 0) {
   total: number;
   payments: { method: string; amount: number }[];
   customerLabel: string;
+  customerId: string | null;
   contextLabel: string | null;
   date: string;
   artist: Artist | null;
@@ -954,6 +957,15 @@ if (voucher.status === 'eingelöst' || voucher.remaining_value <= 0) {
   const [activeArtist, setActiveArtist] = useState<Artist | null>(null);
   const [contextError, setContextError] = useState<string | null>(null);
   const [alreadyKassiert, setAlreadyKassiert] = useState(false);
+  // Quittung per E-Mail
+  const [showSendReceipt, setShowSendReceipt] = useState(false);
+  const [receiptEmail, setReceiptEmail] = useState('');
+  const [receiptEmailKnown, setReceiptEmailKnown] = useState(false);
+  const [receiptCustomerVorname, setReceiptCustomerVorname] = useState<string | null>(null);
+  const [receiptEmailLoading, setReceiptEmailLoading] = useState(false);
+  const [receiptSending, setReceiptSending] = useState(false);
+  const [receiptSendError, setReceiptSendError] = useState<string | null>(null);
+  const [receiptSentTo, setReceiptSentTo] = useState<string | null>(null);
   // Nur Admin (nicht Manager) darf bereits kassierte Termine löschen.
   const { isAdmin } = useLocationContext();
   const [selectedCustomerId, setSelectedCustomerId] = useState<string>('');
@@ -1017,6 +1029,7 @@ if (voucher.status === 'eingelöst' || voucher.remaining_value <= 0) {
   total: Number(order.total),
   payments: dbPayments.map((p: any) => ({ method: p.method, amount: Number(p.amount) })),
   customerLabel: customer ? `${customer.vorname} ${customer.name}` : 'Laufkunde',
+  customerId: customer?.id || null,
   contextLabel: null,
   date: new Date(order.created_at).toLocaleString('de-CH', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }),
   artist: null,
@@ -1060,6 +1073,7 @@ if (voucher.status === 'eingelöst' || voucher.remaining_value <= 0) {
   total: Number(order.total),
   payments: dbPayments.map((p: any) => ({ method: p.method, amount: Number(p.amount) })),
   customerLabel: customer ? `${customer.vorname} ${customer.name}` : 'Laufkunde',
+  customerId: customer?.id || null,
   contextLabel: `Termin: ${artist?.name || '—'} · ${new Date(appt.start_time).toLocaleString('de-CH', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}`,
   date: new Date(order.created_at).toLocaleString('de-CH', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }),
   artist: artist || null,
@@ -1245,6 +1259,7 @@ if (voucher.status === 'eingelöst' || voucher.remaining_value <= 0) {
   total,
   payments,
   customerLabel: selectedCustomer ? `${selectedCustomer.vorname} ${selectedCustomer.name}` : 'Laufkunde',
+  customerId: selectedCustomerId || null,
   contextLabel,
   date: new Date().toLocaleString('de-CH', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }),
   artist: activeArtist,
@@ -1344,7 +1359,7 @@ const sharePct = receipt?.artist ? receipt.artist.revenue_share_pct ?? 0 : 100;
 const location = receipt?.location;
 const mwstActive = !!(location?.vat_number && location?.mwst_prozent);
 
-function receiptCard(variant: 'salon' | 'artist') {
+function cardData(variant: 'salon' | 'artist') {
 const rows = (receipt?.items || [])
 .map((i) => {
 const gross = i.qty * i.unitPrice;
@@ -1361,6 +1376,85 @@ return { label: i.label, amount: full, grossAmount: gross, discountLabel };
 .filter((r): r is { label: string; amount: number; grossAmount: number; discountLabel: string | null } => !!r);
 const cardTotal = rows.reduce((s, r) => s + r.amount, 0);
 const mwstAmount = mwstActive && location?.mwst_prozent ? cardTotal - cardTotal / (1 + location.mwst_prozent / 100) : 0;
+return { rows, cardTotal, mwstAmount };
+}
+
+// Quittungen als E-Mail-taugliches HTML (inline Styles) -- gleiche Daten/Berechnung wie die Karten.
+function receiptEmailHtml() {
+const esc = (t: string) => String(t ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+const meta = `${receipt?.date || ''}${receipt?.contextLabel ? ` · ${receipt.contextLabel.replace('Termin: ', '')}` : ''} · ${receipt?.customerLabel || ''}`;
+return (['artist', 'salon'] as const)
+.map((variant) => {
+const { rows, cardTotal, mwstAmount } = cardData(variant);
+if (variant === 'artist' && rows.length === 0) return '';
+const title = variant === 'salon' ? location?.name || '—' : receipt?.artist?.kuenstlername || receipt?.artist?.name || '—';
+const addr = variant === 'salon' ? [location?.strasse, location?.plz_ort].filter(Boolean).join(', ') : [receipt?.artist?.strasse, receipt?.artist?.plz_ort].filter(Boolean).join(', ');
+const rowsHtml = rows
+.map((r) => `<tr><td style="padding:3px 0;font-size:13px;">${esc(r.label)}${r.discountLabel ? ` <span style="font-size:11px;color:#888;">${esc(r.discountLabel)}</span>` : ''}</td><td style="padding:3px 0;font-size:13px;text-align:right;white-space:nowrap;">${chf(r.amount)}</td></tr>`)
+.join('');
+const mwstHtml = variant === 'salon' && mwstActive ? `<div style="font-size:11px;color:#777;margin-top:6px;">MWST ${location!.mwst_prozent}% (inkl.): ${chf(mwstAmount)}<br/>MWST-Nr.: ${esc(location!.vat_number || '')}</div>` : '';
+const payHtml = variant === 'salon' ? `<div style="font-size:12px;color:#777;margin-top:6px;">${(receipt?.payments || []).map((p) => `${esc(p.method)}: ${chf(p.amount)}`).join('<br/>')}</div>` : '';
+return `<div style="border:1px solid #ddd;border-radius:6px;padding:16px 18px;margin-bottom:16px;">
+<div style="font-size:11px;text-transform:uppercase;letter-spacing:0.5px;color:#999;font-weight:700;margin-bottom:4px;">Quittung</div>
+<div style="font-size:14px;font-weight:700;">${esc(title)}</div>
+<div style="font-size:11px;color:#999;margin-bottom:10px;">${esc(addr)}</div>
+<div style="font-size:12px;color:#777;margin-bottom:10px;">${esc(meta)}</div>
+<table style="width:100%;border-collapse:collapse;">${rowsHtml}</table>
+<table style="width:100%;border-collapse:collapse;border-top:1px solid #ddd;margin-top:8px;"><tr><td style="padding-top:8px;font-size:14px;font-weight:700;">Total</td><td style="padding-top:8px;font-size:14px;font-weight:700;text-align:right;">${chf(cardTotal)}</td></tr></table>
+${mwstHtml}${payHtml}
+</div>`;
+})
+.join('');
+}
+
+async function openSendReceipt() {
+setShowSendReceipt(true);
+setReceiptSendError(null);
+setReceiptSentTo(null);
+setReceiptEmail('');
+setReceiptEmailKnown(false);
+setReceiptCustomerVorname(null);
+if (!receipt?.customerId) return;
+setReceiptEmailLoading(true);
+try {
+const c = (await fetchCustomersByIds([receipt.customerId]))[0];
+setReceiptCustomerVorname(c?.vorname || null);
+if (c?.email) {
+setReceiptEmail(c.email);
+setReceiptEmailKnown(true);
+}
+} catch (e: any) {
+setReceiptSendError(e.message);
+} finally {
+setReceiptEmailLoading(false);
+}
+}
+
+async function handleSendReceipt() {
+const email = receiptEmail.trim();
+if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+setReceiptSendError('Bitte eine gültige E-Mail-Adresse eingeben.');
+return;
+}
+setReceiptSending(true);
+setReceiptSendError(null);
+try {
+// Fehlende Adresse direkt im Kundenprofil speichern -- bei Laufkunden (kein Kunde) nur senden.
+if (receipt?.customerId && !receiptEmailKnown) {
+await updateCustomer(receipt.customerId, { email });
+setReceiptEmailKnown(true);
+}
+await sendReceiptEmail(email, receiptEmailHtml(), receiptCustomerVorname);
+setReceiptSentTo(email);
+} catch (e: any) {
+setReceiptSendError(e.message);
+} finally {
+setReceiptSending(false);
+}
+}
+
+function receiptCard(variant: 'salon' | 'artist') {
+const { rows, cardTotal, mwstAmount } = cardData(variant);
 
 if (variant === 'artist' && rows.length === 0) return null;
 
@@ -1492,11 +1586,62 @@ text-shadow: none !important;
 <button className="btn btn-secondary" onClick={() => window.print()}>
 Quittungen drucken
 </button>
+<button className="btn btn-secondary" onClick={openSendReceipt}>
+Quittung senden
+</button>
 <button className="btn btn-primary" onClick={() => navigate('/kalender')}>
 Zurück zum Kalender
 </button>
 </div>
 <div className="kasse-no-print">{adminDeleteBlock}</div>
+{showSendReceipt && (
+<Modal title="Quittung senden" onClose={() => setShowSendReceipt(false)} width={400}>
+{receiptEmailLoading ? (
+<div style={{ fontSize: 13, color: '#999' }}>Lädt…</div>
+) : receiptSentTo ? (
+<div>
+<div style={{ fontSize: 14, fontWeight: 700, color: '#1a7a3f', marginBottom: 14 }}>✓ Quittung an {receiptSentTo} gesendet</div>
+<button className="btn btn-primary" style={{ width: '100%', justifyContent: 'center' }} onClick={() => setShowSendReceipt(false)}>
+Schliessen
+</button>
+</div>
+) : (
+<div>
+{receiptEmailKnown ? (
+<div style={{ fontSize: 13, marginBottom: 14 }}>
+Quittung an <strong>{receiptEmail}</strong> senden?
+</div>
+) : (
+<div style={{ marginBottom: 14 }}>
+<div style={{ fontSize: 12, color: '#777', marginBottom: 6 }}>
+{receipt?.customerId ? 'Beim Kunden ist keine E-Mail-Adresse hinterlegt. Sie wird im Kundenprofil gespeichert.' : 'Laufkunde: Die Adresse wird nur für den Versand verwendet und nicht gespeichert.'}
+</div>
+<input
+type="email"
+autoFocus
+placeholder="E-Mail-Adresse"
+value={receiptEmail}
+onChange={(e) => setReceiptEmail(e.target.value)}
+onKeyDown={(e) => {
+if (e.key === 'Enter') handleSendReceipt();
+}}
+style={{ width: '100%', border: '1px solid var(--color-border)', borderRadius: 4, padding: '9px 10px', fontSize: 13, fontFamily: 'var(--font-body)', boxSizing: 'border-box' }}
+/>
+</div>
+)}
+{receiptSendError && <div style={{ fontSize: 12, color: 'var(--color-destructive)', marginBottom: 10 }}>{receiptSendError}</div>}
+<div style={{ display: 'flex', gap: 8 }}>
+<button className="btn btn-secondary" style={{ flex: 1, justifyContent: 'center' }} onClick={() => setShowSendReceipt(false)}>
+Abbrechen
+</button>
+<button className="btn btn-primary" style={{ flex: 1, justifyContent: 'center', opacity: receiptSending ? 0.6 : 1 }} disabled={receiptSending} onClick={handleSendReceipt}>
+{receiptSending ? 'Sendet…' : 'Senden'}
+</button>
+</div>
+</div>
+)}
+</Modal>
+)}
 </div>
 );
 }

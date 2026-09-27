@@ -1795,6 +1795,20 @@ export async function saveAppSettings(settings: AppSettings, updatedBy?: string 
 // E-Mail-Adresse und eine Einverständniserklärung mit Tattoo/Piercing-Angabe hat.
 // Schlägt bewusst niemals sichtbar fehl -- der Checkout an der Kasse darf davon nicht
 // abhängen; Fehler landen nur in der Konsole.
+// Quittung per E-Mail senden (läuft über /api/send-care-email mit action='receipt',
+// wegen dem 12-Functions-Limit von Vercel Hobby).
+export async function sendReceiptEmail(to: string, receiptHtml: string, customerVorname?: string | null) {
+  const { data } = await supabase.auth.getSession();
+  const token = data.session?.access_token;
+  const res = await fetch('/api/send-care-email', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+    body: JSON.stringify({ action: 'receipt', to, receiptHtml, customerVorname: customerVorname || null }),
+  });
+  const body = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(body.error || 'Versand fehlgeschlagen.');
+}
+
 export function triggerCareInstructionsEmail(orderId: string) {
   fetch('/api/send-care-email', {
     method: 'POST',
