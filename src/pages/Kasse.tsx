@@ -1367,7 +1367,7 @@ if (variant === 'artist' && rows.length === 0) return null;
 return (
 <div className="kasse-receipt-card" style={{ border: '1px solid var(--color-border)', borderRadius: 6, padding: 18, background: '#fff', flex: '1 1 320px', maxWidth: 380 }}>
 <div style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: 0.5, color: '#999', fontWeight: 700, marginBottom: 4 }}>
-Quittung {variant === 'salon' ? 'Salon' : 'Artist'}
+Quittung
 </div>
 <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 1 }}>{variant === 'salon' ? location?.name || '—' : receipt?.artist?.kuenstlername || receipt?.artist?.name || '—'}</div>
 <div style={{ fontSize: 11, color: '#999', marginBottom: 10 }}>
