@@ -628,7 +628,7 @@ export default function RegisterCustomer() {
             <div style={{ fontSize: 10, color: '#999', marginBottom: 12 }}>Format: +41 79 123 45 67</div>
             <div style={{ margin: '12px 0 6px' }}>
               <div style={fieldLabel}>
-                E-Mail <span style={{ textTransform: 'none', color: '#bbb' }}>(optional)</span>
+                E-Mail
               </div>
               <input value={email} onChange={(e) => setEmail(e.target.value)} style={underlineInput} type="email" />
             </div>
