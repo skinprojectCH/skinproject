@@ -295,8 +295,8 @@ export default function RegisterCustomer() {
   const [strasse, setStrasse] = useState('');
   const [plzOrt, setPlzOrt] = useState('');
   const [email, setEmail] = useState('');
-  const [whatsappOptIn, setWhatsappOptIn] = useState(false);
-  const [werbungOptIn, setWerbungOptIn] = useState(false);
+  const [whatsappOptIn, setWhatsappOptIn] = useState(true);
+  const [werbungOptIn, setWerbungOptIn] = useState(true);
   const [treatmentType, setTreatmentType] = useState<'tattoo' | 'piercing'>('tattoo');
   const [savingProfile, setSavingProfile] = useState(false);
   const [profileError, setProfileError] = useState<string | null>(null);
@@ -350,8 +350,8 @@ export default function RegisterCustomer() {
       setStrasse('');
       setPlzOrt('');
       setEmail('');
-      setWhatsappOptIn(false);
-      setWerbungOptIn(false);
+      setWhatsappOptIn(true);
+      setWerbungOptIn(true);
       setTreatmentType('tattoo');
       setProfileError(null);
       setBirthdate('');
@@ -393,8 +393,9 @@ export default function RegisterCustomer() {
         setEmail(c.email || '');
         setPhone(c.phone || phone);
         if (c.birthdate) setBirthdate(c.birthdate);
-        setWhatsappOptIn(!!c.whatsapp_opt_in);
-        setWerbungOptIn(!!c.werbung_opt_in);
+        // Standardmässig Ja vorausgewählt (auch bei bestehenden Kunden) -- Kunde kann im Formular auf Nein wechseln.
+        setWhatsappOptIn(true);
+        setWerbungOptIn(true);
       } else {
         setPhone(body.normalizedPhone || phone);
       }
