@@ -1051,13 +1051,49 @@ export interface ArtistEarningEntry {
   locationName: string;
 }
 
+// ---------- Offene Posten (Debitoren) ----------
+// Ein vergangener Termin mit Status 'gebucht' ist noch nicht bezahlt (gleiche Definition
+// wie "Offene vergangene Termine" im Kalender). Sein Umsatz zählt trotzdem am Termintag --
+// für Salon UND Artist -- mit dem geplanten Preis aus den Termin-Positionen. Sobald er
+// kassiert wird, gilt der tatsächlich kassierte Betrag (weiterhin am Termintag).
+function isOpenPastAppointment(appt: any): boolean {
+  if (appt.status !== 'gebucht') return false;
+  const paid = (appt.orders || []).some((o: any) => o.status === 'bezahlt');
+  return !paid && new Date(appt.start_time).getTime() < Date.now();
+}
+
+function plannedServiceTotal(appt: any): number {
+  return (appt.appointment_line_items || []).reduce((sum: number, li: any) => {
+    const gross = Number(li.quantity || 1) * Number(li.unit_price || 0);
+    const dv = li.discount_value != null ? Number(li.discount_value) : 0;
+    const net = !li.discount_type || !dv ? gross : li.discount_type === 'percent' ? gross * (1 - dv / 100) : gross - dv;
+    return sum + Math.max(0, net);
+  }, 0);
+}
+
+// Dienstleistungs-Umsatz eines Termins (vor Beteiligung): bezahlte Order -> kassierter
+// Betrag (Rabatt anteilig), offener vergangener Termin -> geplanter Preis, sonst 0.
+function appointmentServiceRevenue(appt: any): number {
+  const order = (appt.orders || []).find((o: any) => o.status === 'bezahlt');
+  if (order) {
+    const lineItems = order.order_line_items || [];
+    const serviceSubtotal = lineItems.filter((li: any) => li.service_id).reduce((s: number, li: any) => s + Number(li.line_total), 0);
+    if (serviceSubtotal <= 0) return 0;
+    const discountFactor = Number(order.subtotal) > 0 ? Number(order.total) / Number(order.subtotal) : 1;
+    return serviceSubtotal * discountFactor;
+  }
+  return isOpenPastAppointment(appt) ? plannedServiceTotal(appt) : 0;
+}
+
+const APPT_PLANNED_ITEMS = 'appointment_line_items(service_id, quantity, unit_price, discount_type, discount_value, services(name))';
+
 export async function fetchArtistEarnings(artistId: string, startDateISO: string, endDateISO: string, sharePct: number) {
   const start = `${startDateISO}T00:00:00`;
   const end = `${endDateISO}T23:59:59`;
   const { data, error } = await supabase
     .from('appointments')
     .select(
-      'id, start_time, location_id, locations(name), customers(vorname, name), appointment_line_items(service_id, services(name)), orders(id, subtotal, total, status, order_line_items(service_id, product_id, line_total))'
+      `id, start_time, status, location_id, locations(name), customers(vorname, name), ${APPT_PLANNED_ITEMS}, orders(id, subtotal, total, status, order_line_items(service_id, product_id, line_total))`
     )
     .eq('artist_id', artistId)
     .eq('type', 'termin')
@@ -1068,14 +1104,10 @@ export async function fetchArtistEarnings(artistId: string, startDateISO: string
 
   const entries: ArtistEarningEntry[] = [];
   for (const appt of (data as any[]) || []) {
-    const order = appt.orders?.[0];
-    if (!order || order.status !== 'bezahlt') continue;
-    const lineItems = order.order_line_items || [];
-    const serviceSubtotal = lineItems.filter((li: any) => li.service_id).reduce((s: number, li: any) => s + Number(li.line_total), 0);
-    if (serviceSubtotal <= 0) continue;
-    // Rabatte wirken auf die ganze Bestellung -> Anteil proportional runterskalieren.
-    const discountFactor = Number(order.subtotal) > 0 ? Number(order.total) / Number(order.subtotal) : 1;
-    const amount = serviceSubtotal * discountFactor * (1 - sharePct / 100); // sharePct = Salon-Anteil (Miet- & Serviceanteil), Artist bekommt den Rest
+    // Artist bekommt den vollen Umsatz am Termintag, egal ob schon bezahlt (offener Posten).
+    const serviceRevenue = appointmentServiceRevenue(appt);
+    if (serviceRevenue <= 0) continue;
+    const amount = serviceRevenue * (1 - sharePct / 100); // sharePct = Salon-Anteil (Miet- & Serviceanteil), Artist bekommt den Rest
     const services = (appt.appointment_line_items || []).map((li: any) => li.services?.name).filter(Boolean);
     entries.push({
       appointmentId: appt.id,
@@ -1113,6 +1145,28 @@ export interface LocationBilling {
   anzahlungRevenue: number; // Anzahlungs-Verkäufe -- Geld geflossen, zählt bewusst NICHT zum Umsatz
   anzahlungRedeemedRevenue: number; // wie viel vom heutigen Umsatz mit einer früher verkauften Anzahlung beglichen wurde (informativ, bereits in Dienstleistungen/Produkte enthalten)
   redeemedVouchers: RedeemedVoucherEntry[]; // welche konkreten Gutschein-/Anzahlung-Codes eingesetzt wurden
+  openReceivables: OpenReceivableEntry[]; // Termine im Zeitraum, die noch nicht bezahlt sind (Umsatz bereits enthalten)
+  openReceivablesTotal: number;
+  lateReceipts: LateReceiptEntry[]; // im Zeitraum eingegangene Zahlungen für Termine VOR dem Zeitraum (kein Umsatz, nur Geldeingang)
+  lateReceiptsTotal: number;
+}
+
+export interface OpenReceivableEntry {
+  appointmentId: string;
+  date: string;
+  time: string;
+  customerLabel: string;
+  artistName: string;
+  amount: number;
+}
+
+export interface LateReceiptEntry {
+  orderId: string;
+  appointmentDate: string;
+  paidAt: string;
+  customerLabel: string;
+  amount: number;
+  payments: { method: string; amount: number }[];
 }
 
 export interface RedeemedVoucherEntry {
@@ -1134,7 +1188,7 @@ export async function fetchLocationBilling(locationId: string, startDateISO: str
   const { data: appts, error: apptError } = await supabase
     .from('appointments')
     .select(
-      'id, artist_id, artists(id, name, calendar_color, revenue_share_pct, is_employee), orders(total, subtotal, status, is_anzahlung, customers(vorname, name), order_line_items(service_id, product_id, line_total), payments(method, amount, voucher_id, vouchers(code, type, source)))'
+      `id, artist_id, start_time, status, customers(vorname, name), ${APPT_PLANNED_ITEMS}, artists(id, name, calendar_color, revenue_share_pct, is_employee), orders(total, subtotal, status, is_anzahlung, customers(vorname, name), order_line_items(service_id, product_id, line_total), payments(method, amount, voucher_id, vouchers(code, type, source)))`
     )
     .eq('location_id', locationId)
     .eq('type', 'termin')
@@ -1144,7 +1198,20 @@ export async function fetchLocationBilling(locationId: string, startDateISO: str
 
   const apptRows = (appts as any[]) || [];
   const paidApptOrders = apptRows.map((a) => a.orders?.[0]).filter((o) => o && o.status === 'bezahlt' && !o.is_anzahlung);
-  const apptRevenue = paidApptOrders.reduce((s, o) => s + Number(o.total), 0);
+  // Offene Posten: vergangene, noch nicht bezahlte Termine -- Umsatz zählt trotzdem am Termintag.
+  const openAppts = apptRows.filter(isOpenPastAppointment);
+  const openReceivables: OpenReceivableEntry[] = openAppts
+    .map((a) => ({
+      appointmentId: a.id,
+      date: a.start_time.slice(0, 10),
+      time: new Date(a.start_time).toLocaleTimeString('de-CH', { hour: '2-digit', minute: '2-digit' }),
+      customerLabel: a.customers ? `${a.customers.vorname} ${a.customers.name}` : 'Laufkunde',
+      artistName: a.artists?.name || '—',
+      amount: plannedServiceTotal(a),
+    }))
+    .sort((x, y) => (x.date + x.time).localeCompare(y.date + y.time));
+  const openReceivablesTotal = openReceivables.reduce((s, r) => s + r.amount, 0);
+  const apptRevenue = paidApptOrders.reduce((s, o) => s + Number(o.total), 0) + openReceivablesTotal;
 
   // Laufkunden-Verkäufe ohne Termin (z.B. reiner Artikelverkauf an der Kasse) -- lassen
   // sich nicht über Termine finden, daher separat über Bestelldatum.
@@ -1162,7 +1229,29 @@ export async function fetchLocationBilling(locationId: string, startDateISO: str
   const walkInRevenue = walkInRows.reduce((s, o) => s + Number(o.total), 0);
 
   const salonRevenue = apptRevenue + walkInRevenue;
-  const orderCount = paidApptOrders.length + walkInRows.length;
+  const orderCount = paidApptOrders.length + walkInRows.length + openReceivables.length;
+
+  // Zahlungseingang für offene Posten: im Zeitraum kassiert, Termin lag aber VOR dem Zeitraum.
+  // Zählt NICHT als Umsatz (der wurde am Termintag verbucht), nur als Geldeingang.
+  const { data: lateOrders, error: lateError } = await supabase
+    .from('orders')
+    .select('id, total, created_at, customers(vorname, name), payments(method, amount), appointments!inner(start_time)')
+    .eq('location_id', locationId)
+    .eq('status', 'bezahlt')
+    .eq('is_anzahlung', false)
+    .gte('created_at', start)
+    .lte('created_at', end)
+    .lt('appointments.start_time', start);
+  if (lateError) throw lateError;
+  const lateReceipts: LateReceiptEntry[] = ((lateOrders as any[]) || []).map((o) => ({
+    orderId: o.id,
+    appointmentDate: o.appointments?.start_time?.slice(0, 10) || '',
+    paidAt: o.created_at,
+    customerLabel: o.customers ? `${o.customers.vorname} ${o.customers.name}` : 'Laufkunde',
+    amount: Number(o.total),
+    payments: (o.payments || []).map((p: any) => ({ method: p.method, amount: Number(p.amount) })),
+  }));
+  const lateReceiptsTotal = lateReceipts.reduce((s, r) => s + r.amount, 0);
   const avgOrderValue = orderCount > 0 ? salonRevenue / orderCount : 0;
 
   // Aktueller OFFENER Bestand an Anzahlungen dieser Location -- bewusst OHNE Zeitraum-Filter,
@@ -1214,13 +1303,8 @@ export async function fetchLocationBilling(locationId: string, startDateISO: str
   for (const appt of (appts as any[]) || []) {
     const artist = appt.artists;
     if (!artist) continue;
-    const order = appt.orders?.[0];
-    if (!order || order.status !== 'bezahlt') continue;
-    const lineItems = order.order_line_items || [];
-    const serviceSubtotal = lineItems.filter((li: any) => li.service_id).reduce((s: number, li: any) => s + Number(li.line_total), 0);
-    if (serviceSubtotal <= 0) continue;
-    const discountFactor = Number(order.subtotal) > 0 ? Number(order.total) / Number(order.subtotal) : 1;
-    const revenue = serviceSubtotal * discountFactor;
+    const revenue = appointmentServiceRevenue(appt);
+    if (revenue <= 0) continue;
     if (!byArtist[artist.id]) {
       byArtist[artist.id] = { artistId: artist.id, artistName: artist.name, calendarColor: artist.calendar_color, revenue: 0, sharePct: artist.revenue_share_pct || 0, payout: 0, isEmployee: !!artist.is_employee };
     }
@@ -1244,6 +1328,10 @@ export async function fetchLocationBilling(locationId: string, startDateISO: str
     anzahlungRevenue,
     anzahlungRedeemedRevenue,
     redeemedVouchers,
+    openReceivables,
+    openReceivablesTotal,
+    lateReceipts,
+    lateReceiptsTotal,
   };
 }
 
@@ -1270,7 +1358,7 @@ export async function fetchLocationArtistBillingDetail(
   const end = `${endDateISO}T23:59:59`;
   const { data, error } = await supabase
     .from('appointments')
-    .select('id, start_time, customers(vorname, name), appointment_line_items(service_id, services(name)), orders(subtotal, total, status, order_line_items(service_id, product_id, line_total))')
+    .select(`id, start_time, status, customers(vorname, name), ${APPT_PLANNED_ITEMS}, orders(subtotal, total, status, order_line_items(service_id, product_id, line_total))`)
     .eq('location_id', locationId)
     .eq('artist_id', artistId)
     .eq('type', 'termin')
@@ -1281,13 +1369,8 @@ export async function fetchLocationArtistBillingDetail(
 
   const entries: LocationArtistBillingEntry[] = [];
   for (const appt of (data as any[]) || []) {
-    const order = appt.orders?.[0];
-    if (!order || order.status !== 'bezahlt') continue;
-    const lineItems = order.order_line_items || [];
-    const serviceSubtotal = lineItems.filter((li: any) => li.service_id).reduce((s: number, li: any) => s + Number(li.line_total), 0);
-    if (serviceSubtotal <= 0) continue;
-    const discountFactor = Number(order.subtotal) > 0 ? Number(order.total) / Number(order.subtotal) : 1;
-    const revenue = serviceSubtotal * discountFactor;
+    const revenue = appointmentServiceRevenue(appt);
+    if (revenue <= 0) continue;
     const services = (appt.appointment_line_items || []).map((li: any) => li.services?.name).filter(Boolean);
     entries.push({
       appointmentId: appt.id,
@@ -1578,7 +1661,7 @@ async function fetchArtistRevenueSeriesMulti(artistIds: string[], granularity: '
 
   const { data, error } = await supabase
     .from('appointments')
-    .select('artist_id, start_time, orders(subtotal, total, status, order_line_items(service_id, line_total))')
+    .select(`artist_id, start_time, status, ${APPT_PLANNED_ITEMS}, orders(subtotal, total, status, order_line_items(service_id, line_total))`)
     .in('artist_id', artistIds)
     .eq('type', 'termin')
     .gte('start_time', start.toISOString())
@@ -1601,13 +1684,8 @@ async function fetchArtistRevenueSeriesMulti(artistIds: string[], granularity: '
   }
 
   for (const appt of (data as any[]) || []) {
-    const order = appt.orders?.[0];
-    if (!order || order.status !== 'bezahlt') continue;
-    const lineItems = order.order_line_items || [];
-    const serviceSubtotal = lineItems.filter((li: any) => li.service_id).reduce((s: number, li: any) => s + Number(li.line_total), 0);
-    if (serviceSubtotal <= 0) continue;
-    const discountFactor = Number(order.subtotal) > 0 ? Number(order.total) / Number(order.subtotal) : 1;
-    const revenue = serviceSubtotal * discountFactor;
+    const revenue = appointmentServiceRevenue(appt);
+    if (revenue <= 0) continue;
     const d = new Date(appt.start_time);
     const key = granularity === 'month' ? `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}` : `${d.getFullYear()}`;
     if (buckets[key] && appt.artist_id in buckets[key]) buckets[key][appt.artist_id] += revenue;

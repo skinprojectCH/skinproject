@@ -455,6 +455,39 @@ async function downloadLocationSummaryPdf(opts: {
     }
   }
 
+  const pdfList = (title: string, lines: { label: string; amount: number }[]) => {
+    y += 6;
+    doc.setDrawColor(200);
+    doc.line(14, y, 196, y);
+    y += 10;
+    doc.setFontSize(12);
+    doc.setTextColor(0);
+    doc.text(title, 14, y);
+    y += 8;
+    doc.setFontSize(9);
+    for (const l of lines) {
+      if (y > 280) {
+        doc.addPage();
+        y = 20;
+      }
+      doc.text(l.label, 14, y);
+      doc.text(formatCHF(l.amount), 196, y, { align: 'right' });
+      y += 6;
+    }
+  };
+  if (b.openReceivables.length > 0) {
+    pdfList(
+      `Offene Debitoren (noch nicht bezahlt): ${formatCHF(b.openReceivablesTotal)}`,
+      b.openReceivables.map((r) => ({ label: `${new Date(r.date).toLocaleDateString('de-CH')} ${r.time} · ${r.customerLabel} · ${r.artistName}`, amount: r.amount }))
+    );
+  }
+  if (b.lateReceipts.length > 0) {
+    pdfList(
+      `Zahlungseingang offene Posten: ${formatCHF(b.lateReceiptsTotal)}`,
+      b.lateReceipts.map((r) => ({ label: `Termin vom ${r.appointmentDate ? new Date(r.appointmentDate).toLocaleDateString('de-CH') : '—'} · ${r.customerLabel} · ${r.payments.map((p) => p.method).join(', ')}`, amount: r.amount }))
+    );
+  }
+
   doc.save(`Abrechnung_Salon_${opts.locationName.replace(/[^\w-]+/g, '_')}_${opts.periodLabel.replace(/[^\w-]+/g, '_')}.pdf`);
 }
 
@@ -948,6 +981,62 @@ export default function Abrechnung() {
                     artistRows.map(renderRow)
                   )}
                 </div>
+
+                {billing.openReceivables.length > 0 && (
+                  <div style={{ marginTop: 20 }}>
+                    <div style={{ fontSize: 12, fontWeight: 700, marginBottom: 8, color: 'var(--color-destructive)' }}>
+                      Offene Debitoren (noch nicht bezahlt) · {formatCHF(billing.openReceivablesTotal)}
+                    </div>
+                    <div style={{ border: '1px solid var(--color-border)', borderRadius: 6, background: 'var(--color-surface)', overflow: 'hidden' }}>
+                      <div style={{ display: 'grid', gridTemplateColumns: '110px 1fr 1fr 110px', padding: '10px 14px', fontSize: 11, textTransform: 'uppercase', letterSpacing: 0.5, color: '#999', borderBottom: '1px solid var(--color-border)', fontWeight: 600 }}>
+                        <div>Termin</div>
+                        <div>Kunde</div>
+                        <div>Artist</div>
+                        <div style={{ textAlign: 'right' }}>Betrag</div>
+                      </div>
+                      {billing.openReceivables.map((r) => (
+                        <div key={r.appointmentId} style={{ display: 'grid', gridTemplateColumns: '110px 1fr 1fr 110px', padding: '12px 14px', fontSize: 13, borderBottom: '1px solid var(--color-border-subtle, #eee)', alignItems: 'center' }}>
+                          <div>
+                            {new Date(r.date).toLocaleDateString('de-CH', { day: '2-digit', month: '2-digit' })} {r.time}
+                          </div>
+                          <div>{r.customerLabel}</div>
+                          <div>{r.artistName}</div>
+                          <div style={{ textAlign: 'right', fontWeight: 600, color: 'var(--color-destructive)' }}>{formatCHF(r.amount)}</div>
+                        </div>
+                      ))}
+                    </div>
+                    <div style={{ fontSize: 11, color: '#999', marginTop: 6 }}>
+                      Umsatz ist bereits am Termintag enthalten (Salon &amp; Artist, geplanter Preis). Das Geld fehlt aber noch in der Kasse.
+                    </div>
+                  </div>
+                )}
+
+                {billing.lateReceipts.length > 0 && (
+                  <div style={{ marginTop: 20 }}>
+                    <div style={{ fontSize: 12, fontWeight: 700, marginBottom: 8, color: '#1a7a3f' }}>
+                      Zahlungseingang offene Posten · {formatCHF(billing.lateReceiptsTotal)}
+                    </div>
+                    <div style={{ border: '1px solid var(--color-border)', borderRadius: 6, background: 'var(--color-surface)', overflow: 'hidden' }}>
+                      <div style={{ display: 'grid', gridTemplateColumns: '110px 1fr 1fr 110px', padding: '10px 14px', fontSize: 11, textTransform: 'uppercase', letterSpacing: 0.5, color: '#999', borderBottom: '1px solid var(--color-border)', fontWeight: 600 }}>
+                        <div>Termin vom</div>
+                        <div>Kunde</div>
+                        <div>Zahlungsart</div>
+                        <div style={{ textAlign: 'right' }}>Betrag</div>
+                      </div>
+                      {billing.lateReceipts.map((r) => (
+                        <div key={r.orderId} style={{ display: 'grid', gridTemplateColumns: '110px 1fr 1fr 110px', padding: '12px 14px', fontSize: 13, borderBottom: '1px solid var(--color-border-subtle, #eee)', alignItems: 'center' }}>
+                          <div>{r.appointmentDate ? new Date(r.appointmentDate).toLocaleDateString('de-CH', { day: '2-digit', month: '2-digit', year: 'numeric' }) : '—'}</div>
+                          <div>{r.customerLabel}</div>
+                          <div style={{ textTransform: 'capitalize' }}>{r.payments.map((p) => `${p.method} ${formatCHF(p.amount)}`).join(', ') || '—'}</div>
+                          <div style={{ textAlign: 'right', fontWeight: 600, color: '#1a7a3f' }}>{formatCHF(r.amount)}</div>
+                        </div>
+                      ))}
+                    </div>
+                    <div style={{ fontSize: 11, color: '#999', marginTop: 6 }}>
+                      Kein Umsatz in diesem Zeitraum (wurde am Termintag verbucht) – nur Geldeingang, z.B. für den Kassenabgleich.
+                    </div>
+                  </div>
+                )}
 
                 {billing.redeemedVouchers.length > 0 && (
                   <div style={{ marginTop: 20 }}>
