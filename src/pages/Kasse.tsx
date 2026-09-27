@@ -24,6 +24,7 @@ fetchOrderById,
 fetchArtists,
 updateAppointment,
 deleteAppointment,
+deleteAppointmentFull,
 fetchDocumentsForAppointment,
 uploadCustomerFile,
 getCustomerFileUrl,
@@ -1287,7 +1288,8 @@ if (!appointmentId) return;
 setDeletingAppointment(true);
 setNoShowError(null);
 try {
-await deleteAppointment(appointmentId);
+if (alreadyKassiert) await deleteAppointmentFull(appointmentId);
+else await deleteAppointment(appointmentId);
 navigate('/kalender');
 } catch (e: any) {
 setNoShowError(e.message);
@@ -1298,7 +1300,7 @@ setDeletingAppointment(false);
 // Admin-only: bereits kassierten Termin löschen (Order/Zahlung bleibt in der Abrechnung).
 const adminDeleteBlock = isAdmin && appointmentId && alreadyKassiert ? (
 <div style={{ marginTop: 24, maxWidth: 320, marginLeft: 'auto', marginRight: 'auto' }}>
-<div style={{ fontSize: 12, color: '#999', marginBottom: 8 }}>Admin: Termin aus dem Kalender entfernen. Die Zahlung bleibt in der Abrechnung erhalten.</div>
+<div style={{ fontSize: 12, color: '#999', marginBottom: 8 }}>Admin: Termin inkl. Zahlung endgültig löschen. Der Betrag verschwindet aus Umsatz, Artist-Abrechnung, Kassenbestand und Statistik.</div>
 {!confirmDeleteAppointment ? (
 <button className="btn btn-destructive" style={{ width: '100%', justifyContent: 'center' }} onClick={() => setConfirmDeleteAppointment(true)}>
 Termin löschen

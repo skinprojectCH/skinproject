@@ -721,6 +721,13 @@ export async function deleteAppointment(id: string) {
   if (error) throw error;
 }
 
+// Nur Admin: kassierten Termin inkl. Order, Positionen und Zahlungen endgültig löschen
+// (Gutschein-/Anzahlungs-Beträge werden zurückgebucht). Siehe Migration 040.
+export async function deleteAppointmentFull(id: string) {
+  const { error } = await supabase.rpc('admin_delete_appointment_full', { p_appointment_id: id });
+  if (error) throw error;
+}
+
 // ---------- Orders / Kasse ----------
 export async function fetchVoucherByCode(code: string) {
   const { data, error } = await supabase.from('vouchers').select('*').ilike('code', code.trim()).maybeSingle();
