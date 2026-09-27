@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useLocationContext } from '../../lib/locationContext';
-import { fetchLocationBilling, fetchLocationArtistBillingDetail, fetchLocations, fetchCashStartingBalance, setCashStartingBalance, fetchCashBalance, addCashAdjustment, fetchCashAdjustmentsForDay, type LocationBilling, type LocationBillingArtistRow, type LocationArtistBillingEntry, type CashAdjustment, type RedeemedVoucherEntry } from '../../lib/queries';
+import { fetchLocationBilling, fetchLocationArtistBillingDetail, fetchLocations, fetchCashStartingBalance, setCashStartingBalance, fetchCashBalance, addCashAdjustment, fetchCashAdjustmentsForDay, fetchLocationManagers, type LocationManager, type LocationBilling, type LocationBillingArtistRow, type LocationArtistBillingEntry, type CashAdjustment, type RedeemedVoucherEntry } from '../../lib/queries';
 import { formatCHF } from '../../lib/format';
 import Modal from '../../components/Modal';
 
@@ -49,6 +49,19 @@ function KassenbestandBox({ locationId, isHauptadmin, dateISO }: { locationId: s
   const [formAmount, setFormAmount] = useState('');
   const [formNote, setFormNote] = useState('');
   const [savingForm, setSavingForm] = useState(false);
+  // Kassensturz: wer hat gezählt? (aktive Salon Manager dieses Standorts)
+  const [managers, setManagers] = useState<LocationManager[]>([]);
+  const [countedBy, setCountedBy] = useState('');
+
+  useEffect(() => {
+    fetchLocationManagers(locationId)
+      .then((list) => setManagers(list.filter((m) => m.role === 'manager' && m.status === 'active').sort((a, b) => a.vorname.localeCompare(b.vorname))))
+      .catch(() => setManagers([]));
+  }, [locationId]);
+
+  function todayLabel() {
+    return new Date().toLocaleDateString('de-CH', { day: '2-digit', month: '2-digit', year: 'numeric' });
+  }
 
   function reload() {
     setLoading(true);
@@ -98,16 +111,22 @@ function KassenbestandBox({ locationId, isHauptadmin, dateISO }: { locationId: s
         await addCashAdjustment(locationId, 'auslage', -Math.abs(raw), formNote.trim());
       } else {
         if (raw < 0) return;
+        if (!countedBy) {
+          setError('Bitte auswählen, wer gezählt hat.');
+          return;
+        }
         // Soll-Bestand frisch laden (falls seit dem Öffnen kassiert wurde), dann Differenz.
         const current = await fetchCashBalance(locationId);
         const diff = Math.round((raw - current) * 100) / 100;
-        const note = `Gezählt: ${formatCHF(raw)}${formNote.trim() ? ' — ' + formNote.trim() : ''}`;
+        const note = `${formNote.trim() || `Kassensturz - ${todayLabel()}`} · Gezählt: ${formatCHF(raw)}`;
         // Auch 0 wird gespeichert -- dokumentiert, dass der Kassensturz gemacht wurde und stimmte.
-        await addCashAdjustment(locationId, 'differenz', diff, note);
+        await addCashAdjustment(locationId, 'differenz', diff, note, countedBy);
       }
       setFormType(null);
       setFormAmount('');
       setFormNote('');
+      setCountedBy('');
+      setError(null);
       reload();
     } catch (e: any) {
       setError(e.message);
@@ -134,10 +153,27 @@ function KassenbestandBox({ locationId, isHauptadmin, dateISO }: { locationId: s
           </div>
         </div>
         <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
-          <button className="btn btn-outline" onClick={() => setFormType(formType === 'auslage' ? null : 'auslage')}>
+          <button
+            className="btn btn-outline"
+            onClick={() => {
+              if (formType === 'auslage') return setFormType(null);
+              setFormType('auslage');
+              setFormAmount('');
+              setFormNote('');
+            }}
+          >
             + Auslage
           </button>
-          <button className="btn btn-outline" onClick={() => setFormType(formType === 'differenz' ? null : 'differenz')}>
+          <button
+            className="btn btn-outline"
+            onClick={() => {
+              if (formType === 'differenz') return setFormType(null);
+              setFormType('differenz');
+              setFormAmount('');
+              setFormNote(`Kassensturz - ${todayLabel()}`);
+              setCountedBy('');
+            }}
+          >
             Kassensturz
           </button>
           {isHauptadmin && !editingStart && (
@@ -186,6 +222,25 @@ function KassenbestandBox({ locationId, isHauptadmin, dateISO }: { locationId: s
               >
                 {previewDiff === null ? '—' : previewDiff === 0 ? 'Stimmt ✓' : `${previewDiff > 0 ? '+' : ''}${formatCHF(previewDiff)}`}
               </div>
+            </div>
+          )}
+          {formType === 'differenz' && (
+            <div>
+              <div className="label-uppercase" style={{ marginBottom: 4 }}>
+                Gezählt von
+              </div>
+              <select
+                value={countedBy}
+                onChange={(e) => setCountedBy(e.target.value)}
+                style={{ border: '1px solid var(--color-border)', borderRadius: 4, padding: '8px 10px', fontSize: 13, minWidth: 170, background: 'var(--color-surface)' }}
+              >
+                <option value="">— auswählen —</option>
+                {managers.map((m) => (
+                  <option key={m.id} value={`${m.vorname} ${m.name}`}>
+                    {m.vorname} {m.name}
+                  </option>
+                ))}
+              </select>
             </div>
           )}
           <div style={{ flex: 1, minWidth: 180 }}>
@@ -241,6 +296,7 @@ function KassenbestandBox({ locationId, isHauptadmin, dateISO }: { locationId: s
                 <div>
                   <span style={{ fontWeight: 600, textTransform: 'capitalize' }}>{a.type}</span>
                   {a.note ? ` — ${a.note}` : ''}
+                  {a.created_by ? ` · gezählt von ${a.created_by}` : ''}
                   <span style={{ color: '#999' }}> · {new Date(a.created_at).toLocaleTimeString('de-CH', { hour: '2-digit', minute: '2-digit' })}</span>
                 </div>
                 <div style={{ fontWeight: 700, color: a.amount >= 0 ? '#1a7a3f' : 'var(--color-destructive)' }}>
@@ -369,7 +425,7 @@ async function downloadLocationSummaryPdf(opts: {
           y = 20;
         }
         const time = new Date(a.created_at).toLocaleTimeString('de-CH', { hour: '2-digit', minute: '2-digit' });
-        const label = `${a.type === 'auslage' ? 'Auslage' : 'Differenz'}${a.note ? ' — ' + a.note : ''} · ${time}`;
+        const label = `${a.type === 'auslage' ? 'Auslage' : 'Differenz'}${a.note ? ' — ' + a.note : ''}${a.created_by ? ' · gezählt von ' + a.created_by : ''} · ${time}`;
         doc.text(label, 14, y);
         doc.text(`${a.amount >= 0 ? '+' : ''}${formatCHF(a.amount)}`, 196, y, { align: 'right' });
         y += 6;

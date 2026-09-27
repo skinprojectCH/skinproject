@@ -1684,6 +1684,7 @@ export interface CashAdjustment {
   type: 'auslage' | 'differenz';
   amount: number;
   note: string | null;
+  created_by: string | null;
   created_at: string;
 }
 
@@ -1705,8 +1706,8 @@ export async function fetchCashBalance(locationId: string): Promise<number> {
 
 // Auslage (Bargeld-Entnahme, üblicherweise negativ) oder Differenz (Kassensturz-Korrektur
 // am Morgen, kann + oder − sein) erfassen. Darf vom Salon Manager gemacht werden.
-export async function addCashAdjustment(locationId: string, type: 'auslage' | 'differenz', amount: number, note: string) {
-  const { error } = await supabase.from('cash_adjustments').insert({ location_id: locationId, type, amount, note: note || null });
+export async function addCashAdjustment(locationId: string, type: 'auslage' | 'differenz', amount: number, note: string, createdBy?: string | null) {
+  const { error } = await supabase.from('cash_adjustments').insert({ location_id: locationId, type, amount, note: note || null, created_by: createdBy || null });
   if (error) throw error;
 }
 
