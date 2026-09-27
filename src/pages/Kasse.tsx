@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import Modal from '../components/Modal';
 import { roundToRappen } from '../lib/format';
+import { useLocationContext } from '../lib/locationContext';
 import {
 fetchServices,
 fetchProducts,
@@ -952,6 +953,8 @@ if (voucher.status === 'eingelöst' || voucher.remaining_value <= 0) {
   const [activeArtist, setActiveArtist] = useState<Artist | null>(null);
   const [contextError, setContextError] = useState<string | null>(null);
   const [alreadyKassiert, setAlreadyKassiert] = useState(false);
+  // Nur Admin (nicht Manager) darf bereits kassierte Termine löschen.
+  const { isAdmin } = useLocationContext();
   const [selectedCustomerId, setSelectedCustomerId] = useState<string>('');
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
   const [locations, setLocations] = useState<Location[]>([]);
@@ -1301,6 +1304,31 @@ return (
 <div style={{ border: '1px solid #eee', borderRadius: 6, padding: 40, textAlign: 'center' }}>
 <div style={{ fontSize: 16, fontWeight: 700, marginBottom: 8 }}>Dieser Termin wurde bereits kassiert.</div>
 <div style={{ fontSize: 13, color: '#999' }}>Er kann nicht ein zweites Mal kassiert werden.</div>
+{isAdmin && appointmentId && (
+<div style={{ marginTop: 24, maxWidth: 320, marginLeft: 'auto', marginRight: 'auto' }}>
+<div style={{ fontSize: 12, color: '#999', marginBottom: 8 }}>Admin: Termin aus dem Kalender entfernen. Die Zahlung bleibt in der Abrechnung erhalten.</div>
+{!confirmDeleteAppointment ? (
+<button className="btn btn-destructive" style={{ width: '100%', justifyContent: 'center' }} onClick={() => setConfirmDeleteAppointment(true)}>
+Termin löschen
+</button>
+) : (
+<div style={{ display: 'flex', gap: 8 }}>
+<button className="btn btn-secondary" style={{ flex: 1, justifyContent: 'center' }} onClick={() => setConfirmDeleteAppointment(false)}>
+Doch nicht
+</button>
+<button
+className="btn btn-destructive"
+style={{ flex: 1, justifyContent: 'center', background: 'var(--color-destructive)', color: '#fff', opacity: deletingAppointment ? 0.6 : 1 }}
+disabled={deletingAppointment}
+onClick={handleDeleteAppointmentFromKasse}
+>
+{deletingAppointment ? 'Löscht…' : 'Wirklich löschen'}
+</button>
+</div>
+)}
+{noShowError && <div style={{ fontSize: 12, color: 'var(--color-destructive)', marginTop: 8 }}>{noShowError}</div>}
+</div>
+)}
 </div>
 </div>
 );

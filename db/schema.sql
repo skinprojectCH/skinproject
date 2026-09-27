@@ -145,7 +145,7 @@ create table appointments (
 
 -- Nachträglich ergänzte FK (siehe Hinweis oben bei customer_documents)
 alter table customer_documents
-  add column appointment_id uuid references appointments(id);
+  add column appointment_id uuid references appointments(id) on delete set null;
 
 create table appointment_line_items (
   id uuid primary key default gen_random_uuid(),
@@ -179,7 +179,7 @@ create table absences (
 -- ---------- Kasse / Orders (D15/D18) ----------
 create table orders (
   id uuid primary key default gen_random_uuid(),
-  appointment_id uuid references appointments(id),
+  appointment_id uuid references appointments(id) on delete set null,
   customer_id uuid references customers(id),
   location_id uuid references locations(id),
   subtotal numeric(10,2) not null default 0,
