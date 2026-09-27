@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { searchCustomers, fetchCustomerIdsWithMissingDocs, fetchCustomersByIds, type Customer } from '../lib/queries';
+import { searchCustomers, fetchCustomerIdsWithMissingDocs, fetchCustomersByIds, fetchCustomersWithPendingHealthDocs, type Customer, type PendingHealthDoc } from '../lib/queries';
 import { useLocationContext } from '../lib/locationContext';
 
 function EditIcon() {
@@ -25,6 +25,36 @@ const [missingDocsFilter, setMissingDocsFilter] = useState(false);
 const [missingDocsCustomers, setMissingDocsCustomers] = useState<Customer[] | null>(null);
 const [missingDocsLoading, setMissingDocsLoading] = useState(false);
 const navigate = useNavigate();
+
+// Ohne Suche: Kunden mit offener (noch keinem Termin zugewiesener) Einverständniserklärung,
+// gleiche Quelle und Reihenfolge wie bei "Neuer Termin" -- wer zuerst ausgefüllt hat, steht oben.
+const [pending, setPending] = useState<{ doc: PendingHealthDoc; customer: Customer }[]>([]);
+const [pendingLoading, setPendingLoading] = useState(true);
+
+useEffect(() => {
+let cancelled = false;
+fetchCustomersWithPendingHealthDocs()
+.then(async (docs) => {
+const seen = new Set<string>();
+const firstPerCustomer = docs.filter((d) => (seen.has(d.customerId) ? false : (seen.add(d.customerId), true)));
+const customers = firstPerCustomer.length ? await fetchCustomersByIds(firstPerCustomer.map((d) => d.customerId)) : [];
+const byId = new Map(customers.map((c) => [c.id, c]));
+const rows = firstPerCustomer.filter((d) => byId.has(d.customerId)).map((d) => ({ doc: d, customer: byId.get(d.customerId)! }));
+if (!cancelled) setPending(rows);
+})
+.catch((e) => !cancelled && setError(e.message))
+.finally(() => !cancelled && setPendingLoading(false));
+return () => {
+cancelled = true;
+};
+}, []);
+
+function formatSince(iso: string) {
+const d = new Date(iso);
+const time = d.toLocaleTimeString('de-CH', { hour: '2-digit', minute: '2-digit' });
+if (d.toDateString() === new Date().toDateString()) return time;
+return `${d.toLocaleDateString('de-CH', { day: '2-digit', month: '2-digit' })} ${time}`;
+}
 
 useEffect(() => {
 if (missingDocsFilter) return;
@@ -115,9 +145,76 @@ Importieren
 {error && <div style={{ fontSize: 13, color: 'var(--color-destructive)', marginBottom: 16 }}>Fehler beim Laden: {error}</div>}
 
 {!hasSearched && !loading && (
-<div style={{ padding: '48px 12px', textAlign: 'center', fontSize: 13, color: '#999' }}>
-Tippe oben einen Namen ein, um einen Kunden zu suchen.
+<>
+<div style={{ fontSize: 12, textTransform: 'uppercase', letterSpacing: 0.5, color: '#999', fontWeight: 600, marginBottom: 8 }}>
+Offene Einverständniserklärungen{!pendingLoading ? ` (${pending.length})` : ''}
 </div>
+{pendingLoading ? (
+<div style={{ fontSize: 13, color: '#999' }}>Lädt…</div>
+) : pending.length === 0 ? (
+<div style={{ padding: '48px 12px', textAlign: 'center', fontSize: 13, color: '#999' }}>
+Keine offenen Einverständniserklärungen. Tippe oben einen Namen ein, um einen Kunden zu suchen.
+</div>
+) : (
+<div style={{ border: '1px solid var(--color-border)', borderRadius: 6, background: 'var(--color-surface)', overflow: 'hidden' }}>
+<div
+style={{
+display: 'grid',
+gridTemplateColumns: '90px 1fr 1fr 1fr 90px 1fr 40px',
+padding: '10px 12px',
+fontSize: 11,
+textTransform: 'uppercase',
+letterSpacing: 0.5,
+color: '#999',
+borderBottom: '1px solid var(--color-border)',
+fontWeight: 600,
+}}
+>
+<div>Seit</div>
+<div>Name</div>
+<div>Vorname</div>
+<div>Mobile</div>
+<div>Interesse</div>
+<div>Geburtsdatum</div>
+<div />
+</div>
+{pending.map(({ doc, customer: c }) => (
+<div
+key={doc.docId}
+onClick={() => navigate(`/kunden/${c.id}`)}
+onMouseEnter={() => setHoveredRow(c.id)}
+onMouseLeave={() => setHoveredRow(null)}
+role="button"
+tabIndex={0}
+onKeyDown={(e) => {
+if (e.key === 'Enter') navigate(`/kunden/${c.id}`);
+}}
+style={{
+display: 'grid',
+gridTemplateColumns: '90px 1fr 1fr 1fr 90px 1fr 40px',
+padding: '14px 12px',
+fontSize: 13,
+borderBottom: '1px solid #eee',
+alignItems: 'center',
+cursor: 'pointer',
+background: hoveredRow === c.id ? '#fbfaf8' : 'transparent',
+outline: 'none',
+}}
+>
+<div style={{ fontWeight: 600 }}>{formatSince(doc.createdAt)}</div>
+<div>{c.name}</div>
+<div>{c.vorname}</div>
+<div>{c.phone || '—'}</div>
+<div>{doc.treatmentType === 'tattoo' ? 'Tattoo' : doc.treatmentType === 'piercing' ? 'Piercing' : '—'}</div>
+<div>{c.birthdate || '—'}</div>
+<div style={{ display: 'flex', justifyContent: 'flex-end', color: hoveredRow === c.id ? 'var(--color-accent)' : '#ccc' }}>
+<EditIcon />
+</div>
+</div>
+))}
+</div>
+)}
+</>
 )}
 
 {loading && <div style={{ fontSize: 13, color: '#999' }}>Sucht…</div>}
