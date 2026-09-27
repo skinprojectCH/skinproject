@@ -9,7 +9,7 @@ export default function AppLayout() {
         <div className="kasse-no-print">
           <Sidebar />
         </div>
-        <div style={{ flex: 1, padding: 32, minWidth: 0 }}>
+        <div className="app-main" style={{ flex: 1, padding: 32, minWidth: 0 }}>
           <Outlet />
         </div>
       </div>

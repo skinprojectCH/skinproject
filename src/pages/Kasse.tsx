@@ -1436,21 +1436,35 @@ return (
 <div style={{ maxWidth: 720 }}>
 <style>{`
 @media print {
-@page { size: 80mm auto; margin: 3mm; }
+/* Quittungsdrucker, Rolle 80 mm: kein Seitenrand, Breite kommt vom Druckertreiber. */
+@page { margin: 0; }
+html, body { margin: 0 !important; padding: 0 !important; background: #fff !important; width: 80mm; }
+.app-main { padding: 0 !important; }
 .kasse-no-print { display: none !important; }
 .kasse-print-area {
+display: block !important;
 max-width: none !important;
-width: 100% !important;
-flex-direction: column !important;
+width: 80mm !important;
+margin: 0 !important;
 }
 .kasse-receipt-card {
 background: #fff !important;
-border: 1px solid #000 !important;
+border: none !important;
+border-radius: 0 !important;
 box-shadow: none !important;
 max-width: none !important;
-width: 100% !important;
+width: 80mm !important;
+box-sizing: border-box !important;
+padding: 4mm 5mm !important;
+margin: 0 !important;
 color: #000 !important;
 page-break-inside: avoid;
+break-inside: avoid;
+}
+/* Jede Quittung auf eigenem Abschnitt -> Drucker schneidet dazwischen. */
+.kasse-receipt-card + .kasse-receipt-card {
+page-break-before: always;
+break-before: page;
 }
 .kasse-receipt-card * {
 background: transparent !important;
@@ -1469,7 +1483,7 @@ text-shadow: none !important;
 {receiptCard('salon')}
 </div>
 
-<div style={{ textAlign: 'center', marginBottom: 28 }}>
+<div className="kasse-no-print" style={{ textAlign: 'center', marginBottom: 28 }}>
 <div style={{ fontSize: 12, textTransform: 'uppercase', letterSpacing: 0.5, color: '#999', marginBottom: 4 }}>Total kassiert</div>
 <div style={{ fontSize: 36, fontWeight: 700, fontFamily: 'var(--font-heading)' }}>{chf(receipt?.total || 0)}</div>
 </div>
