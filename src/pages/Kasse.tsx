@@ -1565,7 +1565,7 @@ return (
 )}
 </div>
 <div style={{ textAlign: 'right' }}>
-{item.kind === 'service' ? (
+{item.kind === 'service' || item.kind === 'product' ? (
 <div>
 <div style={{ display: 'flex', alignItems: 'baseline', gap: 3, justifyContent: 'flex-end' }}>
 CHF
@@ -1575,11 +1575,11 @@ step="0.05"
 min="0"
 value={item.unitPrice}
 onChange={(e) => changePrice(item.id, e.target.value)}
-title="Preis nur für diesen Kassiervorgang anpassen — der Standardpreis der Dienstleistung bleibt unverändert."
+title={`Preis nur für diesen Kassiervorgang anpassen — der Standardpreis ${item.kind === 'product' ? 'des Artikels' : 'der Dienstleistung'} bleibt unverändert.`}
 style={{ width: 64, border: '1px solid var(--color-border)', borderRadius: 4, padding: '4px 6px', fontSize: 13, textAlign: 'right', fontFamily: 'var(--font-body)' }}
 />
 </div>
-{hasDiscount && <div style={{ fontSize: 12, fontWeight: 600, marginTop: 2 }}>= {chf(discounted)}</div>}
+{(hasDiscount || item.qty > 1) && <div style={{ fontSize: 12, fontWeight: 600, marginTop: 2 }}>= {chf(discounted)}</div>}
 </div>
 ) : hasDiscount ? (
 <div>
