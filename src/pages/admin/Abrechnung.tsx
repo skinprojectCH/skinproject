@@ -80,17 +80,31 @@ function KassenbestandBox({ locationId, isHauptadmin, dateISO }: { locationId: s
     }
   }
 
+  // Kassensturz: Salon Manager gibt den GEZÄHLTEN Bestand ein, das System berechnet die
+  // Differenz zum aktuellen Soll-Bestand und speichert sie wie bisher als 'differenz'.
+  const parsedFormAmount = parseFloat(formAmount.replace(',', '.'));
+  const countedValid = formType === 'differenz' && formAmount.trim() !== '' && !isNaN(parsedFormAmount) && parsedFormAmount >= 0;
+  const previewDiff = countedValid ? Math.round((parsedFormAmount - balance) * 100) / 100 : null;
+
   async function handleSaveAdjustment() {
     if (!formType) return;
     const raw = parseFloat(formAmount.replace(',', '.'));
-    if (isNaN(raw) || raw === 0) return;
-    // Auslage = Bargeld verlässt die Kasse -> immer negativ, unabhängig vom eingegebenen
-    // Vorzeichen (Nutzer tippt meist nur "60" statt "-60"). Differenz behält das Vorzeichen,
-    // das der Salon Manager beim Kassensturz eingibt.
-    const amount = formType === 'auslage' ? -Math.abs(raw) : raw;
+    if (isNaN(raw)) return;
     setSavingForm(true);
     try {
-      await addCashAdjustment(locationId, formType, amount, formNote.trim());
+      if (formType === 'auslage') {
+        if (raw === 0) return;
+        // Auslage = Bargeld verlässt die Kasse -> immer negativ, unabhängig vom Vorzeichen.
+        await addCashAdjustment(locationId, 'auslage', -Math.abs(raw), formNote.trim());
+      } else {
+        if (raw < 0) return;
+        // Soll-Bestand frisch laden (falls seit dem Öffnen kassiert wurde), dann Differenz.
+        const current = await fetchCashBalance(locationId);
+        const diff = Math.round((raw - current) * 100) / 100;
+        const note = `Gezählt: ${formatCHF(raw)}${formNote.trim() ? ' — ' + formNote.trim() : ''}`;
+        // Auch 0 wird gespeichert -- dokumentiert, dass der Kassensturz gemacht wurde und stimmte.
+        await addCashAdjustment(locationId, 'differenz', diff, note);
+      }
       setFormType(null);
       setFormAmount('');
       setFormNote('');
@@ -124,7 +138,7 @@ function KassenbestandBox({ locationId, isHauptadmin, dateISO }: { locationId: s
             + Auslage
           </button>
           <button className="btn btn-outline" onClick={() => setFormType(formType === 'differenz' ? null : 'differenz')}>
-            + Differenz (Kassensturz)
+            Kassensturz
           </button>
           {isHauptadmin && !editingStart && (
             <button
@@ -146,17 +160,34 @@ function KassenbestandBox({ locationId, isHauptadmin, dateISO }: { locationId: s
         <div style={{ borderTop: '1px solid var(--color-border)', paddingTop: 12, display: 'flex', gap: 10, alignItems: 'flex-end', flexWrap: 'wrap' }}>
           <div>
             <div className="label-uppercase" style={{ marginBottom: 4 }}>
-              {formType === 'auslage' ? 'Auslage (Betrag)' : 'Differenz (+ oder −)'}
+              {formType === 'auslage' ? 'Auslage (Betrag)' : 'Gezählter Kassenbestand'}
             </div>
             <input
               value={formAmount}
               onChange={(e) => setFormAmount(e.target.value)}
-              placeholder={formType === 'auslage' ? 'z.B. 50' : 'z.B. -12'}
+              placeholder={formType === 'auslage' ? 'z.B. 50' : 'z.B. 146.50'}
               style={{ border: '1px solid var(--color-border)', borderRadius: 4, padding: '8px 10px', fontSize: 13, width: 160 }}
               inputMode="decimal"
               autoFocus
             />
           </div>
+          {formType === 'differenz' && (
+            <div style={{ minWidth: 120 }}>
+              <div className="label-uppercase" style={{ marginBottom: 4 }}>
+                Differenz
+              </div>
+              <div
+                style={{
+                  padding: '8px 0',
+                  fontSize: 15,
+                  fontWeight: 700,
+                  color: previewDiff === null ? '#999' : previewDiff > 0 ? '#1a7a3f' : previewDiff < 0 ? 'var(--color-destructive)' : 'inherit',
+                }}
+              >
+                {previewDiff === null ? '—' : previewDiff === 0 ? 'Stimmt ✓' : `${previewDiff > 0 ? '+' : ''}${formatCHF(previewDiff)}`}
+              </div>
+            </div>
+          )}
           <div style={{ flex: 1, minWidth: 180 }}>
             <div className="label-uppercase" style={{ marginBottom: 4 }}>
               Notiz
