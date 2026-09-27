@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import TerminModal from '../components/TerminModal';
 import EditTerminModal from '../components/EditTerminModal';
 import Modal from '../components/Modal';
-import { fetchAppointmentsForDay, fetchUnresolvedPastAppointments, fetchArtists, fetchShiftsForDate, fetchAbsencesForDate, fetchWalkInOrdersForDay, deleteAbsence, type Artist, type Shift, type Absence } from '../lib/queries';
+import { fetchAppointmentsForDay, fetchUnresolvedPastAppointments, fetchArtists, fetchShiftsForDate, fetchAbsencesForDate, fetchWalkInOrdersForDay, deleteAbsence, updateAppointment, type Artist, type Shift, type Absence } from '../lib/queries';
 import { useLocationContext } from '../lib/locationContext';
 import { formatCHF } from '../lib/format';
 
@@ -1205,6 +1205,111 @@ function ListView({
   );
 }
 
+// Tages-Kontrolle beim ersten Öffnen des Kalenders: alle offenen Termine VOR heute
+// (Status 'gebucht' = weder kassiert, storniert noch "nicht erschienen"). Pro Tag und
+// Standort nur einmal automatisch -- danach über die Listenansicht erreichbar.
+function OpenPastAppointmentsPopup({ locationId, onClose, onChanged }: { locationId: string; onClose: () => void; onChanged: () => void }) {
+  const navigate = useNavigate();
+  const [rows, setRows] = useState<any[]>([]);
+  const [busyId, setBusyId] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const todayStart = new Date();
+    todayStart.setHours(0, 0, 0, 0);
+    fetchUnresolvedPastAppointments(locationId)
+      .then((list) => {
+        const past = ((list as any[]) || []).filter((a) => new Date(a.start_time) < todayStart);
+        if (past.length === 0) onClose();
+        else setRows(past);
+      })
+      .catch((e) => setError(e.message));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [locationId]);
+
+  function planned(a: any) {
+    return (a.appointment_line_items || []).reduce((sum: number, li: any) => {
+      const gross = Number(li.quantity || 1) * Number(li.unit_price || 0);
+      const dv = li.discount_value != null ? Number(li.discount_value) : 0;
+      const net = !li.discount_type || !dv ? gross : li.discount_type === 'percent' ? gross * (1 - dv / 100) : gross - dv;
+      return sum + Math.max(0, net);
+    }, 0);
+  }
+
+  async function markNoShow(id: string) {
+    setBusyId(id);
+    setError(null);
+    try {
+      await updateAppointment(id, { status: 'nicht_erschienen' } as any);
+      const next = rows.filter((r) => r.id !== id);
+      setRows(next);
+      onChanged();
+      if (next.length === 0) onClose();
+    } catch (e: any) {
+      setError(e.message);
+    } finally {
+      setBusyId(null);
+    }
+  }
+
+  if (rows.length === 0 && !error) return null;
+  const total = rows.reduce((s, a) => s + planned(a), 0);
+
+  return (
+    <Modal title={`Offene Termine aus der Vergangenheit (${rows.length})`} onClose={onClose} width={760}>
+      <div style={{ fontSize: 12, color: '#777', marginBottom: 14 }}>
+        Diese Termine sind weder kassiert noch als „nicht erschienen“ markiert. Offener Betrag: <strong style={{ color: 'var(--color-destructive)' }}>{formatCHF(total)}</strong>
+      </div>
+      {error && <div style={{ fontSize: 12, color: 'var(--color-destructive)', marginBottom: 10 }}>Fehler: {error}</div>}
+      <div style={{ border: '1px solid var(--color-border)', borderRadius: 6, overflow: 'hidden', maxHeight: '60vh', overflowY: 'auto' }}>
+        {rows.map((a, i) => (
+          <div
+            key={a.id}
+            style={{ display: 'grid', gridTemplateColumns: '95px 1fr 1fr 90px 220px', gap: 8, padding: '12px', fontSize: 13, alignItems: 'center', borderBottom: i < rows.length - 1 ? '1px solid #eee' : 'none' }}
+          >
+            <div>
+              {new Date(a.start_time).toLocaleDateString('de-CH', { day: '2-digit', month: '2-digit', year: '2-digit' })}
+              <div style={{ fontSize: 11, color: '#999' }}>{formatTime(a.start_time)}</div>
+            </div>
+            <div>
+              {a.customers ? `${a.customers.vorname} ${a.customers.name}` : 'Laufkunde'}
+              {a.customers?.phone && <div style={{ fontSize: 11, color: '#999' }}>{a.customers.phone}</div>}
+            </div>
+            <div>
+              {artistDisplayName(a.artists)}
+              <div style={{ fontSize: 11, color: '#999' }}>{(a.appointment_line_items || []).map((li: any) => li.services?.name).filter(Boolean).join(', ') || '—'}</div>
+            </div>
+            <div style={{ fontWeight: 600, textAlign: 'right' }}>{formatCHF(planned(a))}</div>
+            <div style={{ display: 'flex', gap: 6, justifyContent: 'flex-end' }}>
+              <button className="btn btn-outline" style={{ fontSize: 11, padding: '6px 10px', opacity: busyId === a.id ? 0.6 : 1 }} disabled={busyId === a.id} onClick={() => markNoShow(a.id)}>
+                {busyId === a.id ? '…' : 'Nicht erschienen'}
+              </button>
+              <button
+                className="btn btn-primary"
+                style={{ fontSize: 11, padding: '6px 10px' }}
+                onClick={() => {
+                  onClose();
+                  navigate('/kasse', { state: { appointmentId: a.id } });
+                }}
+              >
+                Kassieren
+              </button>
+            </div>
+          </div>
+        ))}
+      </div>
+      <div style={{ fontSize: 11, color: '#999', marginTop: 10 }}>
+        Kommt der Kunde später zum Bezahlen, einfach offen lassen – der Betrag erscheint in der Abrechnung unter „Offene Debitoren“.
+      </div>
+      <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 14 }}>
+        <button className="btn btn-secondary" onClick={onClose}>
+          Später erledigen
+        </button>
+      </div>
+    </Modal>
+  );
+}
+
 export default function Kalender() {
   const { locations, locationsLoaded, selectedLocationId } = useLocationContext();
   const [view, setView] = useState<ViewMode>('tag');
@@ -1223,6 +1328,20 @@ export default function Kalender() {
   const [error, setError] = useState<string | null>(null);
   const [date, setDate] = useState(todayISO());
   const [refreshKey, setRefreshKey] = useState(0);
+  const [showOpenPastPopup, setShowOpenPastPopup] = useState(false);
+
+  // Einmal pro Tag und Standort automatisch anzeigen (z.B. beim Anmelden am Morgen).
+  useEffect(() => {
+    if (!selectedLocationId) return;
+    const key = `openPastPopup:${todayISO()}:${selectedLocationId}`;
+    try {
+      if (localStorage.getItem(key)) return;
+      localStorage.setItem(key, '1');
+    } catch {
+      /* Storage nicht verfügbar -> trotzdem anzeigen */
+    }
+    setShowOpenPastPopup(true);
+  }, [selectedLocationId]);
 
   async function reload() {
     if (!selectedLocationId) return;
@@ -1388,6 +1507,16 @@ export default function Kalender() {
           appointmentId={selectedAppointment.id}
           onClose={() => {
             setSelectedAppointment(null);
+            reload();
+            setRefreshKey((k) => k + 1);
+          }}
+        />
+      )}
+      {showOpenPastPopup && selectedLocationId && (
+        <OpenPastAppointmentsPopup
+          locationId={selectedLocationId}
+          onClose={() => setShowOpenPastPopup(false)}
+          onChanged={() => {
             reload();
             setRefreshKey((k) => k + 1);
           }}

@@ -591,7 +591,7 @@ export async function fetchUnresolvedPastAppointments(locationId?: string) {
   const nowIso = new Date().toISOString();
   let query = supabase
     .from('appointments')
-    .select('*, customers(vorname, name, phone), artists(name, kuenstlername, calendar_color), appointment_line_items(service_id, services(name))')
+    .select('*, customers(vorname, name, phone), artists(name, kuenstlername, calendar_color), appointment_line_items(service_id, quantity, unit_price, discount_type, discount_value, services(name))')
     .eq('type', 'termin')
     .eq('status', 'gebucht')
     .lt('start_time', nowIso)
