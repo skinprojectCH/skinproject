@@ -692,8 +692,9 @@ export async function fetchOrderById(orderId: string) {
 }
 
 export async function fetchAppointment(id: string) {
-  const { data, error } = await supabase.from('appointments').select('*').eq('id', id).single();
+  const { data, error } = await supabase.from('appointments').select('*').eq('id', id).maybeSingle();
   if (error) throw error;
+  if (!data) throw new Error('Dieser Termin existiert nicht mehr (wurde gelöscht). Bitte die Liste neu laden.');
   return data as Appointment;
 }
 

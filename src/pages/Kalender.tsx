@@ -905,6 +905,7 @@ function ListView({
   walkInOrders,
   artists,
   locationId,
+  refreshKey,
   onSelectAppointment,
   onSelectAbsence,
 }: {
@@ -913,6 +914,7 @@ function ListView({
   walkInOrders: any[];
   artists: Artist[];
   locationId?: string;
+  refreshKey?: number;
   onSelectAppointment: (a: LoadedAppointment) => void;
   onSelectAbsence: (absence: Absence, artistName: string) => void;
 }) {
@@ -937,7 +939,8 @@ function ListView({
 
   // Direkt beim Öffnen der Listenansicht prüfen, ob es offene vergangene Termine gibt --
   // nur dann wird der Button überhaupt angezeigt (nicht erst nach einem Klick sichtbar).
-  useEffect(loadUnresolved, [locationId]);
+  // Auch nach Änderungen (Termin gelöscht/bearbeitet) neu laden, sonst bleibt die Liste veraltet.
+  useEffect(loadUnresolved, [locationId, refreshKey]);
 
   function toggleUnresolved() {
     setShowUnresolved((prev) => !prev);
@@ -1480,6 +1483,7 @@ export default function Kalender() {
                 walkInOrders={walkInOrders}
                 artists={artists}
                 locationId={selectedLocationId}
+                refreshKey={refreshKey}
                 onSelectAppointment={setSelectedAppointment}
                 onSelectAbsence={(absence, artistName) => setSelectedAbsence({ absence, artistName })}
               />
