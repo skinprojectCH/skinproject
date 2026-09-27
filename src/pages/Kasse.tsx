@@ -1295,16 +1295,8 @@ setDeletingAppointment(false);
 }
 }
 
-if (loading) return <div style={{ fontSize: 13, color: '#999' }}>Lädt…</div>;
-
-if (!completed && alreadyKassiert) {
-return (
-<div>
-<h2 style={{ fontSize: 26, marginBottom: 12 }}>Kasse</h2>
-<div style={{ border: '1px solid #eee', borderRadius: 6, padding: 40, textAlign: 'center' }}>
-<div style={{ fontSize: 16, fontWeight: 700, marginBottom: 8 }}>Dieser Termin wurde bereits kassiert.</div>
-<div style={{ fontSize: 13, color: '#999' }}>Er kann nicht ein zweites Mal kassiert werden.</div>
-{isAdmin && appointmentId && (
+// Admin-only: bereits kassierten Termin löschen (Order/Zahlung bleibt in der Abrechnung).
+const adminDeleteBlock = isAdmin && appointmentId && alreadyKassiert ? (
 <div style={{ marginTop: 24, maxWidth: 320, marginLeft: 'auto', marginRight: 'auto' }}>
 <div style={{ fontSize: 12, color: '#999', marginBottom: 8 }}>Admin: Termin aus dem Kalender entfernen. Die Zahlung bleibt in der Abrechnung erhalten.</div>
 {!confirmDeleteAppointment ? (
@@ -1328,7 +1320,18 @@ onClick={handleDeleteAppointmentFromKasse}
 )}
 {noShowError && <div style={{ fontSize: 12, color: 'var(--color-destructive)', marginTop: 8 }}>{noShowError}</div>}
 </div>
-)}
+) : null;
+
+if (loading) return <div style={{ fontSize: 13, color: '#999' }}>Lädt…</div>;
+
+if (!completed && alreadyKassiert) {
+return (
+<div>
+<h2 style={{ fontSize: 26, marginBottom: 12 }}>Kasse</h2>
+<div style={{ border: '1px solid #eee', borderRadius: 6, padding: 40, textAlign: 'center' }}>
+<div style={{ fontSize: 16, fontWeight: 700, marginBottom: 8 }}>Dieser Termin wurde bereits kassiert.</div>
+<div style={{ fontSize: 13, color: '#999' }}>Er kann nicht ein zweites Mal kassiert werden.</div>
+{adminDeleteBlock}
 </div>
 </div>
 );
@@ -1477,6 +1480,7 @@ Quittungen drucken
 Zurück zum Kalender
 </button>
 </div>
+<div className="kasse-no-print">{adminDeleteBlock}</div>
 </div>
 );
 }
