@@ -1331,6 +1331,7 @@ export default function Kalender() {
   const [error, setError] = useState<string | null>(null);
   const [date, setDate] = useState(todayISO());
   const [refreshKey, setRefreshKey] = useState(0);
+  const [allActiveArtists, setAllActiveArtists] = useState<Artist[]>([]);
   const [showOpenPastPopup, setShowOpenPastPopup] = useState(false);
 
   // Einmal pro Tag und Standort automatisch anzeigen (z.B. beim Anmelden am Morgen).
@@ -1354,6 +1355,9 @@ export default function Kalender() {
         fetchArtists(),
       ]);
       const activeArtists = artistList.filter((a) => a.status === 'active');
+      // Wochenansicht: alle aktiven Artists wählbar (nicht nur die am aktuellen Tag eingeteilten,
+      // sonst ist die Liste z.B. an einem Sonntag leer).
+      setAllActiveArtists([...activeArtists].sort((a, b) => a.name.localeCompare(b.name)));
       const allDayShifts = await fetchShiftsForDate(activeArtists.map((a) => a.id), date);
       const shiftsHere = allDayShifts.filter((s) => s.location_id === selectedLocationId);
       const idsHere = new Set(shiftsHere.map((s) => s.artist_id));
@@ -1416,16 +1420,24 @@ export default function Kalender() {
           <ViewToggle view={view} onChange={setView} />
           <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
             <button
-              onClick={() => shiftDate(-1)}
+              onClick={() => shiftDate(view === 'woche' ? -7 : -1)}
               style={{ width: 28, height: 28, borderRadius: 4, background: 'var(--color-bg)', border: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14, color: '#333', cursor: 'pointer' }}
             >
               ‹
             </button>
             <div style={{ border: '1px solid var(--color-border)', padding: '7px 14px', fontSize: 12, color: '#333', borderRadius: 4 }}>
-              {new Date(date).toLocaleDateString('de-CH', { weekday: 'short', day: 'numeric', month: 'long' })}
+              {view === 'woche'
+                ? (() => {
+                    const mon = new Date(startOfWeekISO(date));
+                    const sun = new Date(mon);
+                    sun.setDate(mon.getDate() + 6);
+                    const f = (d: Date) => d.toLocaleDateString('de-CH', { day: 'numeric', month: 'short' });
+                    return `${f(mon)} – ${f(sun)} ${sun.getFullYear()}`;
+                  })()
+                : new Date(date).toLocaleDateString('de-CH', { weekday: 'short', day: 'numeric', month: 'long' })}
             </div>
             <button
-              onClick={() => shiftDate(1)}
+              onClick={() => shiftDate(view === 'woche' ? 7 : 1)}
               style={{ width: 28, height: 28, borderRadius: 4, background: 'var(--color-bg)', border: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14, color: '#333', cursor: 'pointer' }}
             >
               ›
@@ -1462,7 +1474,7 @@ export default function Kalender() {
           )}
           {view === 'woche' && (
             <WeekView
-              artists={artists}
+              artists={allActiveArtists}
               locationId={selectedLocationId}
               baseDate={date}
               refreshKey={refreshKey}
