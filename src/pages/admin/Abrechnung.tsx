@@ -483,6 +483,16 @@ async function downloadLocationSummaryPdf(opts: {
       y += 6;
     }
   };
+  {
+    const lbl: Record<string, string> = { bar: 'Bar', karte: 'Karte', twint: 'TWINT', rechnung: 'Rechnung', online: 'Online (Stripe)', gutschein: 'Gutschein eingelöst (kein Geldeingang)', anzahlung: 'Anzahlung eingelöst (kein Geldeingang)' };
+    const totalIn = b.paymentsByMethod.filter((p) => p.method !== 'gutschein' && p.method !== 'anzahlung').reduce((s, p) => s + p.amount, 0);
+    if (b.paymentsByMethod.length > 0) {
+      pdfList(
+        `Einnahmen nach Zahlungsart: ${formatCHF(totalIn)}`,
+        b.paymentsByMethod.map((p) => ({ label: `${lbl[p.method] || p.method} (${p.count}×)`, amount: p.amount }))
+      );
+    }
+  }
   if (b.openReceivables.length > 0) {
     pdfList(
       `Offene Debitoren (noch nicht bezahlt): ${formatCHF(b.openReceivablesTotal)}`,
@@ -892,6 +902,41 @@ export default function Abrechnung() {
               PDF herunterladen
             </button>
           </div>
+          {(() => {
+            const label: Record<string, string> = { bar: 'Bar', karte: 'Karte', twint: 'TWINT', rechnung: 'Rechnung', online: 'Online (Stripe)', gutschein: 'Gutschein eingelöst', anzahlung: 'Anzahlung eingelöst' };
+            const moneyIn = billing.paymentsByMethod.filter((p) => p.method !== 'gutschein' && p.method !== 'anzahlung');
+            const redeemed = billing.paymentsByMethod.filter((p) => p.method === 'gutschein' || p.method === 'anzahlung');
+            const totalIn = moneyIn.reduce((s, p) => s + p.amount, 0);
+            const ensure = (m: string) => (moneyIn.some((p) => p.method === m) ? [] : [{ method: m, amount: 0, count: 0 }]);
+            const rows = [...ensure('bar'), ...ensure('karte'), ...moneyIn].sort((a, b) => (a.method === 'bar' ? -1 : b.method === 'bar' ? 1 : a.method === 'karte' ? -1 : b.method === 'karte' ? 1 : 0));
+            return (
+              <div style={{ ...summaryCardStyle, marginBottom: 20 }}>
+                <div style={{ fontSize: 11, color: '#999', textTransform: 'uppercase', marginBottom: 10, fontWeight: 600 }}>Einnahmen nach Zahlungsart</div>
+                <div style={{ display: 'flex', gap: 28, flexWrap: 'wrap', alignItems: 'flex-end' }}>
+                  {rows.map((p) => (
+                    <div key={p.method}>
+                      <div style={{ fontSize: 12, color: '#777' }}>
+                        {label[p.method] || p.method}
+                        {p.count > 0 && <span style={{ color: '#bbb' }}> · {p.count}×</span>}
+                      </div>
+                      <div style={{ fontFamily: 'var(--font-heading)', fontSize: 18, fontWeight: 700 }}>{formatCHF(p.amount)}</div>
+                    </div>
+                  ))}
+                  <div style={{ marginLeft: 'auto', textAlign: 'right' }}>
+                    <div style={{ fontSize: 12, color: '#777' }}>Total Einnahmen</div>
+                    <div style={{ fontFamily: 'var(--font-heading)', fontSize: 18, fontWeight: 700 }}>{formatCHF(totalIn)}</div>
+                  </div>
+                </div>
+                {redeemed.length > 0 && (
+                  <div style={{ fontSize: 11, color: '#999', marginTop: 10 }}>
+                    Zusätzlich mit Guthaben bezahlt (kein Geldeingang): {redeemed.map((p) => `${label[p.method]} ${formatCHF(p.amount)}`).join(' · ')}
+                  </div>
+                )}
+                <div style={{ fontSize: 11, color: '#999', marginTop: 6 }}>Nach Zahlungsdatum – inkl. Anzahlungs-Verkäufe und nachträglich bezahlter Termine.</div>
+              </div>
+            );
+          })()}
+
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 16, marginBottom: 24 }}>
             <div style={summaryCardStyle}>
               <div style={{ fontSize: 11, color: '#999', textTransform: 'uppercase', marginBottom: 8, fontWeight: 600 }}>Umsatz Salon</div>

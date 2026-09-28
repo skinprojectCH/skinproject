@@ -1150,6 +1150,7 @@ export interface LocationBilling {
   openReceivablesTotal: number;
   lateReceipts: LateReceiptEntry[]; // im Zeitraum eingegangene Zahlungen für Termine VOR dem Zeitraum (kein Umsatz, nur Geldeingang)
   lateReceiptsTotal: number;
+  paymentsByMethod: { method: string; amount: number; count: number }[]; // Einnahmen nach Zahlungsart (nach Zahlungsdatum)
 }
 
 export interface OpenReceivableEntry {
@@ -1253,6 +1254,29 @@ export async function fetchLocationBilling(locationId: string, startDateISO: str
     payments: (o.payments || []).map((p: any) => ({ method: p.method, amount: Number(p.amount) })),
   }));
   const lateReceiptsTotal = lateReceipts.reduce((s, r) => s + r.amount, 0);
+
+  // Einnahmen nach Zahlungsart: alle Zahlungen, die im Zeitraum kassiert wurden (Bestelldatum),
+  // inkl. Anzahlungs-Verkäufe und nachträglich bezahlte Termine -- entspricht dem Geldfluss.
+  const { data: periodPayments, error: ppError } = await supabase
+    .from('payments')
+    .select('method, amount, orders!inner(location_id, status, created_at)')
+    .eq('orders.location_id', locationId)
+    .eq('orders.status', 'bezahlt')
+    .gte('orders.created_at', start)
+    .lte('orders.created_at', end);
+  if (ppError) throw ppError;
+  const methodMap = new Map<string, { amount: number; count: number }>();
+  for (const p of (periodPayments as any[]) || []) {
+    const m = String(p.method || '').toLowerCase();
+    const cur = methodMap.get(m) || { amount: 0, count: 0 };
+    cur.amount += Number(p.amount);
+    cur.count += 1;
+    methodMap.set(m, cur);
+  }
+  const METHOD_ORDER = ['bar', 'karte', 'twint', 'rechnung', 'online', 'gutschein', 'anzahlung'];
+  const paymentsByMethod = [...methodMap.entries()]
+    .map(([method, v]) => ({ method, amount: v.amount, count: v.count }))
+    .sort((a, b) => (METHOD_ORDER.indexOf(a.method) + 99 * +(METHOD_ORDER.indexOf(a.method) < 0)) - (METHOD_ORDER.indexOf(b.method) + 99 * +(METHOD_ORDER.indexOf(b.method) < 0)));
   const avgOrderValue = orderCount > 0 ? salonRevenue / orderCount : 0;
 
   // Aktueller OFFENER Bestand an Anzahlungen dieser Location -- bewusst OHNE Zeitraum-Filter,
@@ -1333,6 +1357,7 @@ export async function fetchLocationBilling(locationId: string, startDateISO: str
     openReceivablesTotal,
     lateReceipts,
     lateReceiptsTotal,
+    paymentsByMethod,
   };
 }
 
