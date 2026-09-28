@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useLocationContext } from '../../lib/locationContext';
-import { fetchLocationBilling, fetchLocationArtistBillingDetail, fetchLocations, fetchCashStartingBalance, setCashStartingBalance, fetchCashBalance, addCashAdjustment, fetchCashAdjustmentsForDay, fetchLocationManagers, type LocationManager, type LocationBilling, type LocationBillingArtistRow, type LocationArtistBillingEntry, type CashAdjustment, type RedeemedVoucherEntry } from '../../lib/queries';
+import { fetchLocationBilling, fetchLocationArtistBillingDetail, fetchLocations, fetchCashStartingBalance, setCashStartingBalance, fetchCashBalance, fetchCashBalanceDetail, type CashBalanceDetail, addCashAdjustment, fetchCashAdjustmentsForDay, fetchLocationManagers, type LocationManager, type LocationBilling, type LocationBillingArtistRow, type LocationArtistBillingEntry, type CashAdjustment, type RedeemedVoucherEntry } from '../../lib/queries';
 import { formatCHF } from '../../lib/format';
 import Modal from '../../components/Modal';
 
@@ -37,6 +37,7 @@ const summaryCardStyle: React.CSSProperties = { border: '1px solid var(--color-b
 function KassenbestandBox({ locationId, isHauptadmin, dateISO }: { locationId: string; isHauptadmin: boolean; dateISO: string }) {
   const [startingBalance, setStartingBalanceState] = useState<number>(0);
   const [balance, setBalance] = useState<number>(0);
+  const [cashDetail, setCashDetail] = useState<CashBalanceDetail | null>(null);
   const [todayAdjustments, setTodayAdjustments] = useState<CashAdjustment[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -66,10 +67,11 @@ function KassenbestandBox({ locationId, isHauptadmin, dateISO }: { locationId: s
   function reload() {
     setLoading(true);
     setError(null);
-    Promise.all([fetchCashStartingBalance(locationId), fetchCashBalance(locationId), fetchCashAdjustmentsForDay(locationId, dateISO)])
-      .then(([start, bal, adj]) => {
-        setStartingBalanceState(start);
-        setBalance(bal);
+    Promise.all([fetchCashBalanceDetail(locationId), fetchCashAdjustmentsForDay(locationId, dateISO)])
+      .then(([detail, adj]) => {
+        setStartingBalanceState(detail.startingBalance);
+        setBalance(detail.balance);
+        setCashDetail(detail);
         setTodayAdjustments(adj);
       })
       .catch((e) => setError(e.message))
@@ -150,6 +152,12 @@ function KassenbestandBox({ locationId, isHauptadmin, dateISO }: { locationId: s
           <div>
             <div style={{ fontSize: 11, color: '#999', textTransform: 'uppercase', fontWeight: 600, marginBottom: 4 }}>Kassenbestand aktuell</div>
             {!loading && <div style={{ fontFamily: 'var(--font-heading)', fontSize: 22, fontWeight: 700 }}>{formatCHF(balance)}</div>}
+            {!loading && cashDetail && (
+              <div style={{ fontSize: 11, color: '#999', marginTop: 4 }}>
+                Start {formatCHF(cashDetail.startingBalance)} + Bar-Einnahmen {formatCHF(cashDetail.cashIn)} {cashDetail.adjustments < 0 ? '−' : '+'} Auslagen/Differenzen {formatCHF(Math.abs(cashDetail.adjustments))}
+                {cashDetail.startSetAt && ` · seit ${new Date(cashDetail.startSetAt).toLocaleString('de-CH', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })}`}
+              </div>
+            )}
           </div>
         </div>
         <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>

@@ -1770,17 +1770,45 @@ export interface CashAdjustment {
 // Laufender Kassenbestand: Startbetrag + alle jemals eingegangenen Bar-Zahlungen + alle
 // Auslagen/Differenzen (können vom Salon Manager laufend erfasst werden, nicht nur vom
 // Hauptadmin) -- wächst also mit jeder Bar-Zahlung, bis jemand eine Auslage macht.
-export async function fetchCashBalance(locationId: string): Promise<number> {
-  const [startingBalance, { data: cashPayments, error: payError }, { data: adjustments, error: adjError }] = await Promise.all([
-    fetchCashStartingBalance(locationId),
-    supabase.from('payments').select('amount, orders!inner(location_id)').eq('method', 'bar').eq('orders.location_id', locationId),
-    supabase.from('cash_adjustments').select('amount').eq('location_id', locationId),
-  ]);
+export interface CashBalanceDetail {
+  startingBalance: number;
+  startSetAt: string | null; // ab diesem Zeitpunkt wird gezählt
+  cashIn: number; // Bar-Einnahmen seit startSetAt
+  adjustments: number; // Auslagen + Differenzen seit startSetAt
+  balance: number;
+}
+
+// Kassenbestand = Startbetrag + NUR Bar-Zahlungen + Auslagen/Differenzen -- jeweils erst ab
+// dem Zeitpunkt, an dem der Startbetrag gesetzt wurde (sonst würden ältere Bar-Zahlungen,
+// die beim Zählen des Startbetrags schon in der Kasse lagen, doppelt gezählt).
+// Karte, Rechnung, Gutschein, Anzahlung und Online zählen NIE zum Kassenbestand.
+export async function fetchCashBalanceDetail(locationId: string): Promise<CashBalanceDetail> {
+  const { data: settings, error: setError } = await supabase.from('location_cash_settings').select('starting_balance, updated_at').eq('location_id', locationId).maybeSingle();
+  if (setError) throw setError;
+  const startingBalance = settings ? Number(settings.starting_balance) : 0;
+  const startSetAt: string | null = settings?.updated_at || null;
+
+  let payQuery = supabase
+    .from('payments')
+    .select('amount, method, orders!inner(location_id, status, created_at)')
+    .eq('method', 'bar')
+    .eq('orders.location_id', locationId)
+    .eq('orders.status', 'bezahlt');
+  let adjQuery = supabase.from('cash_adjustments').select('amount, created_at').eq('location_id', locationId);
+  if (startSetAt) {
+    payQuery = payQuery.gte('orders.created_at', startSetAt);
+    adjQuery = adjQuery.gte('created_at', startSetAt);
+  }
+  const [{ data: cashPayments, error: payError }, { data: adjustments, error: adjError }] = await Promise.all([payQuery, adjQuery]);
   if (payError) throw payError;
   if (adjError) throw adjError;
-  const cashTotal = ((cashPayments as any[]) || []).reduce((s, p) => s + Number(p.amount), 0);
+  const cashIn = ((cashPayments as any[]) || []).filter((p) => p.method === 'bar').reduce((s, p) => s + Number(p.amount), 0);
   const adjustmentTotal = ((adjustments as any[]) || []).reduce((s, a) => s + Number(a.amount), 0);
-  return startingBalance + cashTotal + adjustmentTotal;
+  return { startingBalance, startSetAt, cashIn, adjustments: adjustmentTotal, balance: startingBalance + cashIn + adjustmentTotal };
+}
+
+export async function fetchCashBalance(locationId: string): Promise<number> {
+  return (await fetchCashBalanceDetail(locationId)).balance;
 }
 
 // Auslage (Bargeld-Entnahme, üblicherweise negativ) oder Differenz (Kassensturz-Korrektur
