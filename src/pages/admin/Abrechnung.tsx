@@ -327,7 +327,7 @@ async function downloadBillingPdf(opts: { title: string; subtitle: string; artis
   y += 7;
   doc.setFontSize(10);
   doc.setTextColor(120);
-  doc.text(`${opts.artistName} · ${opts.locationName} · ${opts.subtitle}`, 14, y);
+  doc.text(`${opts.artistName} · ${opts.subtitle}`, 14, y);
   y += 12;
   doc.setTextColor(0);
   doc.setFontSize(10);
@@ -347,7 +347,7 @@ async function downloadBillingPdf(opts: { title: string; subtitle: string; artis
   y += 9;
   doc.setFontSize(13);
   doc.setFont('helvetica', 'bold');
-  doc.text('Total Auszahlung', 14, y);
+  doc.text('Total', 14, y);
   doc.text(formatCHF(opts.total), 196, y, { align: 'right' });
   doc.save(`${opts.title.replace(/[^\w-]+/g, '_')}.pdf`);
 }
