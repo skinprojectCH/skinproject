@@ -100,22 +100,48 @@ export default function TerminModal({ onClose, onSave, locationId, initialDate, 
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [artistServiceIds]);
 
-  // Nur Artists anzeigen, die laut Schichtplan an diesem Datum an dieser Location arbeiten
-  // (Rückfallebene: Artists ganz ohne Schichtplan erscheinen an ihrer Stamm-Location).
+  // Alle aktiven Artists sind wählbar. Wer laut Schichtplan an diesem Datum an dieser
+  // Location arbeitet (bzw. ohne Schichtplan hier seine Stamm-Location hat), steht oben
+  // unter "Im Dienst"; alle anderen darunter unter "Weitere Artists".
+  const [scheduledIds, setScheduledIds] = useState<Set<string>>(new Set());
   useEffect(() => {
     if (allArtists.length === 0) return;
+    const sorted = [...allArtists].sort((a, b) => a.name.localeCompare(b.name));
     if (!locationId) {
-      setArtists(allArtists);
+      setScheduledIds(new Set());
+      setArtists(sorted);
       return;
     }
     fetchShiftsForDate(allArtists.map((a) => a.id), date)
       .then((shifts) => {
         const idsHere = new Set(shifts.filter((s) => s.location_id === locationId).map((s) => s.artist_id));
-        const scoped = allArtists.filter((a) => idsHere.has(a.id) || (!idsWithShifts.has(a.id) && a.location_id === locationId));
-        setArtists(scoped.length > 0 ? scoped : allArtists);
+        const scheduled = new Set(allArtists.filter((a) => idsHere.has(a.id) || (!idsWithShifts.has(a.id) && a.location_id === locationId)).map((a) => a.id));
+        setScheduledIds(scheduled);
+        // Reihenfolge: zuerst im Dienst, dann die übrigen (je alphabetisch).
+        setArtists([...sorted.filter((a) => scheduled.has(a.id)), ...sorted.filter((a) => !scheduled.has(a.id))]);
       })
-      .catch(() => setArtists(allArtists));
+      .catch(() => {
+        setScheduledIds(new Set());
+        setArtists(sorted);
+      });
   }, [allArtists, idsWithShifts, locationId, date]);
+
+  function artistOptions() {
+    const inDuty = artists.filter((a) => scheduledIds.has(a.id));
+    const others = artists.filter((a) => !scheduledIds.has(a.id));
+    const opt = (a: Artist) => (
+      <option key={a.id} value={a.id}>
+        {a.name}
+      </option>
+    );
+    if (inDuty.length === 0) return others.map(opt);
+    return (
+      <>
+        <optgroup label="Im Dienst">{inDuty.map(opt)}</optgroup>
+        {others.length > 0 && <optgroup label="Weitere Artists">{others.map(opt)}</optgroup>}
+      </>
+    );
+  }
 
   useEffect(() => {
     if (artists.length && (!selectedArtist || !artists.some((a) => a.id === selectedArtist))) {
@@ -268,12 +294,11 @@ export default function TerminModal({ onClose, onSave, locationId, initialDate, 
           <div style={{ marginBottom: 14 }}>
             {fieldLabel('Artist auswählen')}
             <select value={selectedArtist} onChange={(e) => setSelectedArtist(e.target.value)} style={{ ...boxStyle, width: '100%' }}>
-              {artists.map((a) => (
-                <option key={a.id} value={a.id}>
-                  {a.name}
-                </option>
-              ))}
+              {artistOptions()}
             </select>
+            {selectedArtist && scheduledIds.size > 0 && !scheduledIds.has(selectedArtist) && (
+              <div style={{ fontSize: 11, color: 'var(--color-destructive)', marginTop: 4 }}>Hinweis: laut Schichtplan an diesem Tag hier nicht im Dienst.</div>
+            )}
           </div>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 14 }}>
             <div>
@@ -345,11 +370,7 @@ export default function TerminModal({ onClose, onSave, locationId, initialDate, 
           <div style={{ marginBottom: 16 }}>
             {fieldLabel('Artist')}
             <select value={absenceArtist} onChange={(e) => setAbsenceArtist(e.target.value)} style={{ ...boxStyle, width: '100%' }}>
-              {artists.map((a) => (
-                <option key={a.id} value={a.id}>
-                  {a.name}
-                </option>
-              ))}
+              {artistOptions()}
             </select>
           </div>
           <div style={{ marginBottom: 16 }}>
