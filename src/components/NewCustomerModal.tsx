@@ -20,7 +20,8 @@ export default function NewCustomerModal({ onClose, onCreated }: { onClose: () =
   const vornameValid = vorname.trim().length > 0;
   const nameValid = name.trim().length > 0;
   const phoneValid = phone.trim().length > 0;
-  const emailValid = email.trim().length > 0;
+  // E-Mail ist freiwillig (bewusst ohne Formatprüfung, damit importierte Altdaten speicherbar bleiben).
+  const emailValid = true;
   const strasseValid = strasse.trim().length > 0;
   const plzOrtValid = plzOrt.trim().length > 0;
   const birthdateValid = birthdate.trim().length > 0;
@@ -111,7 +112,7 @@ export default function NewCustomerModal({ onClose, onCreated }: { onClose: () =
           <input type="date" value={birthdate} onChange={(e) => setBirthdate(e.target.value)} style={attempted && !birthdateValid ? { ...inputStyle, border: '1px solid var(--color-destructive)' } : inputStyle} />
         </div>
       </div>
-      {attempted && !allValid && <div style={{ fontSize: 11, color: 'var(--color-destructive)', marginBottom: 8 }}>Alle Felder sind Pflicht.</div>}
+      {attempted && !allValid && <div style={{ fontSize: 11, color: 'var(--color-destructive)', marginBottom: 8 }}>Bitte alle Pflichtfelder ausfüllen (E-Mail ist freiwillig).</div>}
       {error && <div style={{ fontSize: 12, color: 'var(--color-destructive)', marginBottom: 12 }}>{error}</div>}
       <div style={{ display: 'flex', gap: 10 }}>
         <button className="btn btn-secondary" style={{ flex: 1, justifyContent: 'center' }} onClick={onClose}>

@@ -136,7 +136,8 @@ export default function KundeDetail() {
   const nameValid = name.trim().length > 0;
   const birthdateValid = birthdate.trim().length > 0;
   const phoneValid = phone.trim().length > 0;
-  const emailValid = email.trim().length > 0;
+  // E-Mail ist freiwillig (bewusst ohne Formatprüfung, damit importierte Altdaten speicherbar bleiben).
+  const emailValid = true;
   const strasseValid = strasse.trim().length > 0;
   const plzOrtValid = plzOrt.trim().length > 0;
   const canSave = vornameValid && nameValid && birthdateValid && phoneValid && emailValid && strasseValid && plzOrtValid;
@@ -526,8 +527,8 @@ export default function KundeDetail() {
             </div>
             <input value={plzOrt} onChange={(e) => setPlzOrt(e.target.value)} style={attempted && !plzOrtValid ? { ...inputStyle, border: '1px solid var(--color-destructive)' } : inputStyle} placeholder="—" />
           </div>
-          {attempted && (!birthdateValid || !phoneValid || !emailValid || !strasseValid || !plzOrtValid) && (
-            <div style={{ fontSize: 11, color: 'var(--color-destructive)', marginBottom: 8 }}>Geburtsdatum, Mobile, E-Mail, Strasse und PLZ/Ort sind Pflichtfelder.</div>
+          {attempted && (!birthdateValid || !phoneValid || !strasseValid || !plzOrtValid) && (
+            <div style={{ fontSize: 11, color: 'var(--color-destructive)', marginBottom: 8 }}>Geburtsdatum, Mobile, Strasse und PLZ/Ort sind Pflichtfelder.</div>
           )}
 
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', margin: '14px 0 6px' }}>
