@@ -6,6 +6,7 @@ import {
   fetchServices,
   fetchServiceCategories,
   fetchShiftsForDate,
+  fetchAbsencesForDate,
   fetchArtistIdsWithAnyShifts,
   createAppointment,
   addAppointmentLineItems,
@@ -22,6 +23,7 @@ import {
 import NewCustomerModal from './NewCustomerModal';
 import CustomerAutocomplete from './CustomerAutocomplete';
 import CustomerHealthAlert from './CustomerHealthAlert';
+import AbsenceWarning from './AbsenceWarning';
 import { formatCHF } from '../lib/format';
 
 const ABSENCE_TYPES: { key: 'ferien' | 'krank' | 'abwesend'; label: string }[] = [
@@ -127,12 +129,27 @@ export default function TerminModal({ onClose, onSave, locationId, initialDate, 
       });
   }, [allArtists, idsWithShifts, locationId, date]);
 
+  // Absenzen aller Artists am gewählten Datum -> im Dropdown markieren.
+  const [absentLabels, setAbsentLabels] = useState<Record<string, string>>({});
+  useEffect(() => {
+    if (allArtists.length === 0 || !date) return;
+    const labels: Record<string, string> = { ferien: 'Ferien', krank: 'Krank', abwesend: 'Abwesend' };
+    fetchAbsencesForDate(allArtists.map((a) => a.id), date)
+      .then((list) => {
+        const map: Record<string, string> = {};
+        for (const ab of list) map[ab.artist_id] = `${labels[ab.type] || ab.type}${ab.half_day === 'am' ? ' vormittags' : ab.half_day === 'pm' ? ' nachmittags' : ''}`;
+        setAbsentLabels(map);
+      })
+      .catch(() => setAbsentLabels({}));
+  }, [allArtists, date]);
+
   function artistOptions() {
     const inDuty = artists.filter((a) => scheduledIds.has(a.id));
     const others = artists.filter((a) => !scheduledIds.has(a.id));
     const opt = (a: Artist) => (
       <option key={a.id} value={a.id}>
         {a.name}
+        {absentLabels[a.id] ? ` – ${absentLabels[a.id]}` : ''}
       </option>
     );
     if (inDuty.length === 0) return others.map(opt);
@@ -312,6 +329,7 @@ export default function TerminModal({ onClose, onSave, locationId, initialDate, 
               <input type="time" value={time} onChange={(e) => setTime(e.target.value)} style={{ ...boxStyle, width: '100%' }} />
             </div>
           </div>
+          <AbsenceWarning artistId={selectedArtist} date={date} time={time} />
           <div style={{ marginBottom: 10 }}>
             {fieldLabel('Services')}
             <select

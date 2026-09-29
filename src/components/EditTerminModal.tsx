@@ -20,6 +20,7 @@ import {
 import NewCustomerModal from './NewCustomerModal';
 import CustomerAutocomplete from './CustomerAutocomplete';
 import CustomerHealthAlert from './CustomerHealthAlert';
+import AbsenceWarning from './AbsenceWarning';
 import { formatCHF } from '../lib/format';
 
 interface Props {
@@ -288,6 +289,7 @@ export default function EditTerminModal({ appointmentId, onClose }: Props) {
           <input type="time" value={time} onChange={(e) => setTime(e.target.value)} style={boxStyle} />
         </div>
       </div>
+      <AbsenceWarning artistId={selectedArtist} date={date} time={time} />
 
       <div style={{ marginBottom: 10 }}>
         {fieldLabel('Services')}
