@@ -83,6 +83,10 @@ export default function AiSupport({ role, bottomOffset = 0 }: { role: string | n
 
   const suggestions = SUGGESTIONS[role === 'artist' ? 'artist' : 'default'];
 
+  // Hilfe-Button erst anzeigen, wenn in Vercel VITE_AI_SUPPORT=true gesetzt ist
+  // (zusammen mit ANTHROPIC_API_KEY). Bis dahin unsichtbar.
+  if (import.meta.env.VITE_AI_SUPPORT !== 'true') return null;
+
   return (
     <div className="kasse-no-print">
       {!open && (
