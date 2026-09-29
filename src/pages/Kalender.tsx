@@ -28,6 +28,36 @@ interface LoadedAppointment {
   artistName: string;
   artistColor: string;
   status: string;
+  payments: { method: string; amount: number }[];
+}
+
+const PAYMENT_LABELS: Record<string, string> = { bar: 'Bar', karte: 'Karte', twint: 'TWINT', rechnung: 'Rechnung', online: 'Online', gutschein: 'Gutschein', anzahlung: 'Anzahlung' };
+
+function PaymentBadges({ payments }: { payments: { method: string; amount: number }[] }) {
+  if (!payments || payments.length === 0) return null;
+  return (
+    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginTop: 4 }}>
+      {payments.map((p, i) => (
+        <span
+          key={i}
+          title={formatCHF(Number(p.amount))}
+          style={{
+            fontSize: 10,
+            fontWeight: 600,
+            padding: '2px 6px',
+            borderRadius: 8,
+            border: '1px solid var(--color-border)',
+            background: p.method === 'bar' ? '#EAF4EC' : p.method === 'karte' ? '#EAF0F7' : 'transparent',
+            color: '#333',
+            whiteSpace: 'nowrap',
+          }}
+        >
+          {PAYMENT_LABELS[p.method] || p.method}
+          {payments.length > 1 ? ` ${formatCHF(Number(p.amount))}` : ''}
+        </span>
+      ))}
+    </div>
+  );
 }
 
 function mapAppointmentRow(a: any, dateISO: string): LoadedAppointment {
@@ -46,6 +76,7 @@ function mapAppointmentRow(a: any, dateISO: string): LoadedAppointment {
     artistName: artistDisplayName(a.artists),
     artistColor: a.artists?.calendar_color || 'var(--color-accent)',
     status: a.status,
+    payments: ((a.orders || []).find((o: any) => o.status === 'bezahlt')?.payments || []).map((p: any) => ({ method: String(p.method || '').toLowerCase(), amount: Number(p.amount) })),
   };
 }
 
@@ -1052,7 +1083,7 @@ function ListView({
       <div
         style={{
           display: 'grid',
-          gridTemplateColumns: '110px 1fr 1fr 1.4fr 100px',
+          gridTemplateColumns: '110px 1fr 1fr 1.4fr 150px',
           padding: '10px 12px',
           fontSize: 11,
           textTransform: 'uppercase',
@@ -1081,7 +1112,7 @@ function ListView({
           }}
           style={{
             display: 'grid',
-            gridTemplateColumns: '110px 1fr 1fr 1.4fr 100px',
+            gridTemplateColumns: '110px 1fr 1fr 1.4fr 150px',
             padding: '14px 12px',
             fontSize: 13,
             borderBottom: '1px solid #eee',
@@ -1104,7 +1135,10 @@ function ListView({
           </div>
           <div>{a.artistName}</div>
           <div style={{ color: a.services.length ? '#111' : '#999' }}>{a.services.length ? a.services.join(', ') : '—'}</div>
-          <div style={statusPillStyle(a.status)}>{a.status}</div>
+          <div>
+            <div style={statusPillStyle(a.status)}>{a.status}</div>
+            <PaymentBadges payments={a.payments} />
+          </div>
         </div>
       ))}
       {appointments.length === 0 && <div style={{ padding: '20px 12px', fontSize: 13, color: '#999' }}>Keine Termine für diesen Tag.</div>}
@@ -1153,7 +1187,7 @@ function ListView({
             <div
               style={{
                 display: 'grid',
-                gridTemplateColumns: '90px 1fr 1fr 100px',
+                gridTemplateColumns: '90px 1fr 1fr 150px',
                 padding: '10px 14px',
                 fontSize: 11,
                 textTransform: 'uppercase',
@@ -1184,7 +1218,7 @@ function ListView({
                   }}
                   style={{
                     display: 'grid',
-                    gridTemplateColumns: '90px 1fr 1fr 100px',
+                    gridTemplateColumns: '90px 1fr 1fr 150px',
                     padding: '12px 14px',
                     fontSize: 13,
                     borderBottom: i < walkInOrders.length - 1 ? '1px solid #eee' : 'none',
@@ -1197,7 +1231,12 @@ function ListView({
                   <div>{new Date(order.created_at).toLocaleTimeString('de-CH', { hour: '2-digit', minute: '2-digit' })}</div>
                   <div>{customerLabel}</div>
                   <div style={{ color: '#777', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{positions || '—'}</div>
-                  <div style={{ fontWeight: 600, textAlign: 'right' }}>{formatCHF(order.total)}</div>
+                  <div style={{ textAlign: 'right' }}>
+                    <div style={{ fontWeight: 600 }}>{formatCHF(order.total)}</div>
+                    <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+                      <PaymentBadges payments={(order.payments || []).map((p: any) => ({ method: String(p.method || '').toLowerCase(), amount: Number(p.amount) }))} />
+                    </div>
+                  </div>
                 </div>
               );
             })}
