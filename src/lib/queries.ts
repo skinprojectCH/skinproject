@@ -1766,6 +1766,49 @@ export async function fetchDiscountStats(startDateISO: string, endDateISO: strin
   return { grossRevenue, netRevenue, discountAmount, discountPct };
 }
 
+// ---------- Statistik Zahlungsarten ----------
+export interface PaymentMethodStats {
+  byMethod: { method: string; amount: number; count: number }[]; // alle Zahlungsarten
+  moneyInTotal: number; // ohne Gutschein/Anzahlung-Einlösung (kein Geldeingang)
+  byMonth: { month: number; byMethod: Record<string, number>; total: number }[]; // 0-11, nur Geldeingang
+}
+
+// Zahlungen nach Zahlungsart für einen Zeitraum (nach Zahlungsdatum = Bestelldatum), über
+// alle Standorte hinweg. Enthält auch Anzahlungs-Verkäufe (Geld ist geflossen).
+export async function fetchPaymentMethodStats(startDateISO: string, endDateISO: string): Promise<PaymentMethodStats> {
+  const start = `${startDateISO}T00:00:00`;
+  const end = `${endDateISO}T23:59:59`;
+  const { data, error } = await supabase
+    .from('payments')
+    .select('method, amount, orders!inner(status, created_at)')
+    .eq('orders.status', 'bezahlt')
+    .gte('orders.created_at', start)
+    .lte('orders.created_at', end);
+  if (error) throw error;
+
+  const methodMap = new Map<string, { amount: number; count: number }>();
+  const months: { month: number; byMethod: Record<string, number>; total: number }[] = Array.from({ length: 12 }, (_, m) => ({ month: m, byMethod: {}, total: 0 }));
+  let moneyInTotal = 0;
+  for (const p of (data as any[]) || []) {
+    const method = String(p.method || '').toLowerCase();
+    const amount = Number(p.amount);
+    const cur = methodMap.get(method) || { amount: 0, count: 0 };
+    cur.amount += amount;
+    cur.count += 1;
+    methodMap.set(method, cur);
+    if (method !== 'gutschein' && method !== 'anzahlung') {
+      moneyInTotal += amount;
+      const m = new Date(p.orders.created_at).getMonth();
+      months[m].byMethod[method] = (months[m].byMethod[method] || 0) + amount;
+      months[m].total += amount;
+    }
+  }
+  const ORDER = ['bar', 'karte', 'twint', 'rechnung', 'online', 'gutschein', 'anzahlung'];
+  const rank = (m: string) => (ORDER.indexOf(m) < 0 ? 99 : ORDER.indexOf(m));
+  const byMethod = [...methodMap.entries()].map(([method, v]) => ({ method, ...v })).sort((a, b) => rank(a.method) - rank(b.method));
+  return { byMethod, moneyInTotal, byMonth: months };
+}
+
 // ---------- Kassenbestand ----------
 // Fixer Startbetrag pro Location (z.B. 300 CHF Wechselgeld) -- nur der Hauptadmin darf
 // diesen Basiswert ändern.

@@ -9,6 +9,8 @@ import {
   fetchYearlyArtistRevenueSeriesMulti,
   fetchArtists,
   fetchDiscountStats,
+  fetchPaymentMethodStats,
+  type PaymentMethodStats,
   type CustomerStats,
   type ServiceProductPerformance,
   type DiscountStats,
@@ -578,14 +580,193 @@ function RabattStatistik() {
   );
 }
 
+const PAY_LABELS: Record<string, string> = { bar: 'Bar', karte: 'Karte', twint: 'TWINT', rechnung: 'Rechnung', online: 'Online (Stripe)', gutschein: 'Gutschein eingelöst', anzahlung: 'Anzahlung eingelöst' };
+const PAY_COLORS: Record<string, string> = { bar: '#5B8A72', karte: 'var(--color-slate)', twint: '#7A6FB0', rechnung: 'var(--color-taupe)', online: 'var(--color-accent)' };
+
+function MethodDonut({ parts, size = 160 }: { parts: { method: string; amount: number }[]; size?: number }) {
+  const total = parts.reduce((s, p) => s + p.amount, 0);
+  let angle = 0;
+  const stops = parts
+    .filter((p) => p.amount > 0)
+    .map((p) => {
+      const from = angle;
+      angle += (p.amount / total) * 360;
+      return `${PAY_COLORS[p.method] || '#bbb'} ${from}deg ${angle}deg`;
+    });
+  return (
+    <div
+      style={{
+        width: size,
+        height: size,
+        borderRadius: '50%',
+        background: total > 0 ? `conic-gradient(${stops.join(', ')})` : 'var(--color-bg)',
+        flexShrink: 0,
+        boxShadow: '0 0 0 1px var(--color-border)',
+      }}
+    />
+  );
+}
+
+function ZahlungsartStatistik() {
+  const now = new Date();
+  const [month, setMonth] = useState(now.getMonth());
+  const [monthYear, setMonthYear] = useState(now.getFullYear());
+  const [year, setYear] = useState(now.getFullYear());
+  const [monthStats, setMonthStats] = useState<PaymentMethodStats | null>(null);
+  const [yearStats, setYearStats] = useState<PaymentMethodStats | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  function shiftMonth(delta: number) {
+    let m = month + delta;
+    let y = monthYear;
+    if (m < 0) { m = 11; y -= 1; }
+    if (m > 11) { m = 0; y += 1; }
+    setMonth(m);
+    setMonthYear(y);
+  }
+
+  useEffect(() => {
+    setLoading(true);
+    setError(null);
+    const monthStart = `${monthYear}-${String(month + 1).padStart(2, '0')}-01`;
+    const monthEnd = `${monthYear}-${String(month + 1).padStart(2, '0')}-${String(new Date(monthYear, month + 1, 0).getDate()).padStart(2, '0')}`;
+    Promise.all([fetchPaymentMethodStats(monthStart, monthEnd), fetchPaymentMethodStats(`${year}-01-01`, `${year}-12-31`)])
+      .then(([m, y]) => {
+        setMonthStats(m);
+        setYearStats(y);
+      })
+      .catch((e) => setError(e.message))
+      .finally(() => setLoading(false));
+  }, [month, monthYear, year]);
+
+  function Block({ title, stats, nav }: { title: string; stats: PaymentMethodStats | null; nav: React.ReactNode }) {
+    const moneyIn = (stats?.byMethod || []).filter((p) => p.method !== 'gutschein' && p.method !== 'anzahlung');
+    // Bar und Karte immer anzeigen, auch wenn 0.
+    for (const m of ['karte', 'bar']) if (!moneyIn.some((p) => p.method === m)) moneyIn.unshift({ method: m, amount: 0, count: 0 });
+    moneyIn.sort((a, b) => (a.method === 'bar' ? -1 : b.method === 'bar' ? 1 : a.method === 'karte' ? -1 : b.method === 'karte' ? 1 : 0));
+    const redeemed = (stats?.byMethod || []).filter((p) => p.method === 'gutschein' || p.method === 'anzahlung');
+    const total = stats?.moneyInTotal || 0;
+    return (
+      <div style={{ border: '1px solid var(--color-border)', borderRadius: 6, background: 'var(--color-surface)', padding: 20, flex: 1, minWidth: 300 }}>
+        <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 4 }}>{title}</div>
+        <div style={{ marginBottom: 16 }}>{nav}</div>
+        {stats && (
+          <>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 24 }}>
+              <MethodDonut parts={moneyIn} />
+              <div style={{ fontSize: 12, flex: 1 }}>
+                {moneyIn.map((p) => (
+                  <div key={p.method} style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8 }}>
+                    <span style={{ width: 9, height: 9, borderRadius: 2, background: PAY_COLORS[p.method] || '#bbb', display: 'inline-block', flexShrink: 0 }} />
+                    <span style={{ flex: 1 }}>
+                      {PAY_LABELS[p.method] || p.method}
+                      <span style={{ color: '#bbb' }}> · {p.count}×</span>
+                    </span>
+                    <strong>{formatCHF(p.amount)}</strong>
+                    <span style={{ color: 'var(--color-text-muted)', width: 42, textAlign: 'right' }}>{total > 0 ? `${((p.amount / total) * 100).toFixed(0)}%` : '—'}</span>
+                  </div>
+                ))}
+                <div style={{ borderTop: '1px solid var(--color-border)', paddingTop: 8, display: 'flex', justifyContent: 'space-between', fontWeight: 700, fontSize: 14 }}>
+                  <span>Total Einnahmen</span>
+                  <span>{formatCHF(total)}</span>
+                </div>
+              </div>
+            </div>
+            {redeemed.length > 0 && (
+              <div style={{ fontSize: 11, color: 'var(--color-text-muted)', marginTop: 12 }}>
+                Zusätzlich mit Guthaben bezahlt (kein Geldeingang): {redeemed.map((p) => `${PAY_LABELS[p.method]} ${formatCHF(p.amount)}`).join(' · ')}
+              </div>
+            )}
+          </>
+        )}
+      </div>
+    );
+  }
+
+  const monthRows = (yearStats?.byMonth || []).filter((m) => m.total > 0);
+
+  return (
+    <div>
+      <div style={{ fontSize: 12, color: 'var(--color-text-muted)', marginBottom: 20 }}>
+        Einnahmen nach Zahlungsart (nach Zahlungsdatum), über alle Standorte hinweg – inkl. Anzahlungs-Verkäufe.
+      </div>
+      {loading ? (
+        <div style={{ fontSize: 13, color: '#999' }}>Lädt…</div>
+      ) : error ? (
+        <div style={{ fontSize: 13, color: 'var(--color-destructive)' }}>Fehler: {error}</div>
+      ) : (
+        <>
+          <div style={{ display: 'flex', gap: 20, flexWrap: 'wrap' }}>
+            <Block
+              title="Monat"
+              stats={monthStats}
+              nav={
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <button onClick={() => shiftMonth(-1)} style={navBtnStyle}>‹</button>
+                  <div style={{ fontSize: 13, fontWeight: 700, minWidth: 110, textAlign: 'center' }}>
+                    {MONTH_NAMES[month]} {monthYear}
+                  </div>
+                  <button onClick={() => shiftMonth(1)} style={navBtnStyle}>›</button>
+                </div>
+              }
+            />
+            <Block
+              title="Jahr"
+              stats={yearStats}
+              nav={
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <button onClick={() => setYear((y) => y - 1)} style={navBtnStyle}>‹</button>
+                  <div style={{ fontSize: 13, fontWeight: 700, minWidth: 60, textAlign: 'center' }}>{year}</div>
+                  <button onClick={() => setYear((y) => y + 1)} style={navBtnStyle}>›</button>
+                </div>
+              }
+            />
+          </div>
+
+          <div style={{ marginTop: 24 }}>
+            <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 8 }}>Monatsübersicht {year}</div>
+            <div style={{ border: '1px solid var(--color-border)', borderRadius: 6, background: 'var(--color-surface)', overflow: 'hidden' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr 1fr 1fr 1fr', padding: '10px 14px', fontSize: 11, textTransform: 'uppercase', letterSpacing: 0.5, color: '#999', borderBottom: '1px solid var(--color-border)', fontWeight: 600 }}>
+                <div>Monat</div>
+                <div style={{ textAlign: 'right' }}>Bar</div>
+                <div style={{ textAlign: 'right' }}>Karte</div>
+                <div style={{ textAlign: 'right' }}>Übrige</div>
+                <div style={{ textAlign: 'right' }}>Total</div>
+              </div>
+              {monthRows.length === 0 ? (
+                <div style={{ padding: 16, fontSize: 12, color: '#999' }}>Keine Einnahmen in diesem Jahr.</div>
+              ) : (
+                monthRows.map((m) => {
+                  const bar = m.byMethod.bar || 0;
+                  const karte = m.byMethod.karte || 0;
+                  return (
+                    <div key={m.month} style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr 1fr 1fr 1fr', padding: '12px 14px', fontSize: 13, borderBottom: '1px solid var(--color-border-subtle, #eee)' }}>
+                      <div>{MONTH_NAMES[m.month]}</div>
+                      <div style={{ textAlign: 'right' }}>{formatCHF(bar)}</div>
+                      <div style={{ textAlign: 'right' }}>{formatCHF(karte)}</div>
+                      <div style={{ textAlign: 'right', color: '#777' }}>{formatCHF(m.total - bar - karte)}</div>
+                      <div style={{ textAlign: 'right', fontWeight: 700 }}>{formatCHF(m.total)}</div>
+                    </div>
+                  );
+                })
+              )}
+            </div>
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
 export default function Statistiken() {
-  const [tab, setTab] = useState<'kunden' | 'performance' | 'umsatz' | 'artists' | 'rabatt'>('kunden');
+  const [tab, setTab] = useState<'kunden' | 'performance' | 'umsatz' | 'artists' | 'rabatt' | 'zahlungsart'>('kunden');
 
   return (
     <div>
       <h1 style={{ fontSize: 24, marginBottom: 4 }}>Statistiken</h1>
       <div style={{ display: 'flex', borderBottom: '1px solid var(--color-border)', marginBottom: 20, fontSize: 13, flexWrap: 'wrap' }}>
-        {(['kunden', 'performance', 'umsatz', 'artists', 'rabatt'] as const).map((t) => (
+        {(['kunden', 'performance', 'umsatz', 'artists', 'rabatt', 'zahlungsart'] as const).map((t) => (
           <div
             key={t}
             onClick={() => setTab(t)}
@@ -597,7 +778,7 @@ export default function Statistiken() {
               cursor: 'pointer',
             }}
           >
-            {t === 'kunden' ? 'Kunden' : t === 'performance' ? 'Dienstleistungen & Produkte' : t === 'umsatz' ? 'Umsatzverlauf' : t === 'artists' ? 'Artist-Umsatz' : 'Rabatte'}
+            {t === 'kunden' ? 'Kunden' : t === 'performance' ? 'Dienstleistungen & Produkte' : t === 'umsatz' ? 'Umsatzverlauf' : t === 'artists' ? 'Artist-Umsatz' : t === 'rabatt' ? 'Rabatte' : 'Zahlungsart'}
           </div>
         ))}
       </div>
@@ -610,8 +791,10 @@ export default function Statistiken() {
         <UmsatzStatistik />
       ) : tab === 'artists' ? (
         <ArtistUmsatzStatistik />
-      ) : (
+      ) : tab === 'rabatt' ? (
         <RabattStatistik />
+      ) : (
+        <ZahlungsartStatistik />
       )}
     </div>
   );
