@@ -1641,6 +1641,60 @@ export async function fetchServiceProductPerformance(locationId: string, startDa
   };
 }
 
+// Tagesansicht "Dienstleistungen & Produkte": jede verkaufte Position einzeln mit Uhrzeit
+// und Zahlungsart der Bestellung, plus Summen nach Zahlungsart (nur dieser Standort).
+export interface DailySaleRow {
+  id: string;
+  time: string;
+  kind: 'service' | 'product';
+  name: string;
+  customerLabel: string;
+  qty: number;
+  revenue: number;
+  methods: string[]; // Zahlungsarten der Bestellung (z.B. ['bar'] oder ['gutschein','karte'])
+}
+
+export async function fetchDailySales(locationId: string, dateISO: string) {
+  const start = `${dateISO}T00:00:00`;
+  const end = `${dateISO}T23:59:59`;
+  const { data, error } = await supabase
+    .from('orders')
+    .select('id, created_at, customers(vorname, name), order_line_items(id, quantity, line_total, service_id, product_id, description, services(name), products(name)), payments(method, amount)')
+    .eq('location_id', locationId)
+    .eq('status', 'bezahlt')
+    .eq('is_anzahlung', false)
+    .gte('created_at', start)
+    .lte('created_at', end)
+    .order('created_at');
+  if (error) throw error;
+
+  const rows: DailySaleRow[] = [];
+  const byMethod: Record<string, number> = {};
+  for (const o of (data as any[]) || []) {
+    const methods = [...new Set(((o.payments || []) as any[]).map((p) => String(p.method || '').toLowerCase()))];
+    for (const p of o.payments || []) {
+      const m = String(p.method || '').toLowerCase();
+      byMethod[m] = (byMethod[m] || 0) + Number(p.amount);
+    }
+    const time = new Date(o.created_at).toLocaleTimeString('de-CH', { hour: '2-digit', minute: '2-digit' });
+    const customerLabel = o.customers ? `${o.customers.vorname} ${o.customers.name}` : 'Laufkunde';
+    for (const li of o.order_line_items || []) {
+      if (!li.service_id && !li.product_id) continue; // Gutschein-Verkäufe hier nicht
+      rows.push({
+        id: li.id,
+        time,
+        kind: li.service_id ? 'service' : 'product',
+        name: li.services?.name || li.products?.name || li.description || '—',
+        customerLabel,
+        qty: li.quantity,
+        revenue: Number(li.line_total),
+        methods,
+      });
+    }
+  }
+  return { rows, byMethod };
+}
+
 export interface RevenuePoint {
   label: string;
   total: number;

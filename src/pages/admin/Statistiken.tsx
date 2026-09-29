@@ -10,6 +10,8 @@ import {
   fetchArtists,
   fetchDiscountStats,
   fetchPaymentMethodStats,
+  fetchDailySales,
+  type DailySaleRow,
   type PaymentMethodStats,
   type CustomerStats,
   type ServiceProductPerformance,
@@ -314,12 +316,76 @@ function PerformanceTable({ title, rows, total }: { title: string; rows: { id: s
   );
 }
 
+const DAY_PAY_LABELS: Record<string, string> = { bar: 'Bar', karte: 'Karte', twint: 'TWINT', rechnung: 'Rechnung', online: 'Online', gutschein: 'Gutschein', anzahlung: 'Anzahlung' };
+
+function DailySalesView({ daily }: { daily: { rows: DailySaleRow[]; byMethod: Record<string, number> } }) {
+  const methodOrder = ['bar', 'karte', 'twint', 'rechnung', 'online', 'gutschein', 'anzahlung'];
+  const methods = Object.keys(daily.byMethod).sort((a, b) => (methodOrder.indexOf(a) < 0 ? 99 : methodOrder.indexOf(a)) - (methodOrder.indexOf(b) < 0 ? 99 : methodOrder.indexOf(b)));
+  for (const m of ['karte', 'bar']) if (!methods.includes(m)) methods.unshift(m);
+  methods.sort((a, b) => (a === 'bar' ? -1 : b === 'bar' ? 1 : a === 'karte' ? -1 : b === 'karte' ? 1 : 0));
+
+  const table = (title: string, kind: 'service' | 'product') => {
+    const rows = daily.rows.filter((r) => r.kind === kind);
+    const total = rows.reduce((s, r) => s + r.revenue, 0);
+    const cols = '60px 1fr 1fr 60px 140px 110px';
+    return (
+      <div style={{ marginBottom: 24 }}>
+        <div style={{ border: '1px solid var(--color-border)', borderRadius: 6, background: 'var(--color-surface)', overflow: 'hidden' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 120px', padding: '12px 14px', fontSize: 13, fontWeight: 700, borderBottom: '1px solid var(--color-border)' }}>
+            <div>{title}</div>
+            <div style={{ textAlign: 'right' }}>{formatCHF(total)}</div>
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: cols, padding: '8px 14px', fontSize: 11, textTransform: 'uppercase', letterSpacing: 0.5, color: '#999', borderBottom: '1px solid var(--color-border)', fontWeight: 600 }}>
+            <div>Zeit</div>
+            <div>Name</div>
+            <div>Kunde</div>
+            <div>Menge</div>
+            <div>Zahlungsart</div>
+            <div style={{ textAlign: 'right' }}>Umsatz</div>
+          </div>
+          {rows.length === 0 ? (
+            <div style={{ padding: 16, fontSize: 12, color: '#999' }}>Keine Verkäufe an diesem Tag.</div>
+          ) : (
+            rows.map((r) => (
+              <div key={r.id} style={{ display: 'grid', gridTemplateColumns: cols, padding: '12px 14px', fontSize: 13, borderBottom: '1px solid var(--color-border-subtle, #eee)', alignItems: 'center' }}>
+                <div style={{ color: '#777' }}>{r.time}</div>
+                <div>{r.name}</div>
+                <div style={{ color: '#777' }}>{r.customerLabel}</div>
+                <div>{r.qty}</div>
+                <div>{r.methods.map((m) => DAY_PAY_LABELS[m] || m).join(' + ') || '—'}</div>
+                <div style={{ textAlign: 'right', fontWeight: 600 }}>{formatCHF(r.revenue)}</div>
+              </div>
+            ))
+          )}
+        </div>
+      </div>
+    );
+  };
+
+  return (
+    <>
+      <div style={{ border: '1px solid var(--color-border)', borderRadius: 6, background: 'var(--color-surface)', padding: 16, marginBottom: 24, display: 'flex', gap: 28, flexWrap: 'wrap' }}>
+        {methods.map((m) => (
+          <div key={m}>
+            <div style={{ fontSize: 12, color: '#777' }}>{DAY_PAY_LABELS[m] || m}</div>
+            <div style={{ fontFamily: 'var(--font-heading)', fontSize: 18, fontWeight: 700 }}>{formatCHF(daily.byMethod[m] || 0)}</div>
+          </div>
+        ))}
+      </div>
+      {table('Dienstleistungen', 'service')}
+      {table('Produkte', 'product')}
+    </>
+  );
+}
+
 function PerformanceStatistik() {
   const { locations, locationId, setLocationId, isLocationLocked } = useScopedLocation();
-  const [period, setPeriod] = useState<'monat' | 'jahr'>('monat');
+  const [period, setPeriod] = useState<'tag' | 'monat' | 'jahr'>('monat');
   const now = new Date();
   const [year, setYear] = useState(now.getFullYear());
   const [month, setMonth] = useState(now.getMonth());
+  const [day, setDay] = useState(() => `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`);
+  const [daily, setDaily] = useState<{ rows: DailySaleRow[]; byMethod: Record<string, number> } | null>(null);
 
   const [perf, setPerf] = useState<ServiceProductPerformance | null>(null);
   const [loading, setLoading] = useState(true);
@@ -329,6 +395,13 @@ function PerformanceStatistik() {
     if (!locationId) return;
     setLoading(true);
     setError(null);
+    if (period === 'tag') {
+      fetchDailySales(locationId, day)
+        .then(setDaily)
+        .catch((e) => setError(e.message))
+        .finally(() => setLoading(false));
+      return;
+    }
     const start = period === 'monat' ? `${year}-${String(month + 1).padStart(2, '0')}-01` : `${year}-01-01`;
     const end =
       period === 'monat'
@@ -338,7 +411,13 @@ function PerformanceStatistik() {
       .then(setPerf)
       .catch((e) => setError(e.message))
       .finally(() => setLoading(false));
-  }, [locationId, period, year, month]);
+  }, [locationId, period, year, month, day]);
+
+  function shiftDay(delta: number) {
+    const d = new Date(`${day}T12:00:00`);
+    d.setDate(d.getDate() + delta);
+    setDay(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`);
+  }
 
   function shiftMonth(delta: number) {
     let m = month + delta;
@@ -353,7 +432,7 @@ function PerformanceStatistik() {
     <div>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20, flexWrap: 'wrap', gap: 12 }}>
         <div style={{ display: 'flex', border: '1px solid var(--color-border)', borderRadius: 4, overflow: 'hidden', fontSize: 12 }}>
-          {(['monat', 'jahr'] as const).map((p) => (
+          {(['tag', 'monat', 'jahr'] as const).map((p) => (
             <button
               key={p}
               onClick={() => setPeriod(p)}
@@ -367,7 +446,15 @@ function PerformanceStatistik() {
       </div>
 
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 14, marginBottom: 24 }}>
-        {period === 'monat' ? (
+        {period === 'tag' ? (
+          <>
+            <button onClick={() => shiftDay(-1)} style={navBtnStyle}>‹</button>
+            <div style={{ fontSize: 14, fontWeight: 700, minWidth: 220, textAlign: 'center' }}>
+              {new Date(`${day}T12:00:00`).toLocaleDateString('de-CH', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
+            </div>
+            <button onClick={() => shiftDay(1)} style={navBtnStyle}>›</button>
+          </>
+        ) : period === 'monat' ? (
           <>
             <button onClick={() => shiftMonth(-1)} style={navBtnStyle}>‹</button>
             <div style={{ fontSize: 14, fontWeight: 700, minWidth: 140, textAlign: 'center' }}>
@@ -388,6 +475,8 @@ function PerformanceStatistik() {
         <div style={{ fontSize: 13, color: '#999' }}>Lädt…</div>
       ) : error ? (
         <div style={{ fontSize: 13, color: 'var(--color-destructive)' }}>Fehler: {error}</div>
+      ) : period === 'tag' ? (
+        daily && <DailySalesView daily={daily} />
       ) : perf ? (
         <>
           <PerformanceTable title="Dienstleistungen" rows={perf.services} total={perf.serviceTotal} />
