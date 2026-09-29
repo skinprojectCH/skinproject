@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useLocationContext } from '../../lib/locationContext';
 import {
   fetchCustomerStatsForMonth,
@@ -38,24 +38,36 @@ function MultiLocationBarChart({
   locations,
 }: {
   data: { label: string; values: Record<string, number> }[];
-  locations: { id: string; name: string }[];
+  locations: { id: string; name: string; color?: string }[];
 }) {
+  // Eigene Farbe pro Serie (z.B. Kalenderfarbe des Artists), sonst Standardpalette.
+  const colorOf = (l: { color?: string }, li: number) => l.color || LOCATION_COLORS[li % LOCATION_COLORS.length];
   const max = Math.max(1, ...data.flatMap((d) => locations.map((l) => d.values[l.id] || 0)));
   const [hovered, setHovered] = useState<{ i: number; locId: string } | null>(null);
+  // Bei vielen Serien (z.B. alle Artists) wird das Diagramm breiter als das Feld ->
+  // innerhalb des weissen Felds horizontal scrollen, Start ganz rechts (neuester Monat).
+  const barWidth = data.length > 20 ? 5 : 12;
+  const groupMinWidth = locations.length * (barWidth + 3) + 16;
+  const scrollRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (el) el.scrollLeft = el.scrollWidth;
+  }, [data, locations]);
 
   return (
     <div style={{ border: '1px solid var(--color-border)', borderRadius: 6, background: 'var(--color-surface)', padding: '20px 16px 12px' }}>
       <div style={{ display: 'flex', gap: 14, marginBottom: 16, flexWrap: 'wrap' }}>
         {locations.map((l, li) => (
           <div key={l.id} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, color: 'var(--color-text-muted)' }}>
-            <span style={{ width: 9, height: 9, borderRadius: 2, background: LOCATION_COLORS[li % LOCATION_COLORS.length], display: 'inline-block' }} />
+            <span style={{ width: 9, height: 9, borderRadius: 2, background: colorOf(l, li), display: 'inline-block' }} />
             {l.name}
           </div>
         ))}
       </div>
-      <div style={{ display: 'flex', alignItems: 'flex-end', gap: data.length > 20 ? 6 : 16, height: 220 }}>
+      <div ref={scrollRef} style={{ overflowX: 'auto', overflowY: 'hidden', paddingBottom: 4 }}>
+      <div style={{ display: 'flex', alignItems: 'flex-end', gap: data.length > 20 ? 6 : 16, height: 220, minWidth: data.length * groupMinWidth }}>
         {data.map((d, i) => (
-          <div key={i} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'flex-end', height: '100%' }}>
+          <div key={i} style={{ flex: 1, minWidth: groupMinWidth, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'flex-end', height: '100%' }}>
             <div style={{ display: 'flex', alignItems: 'flex-end', gap: 3, height: 180, position: 'relative' }}>
               {locations.map((l, li) => {
                 const val = d.values[l.id] || 0;
@@ -84,9 +96,9 @@ function MultiLocationBarChart({
                     )}
                     <div
                       style={{
-                        width: data.length > 20 ? 5 : 12,
+                        width: barWidth,
                         height: `${Math.max(2, (val / max) * 180)}px`,
-                        background: LOCATION_COLORS[li % LOCATION_COLORS.length],
+                        background: colorOf(l, li),
                         borderRadius: '2px 2px 0 0',
                         opacity: hovered && !isHovered ? 0.5 : 1,
                       }}
@@ -98,6 +110,7 @@ function MultiLocationBarChart({
             <div style={{ fontSize: 10, color: 'var(--color-text-muted)', marginTop: 6, whiteSpace: 'nowrap' }}>{d.label}</div>
           </div>
         ))}
+      </div>
       </div>
     </div>
   );
@@ -431,7 +444,7 @@ function UmsatzStatistik() {
 }
 
 function ArtistUmsatzStatistik() {
-  const [artists, setArtists] = useState<{ id: string; name: string }[]>([]);
+  const [artists, setArtists] = useState<{ id: string; name: string; color?: string }[]>([]);
   const [monthly, setMonthly] = useState<{ label: string; values: Record<string, number> }[] | null>(null);
   const [yearly, setYearly] = useState<{ label: string; values: Record<string, number> }[] | null>(null);
   const [loading, setLoading] = useState(true);
@@ -442,7 +455,7 @@ function ArtistUmsatzStatistik() {
     setError(null);
     fetchArtists()
       .then((all) => {
-        const active = all.filter((a) => a.status === 'active').map((a) => ({ id: a.id, name: a.kuenstlername || a.name }));
+        const active = all.filter((a) => a.status === 'active').map((a) => ({ id: a.id, name: a.kuenstlername || a.name, color: a.calendar_color || undefined }));
         setArtists(active);
         const ids = active.map((a) => a.id);
         return Promise.all([fetchMonthlyArtistRevenueSeriesMulti(ids, 12), fetchYearlyArtistRevenueSeriesMulti(ids, 5)]);
