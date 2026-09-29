@@ -1,6 +1,7 @@
 import { Outlet } from 'react-router-dom';
 import Sidebar from './Sidebar';
-import { LocationProvider } from '../lib/locationContext';
+import { LocationProvider, useLocationContext } from '../lib/locationContext';
+import AiSupport from './AiSupport';
 
 export default function AppLayout() {
   return (
@@ -13,6 +14,12 @@ export default function AppLayout() {
           <Outlet />
         </div>
       </div>
+      <AiSupportWithRole />
     </LocationProvider>
   );
+}
+
+function AiSupportWithRole() {
+  const { role } = useLocationContext();
+  return <AiSupport role={role} />;
 }

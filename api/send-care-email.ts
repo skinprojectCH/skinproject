@@ -1,5 +1,6 @@
 import { createClient } from '@supabase/supabase-js';
 import { sendEmail, emailLayout } from '../server/resend.js';
+import { handleSupportChat } from '../server/ai-support.js';
 
 // Läuft als Vercel Serverless Function unter /api/send-care-email.
 // Wird von der Kasse (Kasse.tsx) fire-and-forget nach einem erfolgreichen Checkout
@@ -25,6 +26,15 @@ export default async function handler(req: any, res: any) {
   // action='receipt' -> Quittung per E-Mail an den Kunden senden (manuell aus der Kasse).
   if (req.body?.action === 'receipt') {
     await handleReceiptEmail(req, res);
+    return;
+  }
+  // Dritte Funktion: AI-Support-Chat (nur eingeloggte Benutzer).
+  if (req.body?.action === 'support') {
+    if (!(await isLoggedIn(req))) {
+      res.status(401).json({ error: 'Nicht angemeldet.' });
+      return;
+    }
+    await handleSupportChat(req, res);
     return;
   }
 
@@ -189,4 +199,16 @@ async function handleReceiptEmail(req: any, res: any) {
     console.error('Quittungs-Mail fehlgeschlagen:', e.message);
     res.status(500).json({ error: e.message });
   }
+}
+
+// Prüft das Supabase-Session-Token aus dem Authorization-Header.
+async function isLoggedIn(req: any): Promise<boolean> {
+  const supabaseUrl = process.env.VITE_SUPABASE_URL;
+  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!supabaseUrl || !serviceRoleKey) return false;
+  const token = String(req.headers?.authorization || '').replace(/^Bearer\s+/i, '');
+  if (!token) return false;
+  const admin = createClient(supabaseUrl, serviceRoleKey, { auth: { autoRefreshToken: false, persistSession: false } });
+  const { data } = await admin.auth.getUser(token);
+  return !!data?.user;
 }
