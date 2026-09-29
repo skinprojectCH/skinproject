@@ -19,6 +19,7 @@ import {
 } from '../lib/queries';
 import NewCustomerModal from './NewCustomerModal';
 import CustomerAutocomplete from './CustomerAutocomplete';
+import CustomerHealthAlert from './CustomerHealthAlert';
 import { formatCHF } from '../lib/format';
 
 interface Props {
@@ -225,6 +226,7 @@ export default function EditTerminModal({ appointmentId, onClose }: Props) {
           {fieldLabel('Kunde')}
           <div style={boxStyle}>{customer ? `${customer.vorname} ${customer.name}` : 'Laufkunde'}</div>
         </div>
+        <CustomerHealthAlert customerId={customer?.id} />
         <div style={{ marginBottom: 14 }}>
           {fieldLabel('Artist')}
           <div style={boxStyle}>{artist?.name || '—'}</div>
@@ -263,6 +265,7 @@ export default function EditTerminModal({ appointmentId, onClose }: Props) {
           + Neuen Kunden erfassen
         </div>
       </div>
+      <CustomerHealthAlert customerId={selectedCustomer} />
 
       <div style={{ marginBottom: 14 }}>
         {fieldLabel('Artist')}

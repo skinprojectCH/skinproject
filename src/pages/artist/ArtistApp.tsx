@@ -1,4 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
+import AiSupport from '../../components/AiSupport';
+import CustomerHealthAlert from '../../components/CustomerHealthAlert';
 import { useParams } from 'react-router-dom';
 import { supabase } from '../../lib/supabaseClient';
 import {
@@ -28,6 +30,7 @@ import {
   type ServiceCategory,
   type CustomerDocument,
   type ArtistEarningEntry,
+  fetchCustomerHealthAlerts,
 } from '../../lib/queries';
 import { formatCHF } from '../../lib/format';
 import NewCustomerModal from '../../components/NewCustomerModal';
@@ -356,6 +359,7 @@ function TerminForm({
           + Neuen Kunden erfassen
         </div>
       </div>
+      <CustomerHealthAlert customerId={selectedCustomer} compact />
 
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 14 }}>
         <div style={{ minWidth: 0 }}>
@@ -587,6 +591,7 @@ function AppointmentDetail({ appt, artistId, locationId, onClose }: { appt: any;
       </div>
 
       <div style={{ flex: 1, overflowY: 'auto', padding: 20 }}>
+        {!editing && <CustomerHealthAlert customerId={appt.customer_id} />}
         {appt.status === 'gebucht' && (
           <div style={{ border: '1px solid var(--color-border)', borderRadius: 6, padding: 14, marginBottom: 16, background: 'var(--color-surface)' }}>
             {editing ? (
@@ -767,7 +772,25 @@ function hexToRgba(hex: string, alpha: number) {
   return `rgba(${r},${g},${b},${alpha})`;
 }
 
+function HealthAlertLoader({ appointments, onLoaded }: { appointments: any[]; onLoaded: (ids: Set<string>) => void }) {
+  const key = appointments.map((a) => a.customer_id || '').join(',');
+  useEffect(() => {
+    const ids = appointments.map((a) => a.customer_id).filter(Boolean);
+    if (ids.length === 0) {
+      onLoaded(new Set());
+      return;
+    }
+    fetchCustomerHealthAlerts(ids)
+      .then((map) => onLoaded(new Set(Object.keys(map))))
+      .catch(() => onLoaded(new Set()));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [key]);
+  return null;
+}
+
 function TermineTab({ artistId, locationId, artistColor, isEmployee }: { artistId: string; locationId: string | null; artistColor: string; isEmployee?: boolean }) {
+  // Kunden mit Gesundheits-/Notiz-Hinweis -> kleines ⚠ in der Terminliste.
+  const [healthAlertIds, setHealthAlertIds] = useState<Set<string>>(new Set());
   const [appointments, setAppointments] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -904,6 +927,9 @@ function TermineTab({ artistId, locationId, artistColor, isEmployee }: { artistI
                           {isEmployee && appt.artists ? ` · ${appt.artists.kuenstlername || appt.artists.name}` : ''}
                           {appt.locations?.name ? ` · ${appt.locations.name}` : ''}
                         </div>
+                        {appt.customer_id && healthAlertIds.has(appt.customer_id) && (
+                          <div style={{ fontSize: 11, fontWeight: 700, marginTop: 4, color: '#8a6a10' }}>⚠ Gesundheitshinweis / Notiz – bitte Termin öffnen</div>
+                        )}
                         {appt.status !== 'storniert' && appt.customer_id && (
                           <div style={{ fontSize: 11, fontWeight: 600, marginTop: 4, color: idsWithPhotos.has(appt.id) ? 'var(--color-accent)' : 'var(--color-destructive)' }}>
                             {idsWithPhotos.has(appt.id) ? '✓ Fotos ok' : '⚠ Fotos fehlen'}
@@ -923,6 +949,7 @@ function TermineTab({ artistId, locationId, artistColor, isEmployee }: { artistI
 
       {!loading && <div style={{ minHeight: '75vh' }} aria-hidden />}
 
+      <HealthAlertLoader appointments={appointments} onLoaded={setHealthAlertIds} />
       {selected && <AppointmentDetail appt={selected} artistId={artistId} locationId={locationId} onClose={() => { setSelected(null); reload(); }} />}
     </div>
   );
@@ -1591,6 +1618,12 @@ export default function ArtistApp() {
   if (!artistId) return null;
   if (phase === 'loading') return <div style={{ minHeight: '100vh', background: 'var(--color-primary)' }} />;
   if (phase === 'login') return <ArtistLoginScreen artistId={artistId} onLoggedIn={(a) => { setArtist(a); setPhase('dashboard'); }} />;
-  if (phase === 'dashboard' && artist) return <ArtistDashboard artist={artist} onLogout={handleLogout} />;
+  if (phase === 'dashboard' && artist)
+    return (
+      <>
+        <ArtistDashboard artist={artist} onLogout={handleLogout} />
+        <AiSupport role="artist" bottomOffset={64} />
+      </>
+    );
   return null;
 }

@@ -27,6 +27,7 @@ Web-App unter sknpr.ch. Sprache: Deutsch (Schweiz, "ss" statt "ß"). Beträge in
   - Oben im Dialog erscheinen "Ausgefüllte Einverständniserklärungen": Kunden, die gerade am Tablet das Formular ausgefüllt haben. Auswählen = Kunde wird übernommen und die Erklärung dem Termin zugewiesen.
   - Neuer Kunde direkt im Dialog anlegbar.
 - **Absenz** (Ferien, krank, abwesend; ganzer Tag, Vormittag oder Nachmittag) im gleichen Dialog über den Reiter Absenz, oder unter Settings → Absenzen.
+- **Gesundheitshinweis**: Sobald ein Kunde ausgewählt ist (Termin buchen/öffnen, auch in der Artist-App), erscheint ein gelber Kasten, wenn im Anmeldeformular eine Gesundheitsfrage mit "Ja" beantwortet wurde (inkl. Details), ein Gesundheitshinweis oder eine Notiz im Kundenprofil hinterlegt ist. In der Terminliste der Artist-App steht dann "⚠ Gesundheitshinweis / Notiz". Notiz ändern: im Kundenprofil.
 - **Termin bearbeiten**: Termin anklicken → Kunde, Artist, Zeit, Services ändern → "Speichern" oder "Kassieren" (speichert und öffnet die Kasse). "Löschen" → "Wirklich löschen".
 - Grau hinterlegt = ausserhalb der Arbeitszeit (Schichtplan). Eine Linie zeigt heute die aktuelle Uhrzeit.
 - Status: gebucht, kassiert (grün/abgeschlossen), nicht erschienen, storniert.

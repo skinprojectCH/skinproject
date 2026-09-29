@@ -1,4 +1,5 @@
 import { supabase } from './supabaseClient';
+import { HEALTH_QUESTION_LABELS, NON_HEALTH_KEYS } from './healthQuestions';
 
 // ---------- Types (spiegeln db/schema.sql) ----------
 export interface Artist {
@@ -271,6 +272,54 @@ export async function fetchCustomersByIds(ids: string[]) {
   const { data, error } = await supabase.from('customers').select('*').in('id', ids).order('name');
   if (error) throw error;
   return data as Customer[];
+}
+
+// ---------- Gesundheits-/Notiz-Hinweis für Termine ----------
+export interface CustomerHealthAlert {
+  yesAnswers: { label: string; detail: string | null }[]; // Gesundheitsfragen mit "Ja"
+  healthNotice: string | null; // Hinweis im Kundenprofil (z.B. aus Import), nur wenn keine Fragebogen-Antworten
+  notes: string | null; // Notiz im Kundenprofil
+}
+
+export function hasHealthAlert(a: CustomerHealthAlert | null | undefined) {
+  return !!a && (a.yesAnswers.length > 0 || !!a.healthNotice || !!a.notes);
+}
+
+// Für mehrere Kunden auf einmal (z.B. Terminliste der Artist-App). Liefert nur Kunden mit Hinweis.
+export async function fetchCustomerHealthAlerts(customerIds: string[]): Promise<Record<string, CustomerHealthAlert>> {
+  const ids = [...new Set(customerIds.filter(Boolean))];
+  if (ids.length === 0) return {};
+  const [{ data: customers, error: cErr }, { data: responses, error: rErr }] = await Promise.all([
+    supabase.from('customers').select('id, notes, health_notice').in('id', ids),
+    supabase.from('health_questionnaire_responses').select('customer_id, question_key, answer, detail_text').in('customer_id', ids),
+  ]);
+  if (cErr) throw cErr;
+  if (rErr) throw rErr;
+  const result: Record<string, CustomerHealthAlert> = {};
+  const byCustomer = new Map<string, any[]>();
+  for (const r of (responses as any[]) || []) {
+    if (!byCustomer.has(r.customer_id)) byCustomer.set(r.customer_id, []);
+    byCustomer.get(r.customer_id)!.push(r);
+  }
+  for (const c of (customers as any[]) || []) {
+    const rows = (byCustomer.get(c.id) || []).filter((r) => !NON_HEALTH_KEYS.has(r.question_key));
+    const yesAnswers = rows
+      .filter((r) => r.answer)
+      .map((r) => ({ label: HEALTH_QUESTION_LABELS[r.question_key] || r.question_key, detail: r.detail_text || null }));
+    const alert: CustomerHealthAlert = {
+      yesAnswers,
+      // Der Profil-Hinweis enthält bei ausgefülltem Formular dieselben Infos -> nur ohne Fragebogen zeigen.
+      healthNotice: rows.length === 0 && c.health_notice?.trim() ? c.health_notice.trim() : null,
+      notes: c.notes?.trim() || null,
+    };
+    if (hasHealthAlert(alert)) result[c.id] = alert;
+  }
+  return result;
+}
+
+export async function fetchCustomerHealthAlert(customerId: string): Promise<CustomerHealthAlert | null> {
+  const map = await fetchCustomerHealthAlerts([customerId]);
+  return map[customerId] || null;
 }
 
 export async function fetchCustomer(id: string) {

@@ -21,6 +21,7 @@ import {
 } from '../lib/queries';
 import NewCustomerModal from './NewCustomerModal';
 import CustomerAutocomplete from './CustomerAutocomplete';
+import CustomerHealthAlert from './CustomerHealthAlert';
 import { formatCHF } from '../lib/format';
 
 const ABSENCE_TYPES: { key: 'ferien' | 'krank' | 'abwesend'; label: string }[] = [
@@ -291,6 +292,7 @@ export default function TerminModal({ onClose, onSave, locationId, initialDate, 
               + Neuen Kunden erfassen
             </div>
           </div>
+          <CustomerHealthAlert customerId={selectedCustomer} />
           <div style={{ marginBottom: 14 }}>
             {fieldLabel('Artist auswählen')}
             <select value={selectedArtist} onChange={(e) => setSelectedArtist(e.target.value)} style={{ ...boxStyle, width: '100%' }}>
