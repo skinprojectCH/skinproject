@@ -81,7 +81,7 @@ Web-App unter sknpr.ch. Sprache: Deutsch (Schweiz, "ss" statt "ß"). Beträge in
 
 ## Analytik
 ### Statistiken
-- Wichtig: "Dienstleistungen & Produkte", "Umsatzverlauf" und "Zahlungsart" zeigen nur den SALON-Anteil (Dienstleistungen nur mit Miet- & Serviceanteil, Produkte 100%, ohne Artist-Anteil). "Artist-Umsatz" zeigt nur den ANTEIL DER ARTISTS (ohne Salon-Anteil, ohne Mitarbeiter).
+- Wichtig: "Dienstleistungen & Produkte", "Umsatzverlauf", "Zahlungsart" und "Rabatte" zeigen nur den SALON-Anteil (Dienstleistungen nur mit Miet- & Serviceanteil, Produkte 100%, ohne Artist-Anteil). "Artist-Umsatz" zeigt nur den ANTEIL DER ARTISTS (ohne Salon-Anteil, ohne Mitarbeiter).
 - Umsatz pro Monat/Jahr, pro Standort und pro Artist, Kundenstatistik (neue/wiederkehrende Kunden, Laufkunden).
 - Reiter "Rabatte": Anteil gewährter Rabatte am Bruttoumsatz pro Monat/Jahr.
 - Reiter "Zahlungsart": Einnahmen nach Bar, Karte, Rechnung, Online pro Monat und Jahr (Kreisdiagramm mit Beträgen und %), plus Monatsübersicht des Jahres (Bar / Karte / Übrige / Total). Gutschein-/Anzahlung-Einlösungen separat (kein Geldeingang).

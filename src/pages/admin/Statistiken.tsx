@@ -646,7 +646,7 @@ function RabattStatistik() {
   return (
     <div>
       <div style={{ fontSize: 12, color: 'var(--color-text-muted)', marginBottom: 20 }}>
-        Anteil des gewährten Rabatts (Positions- + Bestell-Rabatt) am Bruttoumsatz, über alle Standorte hinweg.
+        Salon-Anteil: gewährter Rabatt (Positions- + Bestell-Rabatt) im Verhältnis zum Salon-Bruttoumsatz (Dienstleistungen mit Miet- & Serviceanteil, Produkte zu 100%), über alle Standorte hinweg.
       </div>
 
       {loading ? (

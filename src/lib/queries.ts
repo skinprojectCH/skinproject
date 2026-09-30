@@ -1933,20 +1933,22 @@ export async function fetchDiscountStats(startDateISO: string, endDateISO: strin
   const end = `${endDateISO}T23:59:59`;
   const { data, error } = await supabase
     .from('orders')
-    .select('total, subtotal, order_line_items(quantity, unit_price, service_id, product_id, line_total)')
+    .select(`total, subtotal, salon_share_pct, order_line_items(quantity, unit_price, service_id, product_id, line_total), ${ORDER_ARTIST_EMBED}`)
     .eq('status', 'bezahlt')
     .eq('is_anzahlung', false)
     .gte('created_at', start)
     .lte('created_at', end);
   if (error) throw error;
 
+  // Nur Salon-Anteil: Dienstleistungen mit Miet- & Serviceanteil, Produkte zu 100%.
   let grossRevenue = 0;
   let netRevenue = 0;
   for (const o of (data as any[]) || []) {
-    netRevenue += orderRevenue(o);
+    netRevenue += salonRevenueOfOrder(o);
+    const share = salonShareOfOrder(o);
     for (const li of o.order_line_items || []) {
       if (!li.service_id && !li.product_id) continue; // Gutschein-Verkauf: kein Umsatz
-      grossRevenue += Number(li.quantity) * Number(li.unit_price);
+      grossRevenue += Number(li.quantity) * Number(li.unit_price) * (li.service_id ? share : 1);
     }
   }
   const discountAmount = Math.max(0, grossRevenue - netRevenue);
