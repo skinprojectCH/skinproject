@@ -43,6 +43,7 @@ Web-App unter sknpr.ch. Sprache: Deutsch (Schweiz, "ss" statt "ß"). Beträge in
 - **Preis überschreiben**: Bei Services UND Artikeln kann der Preis im Warenkorb direkt geändert werden. Gilt nur für diesen Verkauf, der Originalpreis in der Preisliste bleibt unverändert.
 - **Rabatt** pro Position: "+ Rabatt" (Prozent oder CHF). Zusätzlich Rabatt auf die ganze Bestellung im Kassier-Dialog.
 - **Bezahlen**: direkt mit Karte, Bar oder Rechnung, oder "Kassieren" für den Dialog mit mehreren Zahlungsarten ("+ Weitere Zahlungsart hinzufügen"), z.B. Teil Gutschein + Rest Karte. Gutschein und Anzahlung gehen nur über diesen Dialog.
+- **Gutschein verkaufen**: "+ Gutschein verkaufen", Betrag eingeben, mit Bar/Karte/Rechnung bezahlen. Ein Gutschein-Verkauf zählt (wie die Anzahlung) NICHT als Umsatz und hat keine MWST – der Betrag fliesst erst in den Umsatz, wenn der Gutschein eingelöst wird. Das Geld zählt aber sofort im Kassenbestand (bei Bar) und bei den Einnahmen.
 - **Gutschein einlösen**: Zahlungsart Gutschein, Code eingeben, das System prüft Restwert und Ablaufdatum. Gutscheine mit "nur Produkte" können nur für Artikel eingesetzt werden.
 - **Anzahlung** (Kunden-Guthaben): "+ Anzahlung" braucht einen ausgewählten Kunden. Eine Anzahlung zählt beim Verkauf NICHT als Umsatz, erst wenn sie später als Zahlungsart eingesetzt wird. Hat ein Kunde offenes Guthaben, fragt die Kasse beim Kassieren "Anzahlung verrechnen?".
 - Nach dem Kassieren: Quittung (Artist-Teil und Salon-Teil mit MWST).

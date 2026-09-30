@@ -1101,6 +1101,22 @@ export interface ArtistEarningEntry {
   locationName: string;
 }
 
+// ---------- Umsatz einer Bestellung ----------
+// Gutschein-Verkäufe (Positionen ohne Dienstleistung/Produkt) sind KEIN Umsatz -- wie bei der
+// Anzahlung fliesst der Betrag erst beim Einlösen in den Umsatz (dann als Dienstleistung/Produkt
+// der Bestellung, in der er eingesetzt wird). Sonst würde er doppelt gezählt.
+export function voucherSaleAmount(o: any): number {
+  const lines = o?.order_line_items || [];
+  const voucherLines = lines.filter((li: any) => !li.service_id && !li.product_id).reduce((s: number, li: any) => s + Number(li.line_total || 0), 0);
+  if (!voucherLines) return 0;
+  const factor = Number(o.subtotal) > 0 ? Number(o.total) / Number(o.subtotal) : 1;
+  return voucherLines * factor;
+}
+
+export function orderRevenue(o: any): number {
+  return Math.max(0, Number(o.total) - voucherSaleAmount(o));
+}
+
 // ---------- Offene Posten (Debitoren) ----------
 // Ein vergangener Termin mit Status 'gebucht' ist noch nicht bezahlt (gleiche Definition
 // wie "Offene vergangene Termine" im Kalender). Sein Umsatz zählt trotzdem am Termintag --
@@ -1191,7 +1207,7 @@ export interface LocationBilling {
   artistRows: LocationBillingArtistRow[];
   salonServiceRevenue: number; // Salon-Anteil an Dienstleistungen (Miet- & Serviceanteil, summiert über alle Artists)
   productRevenue: number; // 100% Salon
-  voucherRevenue: number; // 100% Salon
+  voucherRevenue: number; // Gutschein-VERKÄUFE im Zeitraum -- nur Info, zählt NICHT zum Umsatz (erst beim Einlösen)
   anzahlungRevenue: number; // Anzahlungs-Verkäufe -- Geld geflossen, zählt bewusst NICHT zum Umsatz
   anzahlungRedeemedRevenue: number; // wie viel vom heutigen Umsatz mit einer früher verkauften Anzahlung beglichen wurde (informativ, bereits in Dienstleistungen/Produkte enthalten)
   redeemedVouchers: RedeemedVoucherEntry[]; // welche konkreten Gutschein-/Anzahlung-Codes eingesetzt wurden
@@ -1262,7 +1278,7 @@ export async function fetchLocationBilling(locationId: string, startDateISO: str
     }))
     .sort((x, y) => (x.date + x.time).localeCompare(y.date + y.time));
   const openReceivablesTotal = openReceivables.reduce((s, r) => s + r.amount, 0);
-  const apptRevenue = paidApptOrders.reduce((s, o) => s + Number(o.total), 0) + openReceivablesTotal;
+  const apptRevenue = paidApptOrders.reduce((s, o) => s + orderRevenue(o), 0) + openReceivablesTotal;
 
   // Laufkunden-Verkäufe ohne Termin (z.B. reiner Artikelverkauf an der Kasse) -- lassen
   // sich nicht über Termine finden, daher separat über Bestelldatum.
@@ -1277,7 +1293,7 @@ export async function fetchLocationBilling(locationId: string, startDateISO: str
     .lte('created_at', end);
   if (walkInError) throw walkInError;
   const walkInRows = (walkInOrders as any[]) || [];
-  const walkInRevenue = walkInRows.reduce((s, o) => s + Number(o.total), 0);
+  const walkInRevenue = walkInRows.reduce((s, o) => s + orderRevenue(o), 0);
 
   const salonRevenue = apptRevenue + walkInRevenue;
   const orderCount = paidApptOrders.length + walkInRows.length + openReceivables.length;
@@ -1522,7 +1538,7 @@ export async function fetchCustomerStatsForMonth(locationId: string, year: numbe
 
   const { data: orders, error } = await supabase
     .from('orders')
-    .select('customer_id, total, created_at, customers(vorname, name)')
+    .select('customer_id, total, subtotal, created_at, customers(vorname, name), order_line_items(service_id, product_id, line_total)')
     .eq('location_id', locationId)
     .eq('status', 'bezahlt')
     .eq('is_anzahlung', false)
@@ -1549,7 +1565,7 @@ export async function fetchCustomerStatsForMonth(locationId: string, year: numbe
       byCustomer[id] = { name: o.customers ? `${o.customers.vorname} ${o.customers.name}` : '—', visits: 0, total: 0 };
     }
     byCustomer[id].visits += 1;
-    byCustomer[id].total += Number(o.total);
+    byCustomer[id].total += orderRevenue(o);
   }
   const customerIds = Object.keys(byCustomer);
 
@@ -1708,7 +1724,7 @@ export async function fetchMonthlyRevenueSeries(locationId: string, monthsBack =
   const start = startDate.toISOString();
   const end = new Date(now.getFullYear(), now.getMonth() + 1, 1).toISOString();
 
-  const { data, error } = await supabase.from('orders').select('total, created_at').eq('location_id', locationId).eq('status', 'bezahlt').eq('is_anzahlung', false).gte('created_at', start).lt('created_at', end);
+  const { data, error } = await supabase.from('orders').select('total, subtotal, created_at, order_line_items(service_id, product_id, line_total)').eq('location_id', locationId).eq('status', 'bezahlt').eq('is_anzahlung', false).gte('created_at', start).lt('created_at', end);
   if (error) throw error;
 
   const buckets: Record<string, number> = {};
@@ -1719,7 +1735,7 @@ export async function fetchMonthlyRevenueSeries(locationId: string, monthsBack =
   for (const o of (data as any[]) || []) {
     const d = new Date(o.created_at);
     const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
-    if (key in buckets) buckets[key] += Number(o.total);
+    if (key in buckets) buckets[key] += orderRevenue(o);
   }
   return Object.entries(buckets)
     .sort(([a], [b]) => a.localeCompare(b))
@@ -1735,14 +1751,14 @@ export async function fetchYearlyRevenueSeries(locationId: string, yearsBack = 5
   const start = `${startYear}-01-01T00:00:00`;
   const end = `${now.getFullYear() + 1}-01-01T00:00:00`;
 
-  const { data, error } = await supabase.from('orders').select('total, created_at').eq('location_id', locationId).eq('status', 'bezahlt').eq('is_anzahlung', false).gte('created_at', start).lt('created_at', end);
+  const { data, error } = await supabase.from('orders').select('total, subtotal, created_at, order_line_items(service_id, product_id, line_total)').eq('location_id', locationId).eq('status', 'bezahlt').eq('is_anzahlung', false).gte('created_at', start).lt('created_at', end);
   if (error) throw error;
 
   const buckets: Record<number, number> = {};
   for (let y = startYear; y <= now.getFullYear(); y++) buckets[y] = 0;
   for (const o of (data as any[]) || []) {
     const y = new Date(o.created_at).getFullYear();
-    if (y in buckets) buckets[y] += Number(o.total);
+    if (y in buckets) buckets[y] += orderRevenue(o);
   }
   return Object.entries(buckets)
     .sort(([a], [b]) => Number(a) - Number(b))
@@ -1849,7 +1865,7 @@ export async function fetchDiscountStats(startDateISO: string, endDateISO: strin
   const end = `${endDateISO}T23:59:59`;
   const { data, error } = await supabase
     .from('orders')
-    .select('total, order_line_items(quantity, unit_price)')
+    .select('total, subtotal, order_line_items(quantity, unit_price, service_id, product_id, line_total)')
     .eq('status', 'bezahlt')
     .eq('is_anzahlung', false)
     .gte('created_at', start)
@@ -1859,8 +1875,9 @@ export async function fetchDiscountStats(startDateISO: string, endDateISO: strin
   let grossRevenue = 0;
   let netRevenue = 0;
   for (const o of (data as any[]) || []) {
-    netRevenue += Number(o.total);
+    netRevenue += orderRevenue(o);
     for (const li of o.order_line_items || []) {
+      if (!li.service_id && !li.product_id) continue; // Gutschein-Verkauf: kein Umsatz
       grossRevenue += Number(li.quantity) * Number(li.unit_price);
     }
   }

@@ -380,7 +380,7 @@ async function downloadLocationSummaryPdf(opts: {
   doc.setTextColor(0);
 
   const b = opts.billing;
-  const salonTotal = b.salonServiceRevenue + b.productRevenue + b.voucherRevenue;
+  const salonTotal = b.salonServiceRevenue + b.productRevenue;
 
   doc.setFontSize(12);
   doc.text('Übersicht', 14, y);
@@ -390,9 +390,9 @@ async function downloadLocationSummaryPdf(opts: {
     ['Umsatz Salon (Total)', formatCHF(salonTotal)],
     ['  davon Dienstleistungen (Anteil)', formatCHF(b.salonServiceRevenue)],
     ['  davon Produkte', formatCHF(b.productRevenue)],
-    ['  davon Gutscheine', formatCHF(b.voucherRevenue)],
     ...(b.anzahlungRedeemedRevenue > 0 ? ([['  davon Anzahlung', formatCHF(b.anzahlungRedeemedRevenue)]] as [string, string][]) : []),
     ['Termine', String(b.orderCount)],
+    ...(b.voucherRevenue > 0 ? ([['Gutschein-Verkäufe (kein Umsatz, erst beim Einlösen)', formatCHF(b.voucherRevenue)]] as [string, string][]) : []),
   ];
   for (const [label, value] of summaryRows) {
     doc.text(label, 14, y);
@@ -941,7 +941,7 @@ export default function Abrechnung() {
             <div style={summaryCardStyle}>
               <div style={{ fontSize: 11, color: '#999', textTransform: 'uppercase', marginBottom: 8, fontWeight: 600 }}>Umsatz Salon</div>
               <div style={{ fontFamily: 'var(--font-heading)', fontSize: 22, fontWeight: 700, marginBottom: 8 }}>
-                {formatCHF(billing.salonServiceRevenue + billing.productRevenue + billing.voucherRevenue)}
+                {formatCHF(billing.salonServiceRevenue + billing.productRevenue)}
               </div>
               <div style={{ fontSize: 11, color: '#777', display: 'flex', flexDirection: 'column', gap: 2 }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between' }}>
@@ -952,14 +952,16 @@ export default function Abrechnung() {
                   <span>Produkte</span>
                   <span>{formatCHF(billing.productRevenue)}</span>
                 </div>
-                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                  <span>Gutscheine</span>
-                  <span>{formatCHF(billing.voucherRevenue)}</span>
-                </div>
                 {billing.anzahlungRedeemedRevenue > 0 && (
                   <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                     <span>Anzahlung</span>
                     <span>{formatCHF(billing.anzahlungRedeemedRevenue)}</span>
+                  </div>
+                )}
+                {billing.voucherRevenue > 0 && (
+                  <div style={{ display: 'flex', justifyContent: 'space-between', color: '#aaa', marginTop: 4 }} title="Zählt erst beim Einlösen als Umsatz">
+                    <span>Gutschein-Verkäufe (kein Umsatz)</span>
+                    <span>{formatCHF(billing.voucherRevenue)}</span>
                   </div>
                 )}
               </div>

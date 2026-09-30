@@ -1371,11 +1371,13 @@ const factor = variant === 'salon' ? sharePct / 100 : 1 - sharePct / 100;
 return { label: i.label, amount: full * factor, grossAmount: gross * factor, discountLabel };
 }
 if (variant === 'artist') return null;
-return { label: i.label, amount: full, grossAmount: gross, discountLabel };
+return { label: i.label, amount: full, grossAmount: gross, discountLabel, isVoucher: i.kind === 'voucher' };
 })
 .filter((r): r is { label: string; amount: number; grossAmount: number; discountLabel: string | null } => !!r);
 const cardTotal = rows.reduce((s, r) => s + r.amount, 0);
-const mwstAmount = mwstActive && location?.mwst_prozent ? cardTotal - cardTotal / (1 + location.mwst_prozent / 100) : 0;
+// Gutschein-Verkauf ist kein Umsatz -> keine MWST darauf (erst beim Einlösen).
+const mwstBase = rows.reduce((s, r: any) => s + (r.isVoucher ? 0 : r.amount), 0);
+const mwstAmount = mwstActive && location?.mwst_prozent ? mwstBase - mwstBase / (1 + location.mwst_prozent / 100) : 0;
 return { rows, cardTotal, mwstAmount };
 }
 
