@@ -431,6 +431,7 @@ function PerformanceStatistik() {
 
   return (
     <div>
+      <div style={{ fontSize: 12, color: 'var(--color-text-muted)', marginBottom: 14 }}>Nur Salon-Anteil: Dienstleistungen mit Miet- & Serviceanteil (ohne Artist-Anteil), Produkte zu 100%.</div>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20, flexWrap: 'wrap', gap: 12 }}>
         <div style={{ display: 'flex', border: '1px solid var(--color-border)', borderRadius: 4, overflow: 'hidden', fontSize: 12 }}>
           {(['tag', 'monat', 'jahr'] as const).map((p) => (
@@ -516,6 +517,7 @@ function UmsatzStatistik() {
 
   return (
     <div>
+      <div style={{ fontSize: 12, color: 'var(--color-text-muted)', marginBottom: 20 }}>Salon-Umsatz: Produkte + Miet- & Serviceanteil an Dienstleistungen (ohne Artist-Anteil, ohne Gutschein-/Anzahlungs-Verkäufe).</div>
       {loading ? (
         <div style={{ fontSize: 13, color: '#999' }}>Lädt…</div>
       ) : error ? (
@@ -545,7 +547,7 @@ function ArtistUmsatzStatistik() {
     setError(null);
     fetchArtists()
       .then((all) => {
-        const active = all.filter((a) => a.status === 'active').map((a) => ({ id: a.id, name: a.kuenstlername || a.name, color: a.calendar_color || undefined }));
+        const active = all.filter((a) => a.status === 'active' && !a.is_employee).map((a) => ({ id: a.id, name: a.kuenstlername || a.name, color: a.calendar_color || undefined }));
         setArtists(active);
         const ids = active.map((a) => a.id);
         return Promise.all([fetchMonthlyArtistRevenueSeriesMulti(ids, 12), fetchYearlyArtistRevenueSeriesMulti(ids, 5)]);
@@ -560,7 +562,7 @@ function ArtistUmsatzStatistik() {
 
   return (
     <div>
-      <div style={{ fontSize: 12, color: 'var(--color-text-muted)', marginBottom: 20 }}>Dienstleistungs-Bruttoumsatz pro Artist, über alle Standorte hinweg zusammengefasst.</div>
+      <div style={{ fontSize: 12, color: 'var(--color-text-muted)', marginBottom: 20 }}>Anteil der Artists (Dienstleistungsumsatz ohne Miet- & Serviceanteil des Salons), über alle Standorte hinweg. Mitarbeiter sind nicht enthalten.</div>
 
       {loading ? (
         <div style={{ fontSize: 13, color: '#999' }}>Lädt…</div>
@@ -792,7 +794,7 @@ function ZahlungsartStatistik() {
   return (
     <div>
       <div style={{ fontSize: 12, color: 'var(--color-text-muted)', marginBottom: 20 }}>
-        Einnahmen nach Zahlungsart (nach Zahlungsdatum), über alle Standorte hinweg – inkl. Anzahlungs-Verkäufe.
+        Salon-Anteil der Einnahmen nach Zahlungsart (nach Zahlungsdatum, ohne Artist-Anteil), über alle Standorte hinweg – inkl. Gutschein- und Anzahlungs-Verkäufe.
       </div>
       {loading ? (
         <div style={{ fontSize: 13, color: '#999' }}>Lädt…</div>

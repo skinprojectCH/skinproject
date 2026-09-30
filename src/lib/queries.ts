@@ -1118,6 +1118,39 @@ export function orderRevenue(o: any): number {
   return Math.max(0, Number(o.total) - voucherSaleAmount(o));
 }
 
+// Salon-Anteil (0..1) einer Dienstleistung je nach Artist: revenue_share_pct = Miet- &
+// Serviceanteil des Salons. Mitarbeiter (is_employee) und Verkäufe ohne Artist = 100% Salon.
+export function salonShareOfArtist(artist: any): number {
+  if (!artist || artist.is_employee) return 1;
+  const pct = Number(artist.revenue_share_pct ?? 100);
+  return Math.max(0, Math.min(100, pct)) / 100;
+}
+
+// Anteil einer Bestellung, der an den Artist geht (CHF). Braucht:
+// subtotal, total, order_line_items(service_id, line_total), appointments(artists(revenue_share_pct, is_employee))
+export function artistAmountOfOrder(o: any): number {
+  const artist = o?.appointments?.artists;
+  const share = salonShareOfArtist(artist);
+  if (share >= 1) return 0;
+  const factor = Number(o.subtotal) > 0 ? Number(o.total) / Number(o.subtotal) : 1;
+  const services = (o.order_line_items || []).filter((li: any) => li.service_id).reduce((s: number, li: any) => s + Number(li.line_total || 0), 0);
+  return services * factor * (1 - share);
+}
+
+// Salon-Umsatz einer Bestellung = Umsatz ohne Gutschein-Verkauf und ohne Artist-Anteil.
+export function salonRevenueOfOrder(o: any): number {
+  return Math.max(0, orderRevenue(o) - artistAmountOfOrder(o));
+}
+
+// Anteil (0..1) des gezahlten Betrags, der beim Salon bleibt -- für Zahlungsarten-Statistik.
+export function salonFactorOfOrder(o: any): number {
+  const total = Number(o.total);
+  if (total <= 0) return 1;
+  return Math.max(0, (total - artistAmountOfOrder(o)) / total);
+}
+
+const ORDER_ARTIST_EMBED = 'appointments(artists(revenue_share_pct, is_employee))';
+
 // ---------- Offene Posten (Debitoren) ----------
 // Ein vergangener Termin mit Status 'gebucht' ist noch nicht bezahlt (gleiche Definition
 // wie "Offene vergangene Termine" im Kalender). Sein Umsatz zählt trotzdem am Termintag --
@@ -1629,7 +1662,7 @@ export async function fetchServiceProductPerformance(locationId: string, startDa
 
   const { data, error } = await supabase
     .from('order_line_items')
-    .select('quantity, line_total, service_id, product_id, services(name), products(name), orders!inner(location_id, status, created_at, is_anzahlung)')
+    .select(`quantity, line_total, service_id, product_id, services(name), products(name), orders!inner(location_id, status, created_at, is_anzahlung, ${ORDER_ARTIST_EMBED})`)
     .eq('orders.location_id', locationId)
     .eq('orders.status', 'bezahlt')
     .eq('orders.is_anzahlung', false)
@@ -1644,7 +1677,8 @@ export async function fetchServiceProductPerformance(locationId: string, startDa
       const key = li.service_id;
       if (!services[key]) services[key] = { id: key, name: li.services?.name || '—', qty: 0, revenue: 0 };
       services[key].qty += li.quantity;
-      services[key].revenue += Number(li.line_total);
+      // Nur Salon-Anteil (ohne Artist-Anteil).
+      services[key].revenue += Number(li.line_total) * salonShareOfArtist(li.orders?.appointments?.artists);
     } else if (li.product_id) {
       const key = li.product_id;
       if (!products[key]) products[key] = { id: key, name: li.products?.name || '—', qty: 0, revenue: 0 };
@@ -1682,7 +1716,7 @@ export async function fetchDailySales(locationId: string, dateISO: string) {
   const end = `${dateISO}T23:59:59`;
   const { data, error } = await supabase
     .from('orders')
-    .select('id, created_at, customers(vorname, name), order_line_items(id, quantity, line_total, service_id, product_id, description, services(name), products(name)), payments(method, amount)')
+    .select(`id, created_at, subtotal, total, customers(vorname, name), order_line_items(id, quantity, line_total, service_id, product_id, description, services(name), products(name)), payments(method, amount), ${ORDER_ARTIST_EMBED}`)
     .eq('location_id', locationId)
     .eq('status', 'bezahlt')
     .eq('is_anzahlung', false)
@@ -1695,9 +1729,11 @@ export async function fetchDailySales(locationId: string, dateISO: string) {
   const byMethod: Record<string, number> = {};
   for (const o of (data as any[]) || []) {
     const methods = [...new Set(((o.payments || []) as any[]).map((p) => String(p.method || '').toLowerCase()))];
+    const salonFactor = salonFactorOfOrder(o);
+    const serviceShare = salonShareOfArtist(o.appointments?.artists);
     for (const p of o.payments || []) {
       const m = String(p.method || '').toLowerCase();
-      byMethod[m] = (byMethod[m] || 0) + Number(p.amount);
+      byMethod[m] = (byMethod[m] || 0) + Number(p.amount) * salonFactor;
     }
     const time = new Date(o.created_at).toLocaleTimeString('de-CH', { hour: '2-digit', minute: '2-digit' });
     const customerLabel = o.customers ? `${o.customers.vorname} ${o.customers.name}` : 'Laufkunde';
@@ -1710,7 +1746,7 @@ export async function fetchDailySales(locationId: string, dateISO: string) {
         name: li.services?.name || li.products?.name || li.description || '—',
         customerLabel,
         qty: li.quantity,
-        revenue: Number(li.line_total),
+        revenue: Number(li.line_total) * (li.service_id ? serviceShare : 1),
         methods,
       });
     }
@@ -1731,7 +1767,7 @@ export async function fetchMonthlyRevenueSeries(locationId: string, monthsBack =
   const start = startDate.toISOString();
   const end = new Date(now.getFullYear(), now.getMonth() + 1, 1).toISOString();
 
-  const { data, error } = await supabase.from('orders').select('total, subtotal, created_at, order_line_items(service_id, product_id, line_total)').eq('location_id', locationId).eq('status', 'bezahlt').eq('is_anzahlung', false).gte('created_at', start).lt('created_at', end);
+  const { data, error } = await supabase.from('orders').select(`total, subtotal, created_at, order_line_items(service_id, product_id, line_total), ${ORDER_ARTIST_EMBED}`).eq('location_id', locationId).eq('status', 'bezahlt').eq('is_anzahlung', false).gte('created_at', start).lt('created_at', end);
   if (error) throw error;
 
   const buckets: Record<string, number> = {};
@@ -1742,7 +1778,7 @@ export async function fetchMonthlyRevenueSeries(locationId: string, monthsBack =
   for (const o of (data as any[]) || []) {
     const d = new Date(o.created_at);
     const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
-    if (key in buckets) buckets[key] += orderRevenue(o);
+    if (key in buckets) buckets[key] += salonRevenueOfOrder(o);
   }
   return Object.entries(buckets)
     .sort(([a], [b]) => a.localeCompare(b))
@@ -1758,14 +1794,14 @@ export async function fetchYearlyRevenueSeries(locationId: string, yearsBack = 5
   const start = `${startYear}-01-01T00:00:00`;
   const end = `${now.getFullYear() + 1}-01-01T00:00:00`;
 
-  const { data, error } = await supabase.from('orders').select('total, subtotal, created_at, order_line_items(service_id, product_id, line_total)').eq('location_id', locationId).eq('status', 'bezahlt').eq('is_anzahlung', false).gte('created_at', start).lt('created_at', end);
+  const { data, error } = await supabase.from('orders').select(`total, subtotal, created_at, order_line_items(service_id, product_id, line_total), ${ORDER_ARTIST_EMBED}`).eq('location_id', locationId).eq('status', 'bezahlt').eq('is_anzahlung', false).gte('created_at', start).lt('created_at', end);
   if (error) throw error;
 
   const buckets: Record<number, number> = {};
   for (let y = startYear; y <= now.getFullYear(); y++) buckets[y] = 0;
   for (const o of (data as any[]) || []) {
     const y = new Date(o.created_at).getFullYear();
-    if (y in buckets) buckets[y] += orderRevenue(o);
+    if (y in buckets) buckets[y] += salonRevenueOfOrder(o);
   }
   return Object.entries(buckets)
     .sort(([a], [b]) => Number(a) - Number(b))
@@ -1813,7 +1849,7 @@ async function fetchArtistRevenueSeriesMulti(artistIds: string[], granularity: '
 
   const { data, error } = await supabase
     .from('appointments')
-    .select(`artist_id, start_time, status, ${APPT_PLANNED_ITEMS}, orders(subtotal, total, status, order_line_items(service_id, line_total))`)
+    .select(`artist_id, start_time, status, artists(revenue_share_pct, is_employee), ${APPT_PLANNED_ITEMS}, orders(subtotal, total, status, order_line_items(service_id, line_total))`)
     .in('artist_id', artistIds)
     .eq('type', 'termin')
     .gte('start_time', start.toISOString())
@@ -1836,7 +1872,8 @@ async function fetchArtistRevenueSeriesMulti(artistIds: string[], granularity: '
   }
 
   for (const appt of (data as any[]) || []) {
-    const revenue = appointmentServiceRevenue(appt);
+    // Nur der Anteil des Artists (ohne Miet- & Serviceanteil des Salons); Mitarbeiter = 0.
+    const revenue = appointmentServiceRevenue(appt) * (1 - salonShareOfArtist(appt.artists));
     if (revenue <= 0) continue;
     const d = new Date(appt.start_time);
     const key = granularity === 'month' ? `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}` : `${d.getFullYear()}`;
@@ -1907,7 +1944,7 @@ export async function fetchPaymentMethodStats(startDateISO: string, endDateISO: 
   const end = `${endDateISO}T23:59:59`;
   const { data, error } = await supabase
     .from('payments')
-    .select('method, amount, orders!inner(status, created_at)')
+    .select(`method, amount, orders!inner(status, created_at, subtotal, total, order_line_items(service_id, line_total), ${ORDER_ARTIST_EMBED})`)
     .eq('orders.status', 'bezahlt')
     .gte('orders.created_at', start)
     .lte('orders.created_at', end);
@@ -1918,7 +1955,8 @@ export async function fetchPaymentMethodStats(startDateISO: string, endDateISO: 
   let moneyInTotal = 0;
   for (const p of (data as any[]) || []) {
     const method = String(p.method || '').toLowerCase();
-    const amount = Number(p.amount);
+    // Nur Salon-Anteil (Artist-Anteil der Bestellung proportional abgezogen).
+    const amount = Number(p.amount) * salonFactorOfOrder(p.orders);
     const cur = methodMap.get(method) || { amount: 0, count: 0 };
     cur.amount += amount;
     cur.count += 1;
