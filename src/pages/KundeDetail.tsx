@@ -134,12 +134,13 @@ export default function KundeDetail() {
 
   const vornameValid = vorname.trim().length > 0;
   const nameValid = name.trim().length > 0;
-  const birthdateValid = birthdate.trim().length > 0;
+  // Schnellerfassung (z.B. am Telefon): nur Name, Vorname und Mobile sind Pflicht.
+  const birthdateValid = true;
   const phoneValid = phone.trim().length > 0;
   // E-Mail ist freiwillig (bewusst ohne Formatprüfung, damit importierte Altdaten speicherbar bleiben).
   const emailValid = true;
-  const strasseValid = strasse.trim().length > 0;
-  const plzOrtValid = plzOrt.trim().length > 0;
+  const strasseValid = true;
+  const plzOrtValid = true;
   const canSave = vornameValid && nameValid && birthdateValid && phoneValid && emailValid && strasseValid && plzOrtValid;
 
   const docsByAppointment = useMemo(() => {
@@ -528,7 +529,7 @@ export default function KundeDetail() {
             <input value={plzOrt} onChange={(e) => setPlzOrt(e.target.value)} style={attempted && !plzOrtValid ? { ...inputStyle, border: '1px solid var(--color-destructive)' } : inputStyle} placeholder="—" />
           </div>
           {attempted && (!birthdateValid || !phoneValid || !strasseValid || !plzOrtValid) && (
-            <div style={{ fontSize: 11, color: 'var(--color-destructive)', marginBottom: 8 }}>Geburtsdatum, Mobile, Strasse und PLZ/Ort sind Pflichtfelder.</div>
+            <div style={{ fontSize: 11, color: 'var(--color-destructive)', marginBottom: 8 }}>Mobile ist ein Pflichtfeld.</div>
           )}
 
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', margin: '14px 0 6px' }}>
