@@ -69,6 +69,7 @@ Web-App unter sknpr.ch. Sprache: Deutsch (Schweiz, "ss" statt "ß"). Beträge in
 - Danach erscheint der Kunde in "Offene Einverständniserklärungen" (Kunden-Seite) und im Dialog "Neuer Termin".
 
 ## Settings (Admin & Salon Manager)
+- Änderungen an Miet- & Serviceanteil oder "Mitarbeiter" gelten nur für KÜNFTIGE Kassiervorgänge. Bereits kassierte Termine behalten den Anteil vom Zeitpunkt des Kassierens (nicht rückwirkend).
 - **Artists**: anlegen, Farbe im Kalender, Status aktiv/inaktiv, Künstlername, Adresse, MwSt.-Nummer, Beteiligung (Miet- & Serviceanteil in %), "Mitarbeiter (Angestellte:r)" = Umsatz 100% Salon, Dienstleistungen zuweisen, PIN für die Artist-App.
 - **Schichtplan**: Monatsplan pro Artist und Standort (Arbeitszeiten). Nach Änderungen "Speichern".
 - **Absenzen**: Ferien, krank, abwesend verwalten.

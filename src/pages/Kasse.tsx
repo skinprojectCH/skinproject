@@ -948,6 +948,7 @@ if (voucher.status === 'eingelöst' || voucher.remaining_value <= 0) {
   payments: { method: string; amount: number }[];
   customerLabel: string;
   customerId: string | null;
+  salonSharePct?: number | null; // beim Kassieren gespeicherter Salon-Anteil (alte Quittungen)
   contextLabel: string | null;
   date: string;
   artist: Artist | null;
@@ -1078,6 +1079,7 @@ if (voucher.status === 'eingelöst' || voucher.remaining_value <= 0) {
   contextLabel: `Termin: ${artist?.name || '—'} · ${new Date(appt.start_time).toLocaleString('de-CH', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}`,
   date: new Date(order.created_at).toLocaleString('de-CH', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }),
   artist: artist || null,
+  salonSharePct: order.salon_share_pct != null ? Number(order.salon_share_pct) : null,
   location: allLocations.find((l) => l.id === (appt.location_id || order.location_id)) || null,
   });
   setCompleted(true);
@@ -1356,7 +1358,7 @@ return (
 }
 
 if (completed) {
-const sharePct = receipt?.artist ? receipt.artist.revenue_share_pct ?? 0 : 100;
+const sharePct = receipt?.salonSharePct != null ? receipt.salonSharePct : receipt?.artist ? (receipt.artist.is_employee ? 100 : receipt.artist.revenue_share_pct ?? 0) : 100;
 const location = receipt?.location;
 const mwstActive = !!(location?.vat_number && location?.mwst_prozent);
 
