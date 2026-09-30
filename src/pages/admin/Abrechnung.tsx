@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { isNoMoneyIn } from '../../lib/paymentMethods';
 import { useLocationContext } from '../../lib/locationContext';
-import { fetchLocationBilling, fetchLocationArtistBillingDetail, fetchLocations, fetchCashStartingBalance, setCashStartingBalance, fetchCashBalance, fetchCashBalanceDetail, type CashBalanceDetail, addCashAdjustment, fetchCashAdjustmentsForDay, fetchLocationManagers, type LocationManager, type LocationBilling, type LocationBillingArtistRow, type LocationArtistBillingEntry, type CashAdjustment, type RedeemedVoucherEntry } from '../../lib/queries';
+import { fetchLocationBilling, fetchLocationArtistBillingDetail, fetchLocations, fetchCashStartingBalance, setCashStartingBalance, fetchCashBalance, fetchCashBalanceDetail, type CashBalanceDetail, addCashAdjustment, fetchCashAdjustmentsForDay, fetchLocationManagers, fetchTaxRates, taxRateAt, type LocationManager, type LocationBilling, type LocationBillingArtistRow, type LocationArtistBillingEntry, type CashAdjustment, type RedeemedVoucherEntry } from '../../lib/queries';
 import { formatCHF } from '../../lib/format';
 import Modal from '../../components/Modal';
 
@@ -629,34 +629,57 @@ function MwstBerechnung({ locationId, locationName }: { locationId: string; loca
   });
   const [bis, setBis] = useState(todayISO());
 
-  const [billing, setBilling] = useState<LocationBilling | null>(null);
+  // Pro Abschnitt mit gleichem Saldosteuersatz (bei Satzwechsel im Zeitraum mehrere Abschnitte).
+  const [segments, setSegments] = useState<{ von: string; bis: string; rate: number | null; salonRevenue: number; payout: number }[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [saldosteuersatz, setSaldosteuersatz] = useState<number | null>(null);
-
-  // Immer frisch laden statt aus dem geteilten LocationContext (der nur beim App-Start
-  // einmal geladen wird und nach einer Änderung unter Locations veraltet sein kann).
-  useEffect(() => {
-    if (!locationId) return;
-    fetchLocations()
-      .then((locs) => setSaldosteuersatz(locs.find((l) => l.id === locationId)?.saldosteuersatz ?? null))
-      .catch(() => setSaldosteuersatz(null));
-  }, [locationId]);
 
   useEffect(() => {
     if (!locationId || !von || !bis) return;
     setLoading(true);
     setError(null);
-    fetchLocationBilling(locationId, von, bis)
-      .then(setBilling)
-      .catch((e) => setError(e.message))
-      .finally(() => setLoading(false));
+    (async () => {
+      try {
+        const [locs, rates] = await Promise.all([fetchLocations(), fetchTaxRates(locationId)]);
+        const fallback = locs.find((l) => l.id === locationId)?.saldosteuersatz ?? null;
+        // Grenzen: Satzwechsel innerhalb des Zeitraums.
+        const cuts = rates.map((r) => r.valid_from).filter((d) => d > von && d <= bis).sort();
+        const bounds: { von: string; bis: string }[] = [];
+        let cur = von;
+        for (const c of cuts) {
+          const prev = new Date(`${c}T12:00:00`);
+          prev.setDate(prev.getDate() - 1);
+          bounds.push({ von: cur, bis: prev.toISOString().slice(0, 10) });
+          cur = c;
+        }
+        bounds.push({ von: cur, bis });
+        const result = await Promise.all(
+          bounds.map(async (b) => {
+            const billing = await fetchLocationBilling(locationId, b.von, b.bis);
+            const r = taxRateAt(rates, b.von);
+            return {
+              ...b,
+              rate: r ? r.saldosteuersatz : fallback,
+              salonRevenue: billing.salonRevenue,
+              payout: billing.artistRows.reduce((s, x) => s + x.payout, 0),
+            };
+          })
+        );
+        setSegments(result);
+      } catch (e: any) {
+        setError(e.message);
+      } finally {
+        setLoading(false);
+      }
+    })();
   }, [locationId, von, bis]);
 
-  const totalPayout = billing?.artistRows.reduce((s, r) => s + r.payout, 0) || 0;
-  const salonNetto = (billing?.salonRevenue || 0) - totalPayout;
-  const rate = saldosteuersatz || 0;
-  const saldosteuer = salonNetto * (rate / 100);
+  const salonRevenue = segments.reduce((s, x) => s + x.salonRevenue, 0);
+  const totalPayout = segments.reduce((s, x) => s + x.payout, 0);
+  const salonNetto = salonRevenue - totalPayout;
+  const saldosteuer = segments.reduce((s, x) => s + (x.salonRevenue - x.payout) * ((x.rate || 0) / 100), 0);
+  const missingRate = segments.some((x) => !x.rate);
+  const fmtD = (d: string) => new Date(`${d}T12:00:00`).toLocaleDateString('de-CH');
 
   return (
     <div>
@@ -675,9 +698,9 @@ function MwstBerechnung({ locationId, locationName }: { locationId: string; loca
         </div>
       </div>
 
-      {!saldosteuersatz && (
+      {!loading && missingRate && (
         <div style={{ border: '1px solid var(--color-warn-border)', background: 'var(--color-warn-bg)', borderRadius: 6, padding: '12px 14px', marginBottom: 20, fontSize: 12, color: '#5a4a20' }}>
-          Für {locationName} ist noch kein Saldosteuersatz hinterlegt (Admin → Locations → MWST).
+          Für {locationName} ist (für diesen Zeitraum) kein Saldosteuersatz hinterlegt (Settings → Locations → MWST).
         </div>
       )}
 
@@ -685,11 +708,11 @@ function MwstBerechnung({ locationId, locationName }: { locationId: string; loca
         <div style={{ fontSize: 13, color: '#999' }}>Lädt…</div>
       ) : error ? (
         <div style={{ fontSize: 13, color: 'var(--color-destructive)' }}>Fehler: {error}</div>
-      ) : billing ? (
-        <div style={{ border: '1px solid var(--color-border)', borderRadius: 6, background: 'var(--color-surface)', overflow: 'hidden', maxWidth: 480 }}>
+      ) : (
+        <div style={{ border: '1px solid var(--color-border)', borderRadius: 6, background: 'var(--color-surface)', overflow: 'hidden', maxWidth: 520 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', padding: '14px 16px', fontSize: 13, borderBottom: '1px solid var(--color-border)' }}>
             <div style={{ color: '#777' }}>Umsatz Salon (gesamt)</div>
-            <div style={{ fontWeight: 600 }}>{formatCHF(billing.salonRevenue)}</div>
+            <div style={{ fontWeight: 600 }}>{formatCHF(salonRevenue)}</div>
           </div>
           <div style={{ display: 'flex', justifyContent: 'space-between', padding: '14px 16px', fontSize: 13, borderBottom: '1px solid var(--color-border)' }}>
             <div style={{ color: '#777' }}>abzüglich Auszahlungen Artists</div>
@@ -699,16 +722,27 @@ function MwstBerechnung({ locationId, locationName }: { locationId: string; loca
             <div style={{ fontWeight: 700 }}>Salon-Umsatz ohne Artisten</div>
             <div style={{ fontWeight: 700 }}>{formatCHF(salonNetto)}</div>
           </div>
-          <div style={{ display: 'flex', justifyContent: 'space-between', padding: '14px 16px', fontSize: 13, borderBottom: '1px solid var(--color-border)' }}>
-            <div style={{ color: '#777' }}>Saldosteuersatz</div>
-            <div style={{ fontWeight: 600 }}>{rate ? `${rate}%` : '—'}</div>
-          </div>
+          {segments.length > 1 ? (
+            segments.map((x, i) => (
+              <div key={i} style={{ display: 'flex', justifyContent: 'space-between', padding: '12px 16px', fontSize: 12, borderBottom: '1px solid var(--color-border)' }}>
+                <div style={{ color: '#777' }}>
+                  {fmtD(x.von)} – {fmtD(x.bis)}: {formatCHF(x.salonRevenue - x.payout)} × {x.rate ?? '—'}%
+                </div>
+                <div style={{ fontWeight: 600 }}>{formatCHF((x.salonRevenue - x.payout) * ((x.rate || 0) / 100))}</div>
+              </div>
+            ))
+          ) : (
+            <div style={{ display: 'flex', justifyContent: 'space-between', padding: '14px 16px', fontSize: 13, borderBottom: '1px solid var(--color-border)' }}>
+              <div style={{ color: '#777' }}>Saldosteuersatz</div>
+              <div style={{ fontWeight: 600 }}>{segments[0]?.rate ? `${segments[0].rate}%` : '—'}</div>
+            </div>
+          )}
           <div style={{ display: 'flex', justifyContent: 'space-between', padding: '16px', fontSize: 15 }}>
             <div style={{ fontWeight: 700 }}>Abzurechnende MWST</div>
             <div style={{ fontWeight: 700, color: 'var(--color-accent)' }}>{formatCHF(saldosteuer)}</div>
           </div>
         </div>
-      ) : null}
+      )}
     </div>
   );
 }

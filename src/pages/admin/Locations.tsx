@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import Modal from '../../components/Modal';
+import TaxRatesSection from '../../components/TaxRatesSection';
 import { useLocationContext } from '../../lib/locationContext';
 import {
   fetchLocations,
@@ -11,6 +12,8 @@ import {
   deleteLocationManager,
   setMainLocation,
   type Location,
+  fetchTaxRates,
+  addTaxRate,
 } from '../../lib/queries';
 
 const inputStyle: React.CSSProperties = { border: '1px solid #ddd', borderRadius: 4, padding: '9px 10px', fontSize: 13, width: '100%', fontFamily: 'var(--font-body)' };
@@ -330,6 +333,15 @@ export default function Locations() {
     setVatNumber(selected.vat_number || '');
     setMwstProzent(selected.mwst_prozent != null ? String(selected.mwst_prozent) : '');
     setSaldosteuersatz(selected.saldosteuersatz != null ? String(selected.saldosteuersatz) : '');
+    // Anzeige = heute gültiger Satz aus der Gültigkeits-Tabelle (falls vorhanden).
+    fetchTaxRates(selected.id).then((rates) => {
+      const todayISO = new Date().toISOString().slice(0, 10);
+      const current = [...rates].reverse().find((r) => r.valid_from <= todayISO);
+      if (current) {
+        setMwstProzent(current.mwst_prozent != null ? String(current.mwst_prozent) : '');
+        setSaldosteuersatz(current.saldosteuersatz != null ? String(current.saldosteuersatz) : '');
+      }
+    });
     setSaveError(null);
     setSaved(false);
     setAttempted(false);
@@ -404,6 +416,22 @@ export default function Locations() {
         mwst_prozent: mwstProzent ? parseFloat(mwstProzent) : null,
         saldosteuersatz: saldosteuersatz ? parseFloat(saldosteuersatz) : null,
       });
+
+      // Die Felder oben = aktuell gültiger Satz -> den heute gültigen Eintrag in der
+      // Gültigkeits-Tabelle mitziehen (geplante Sätze in der Zukunft bleiben unberührt).
+      try {
+        const rates = await fetchTaxRates(selectedId);
+        const todayISO = new Date().toISOString().slice(0, 10);
+        const current = [...rates].reverse().find((r) => r.valid_from <= todayISO);
+        await addTaxRate({
+          location_id: selectedId,
+          valid_from: current?.valid_from || '2000-01-01',
+          mwst_prozent: mwstProzent ? parseFloat(mwstProzent) : null,
+          saldosteuersatz: saldosteuersatz ? parseFloat(saldosteuersatz) : null,
+        });
+      } catch {
+        /* Migration 043 noch nicht ausgeführt -> nur Location-Felder */
+      }
 
       for (const m of managers) {
         if (m.deleted && m.id) {
@@ -606,6 +634,7 @@ export default function Locations() {
               </div>
             </div>
             <div style={{ fontSize: 11, color: '#999', marginTop: 10 }}>Saldosteuersatz: für die MWST-Berechnung in der Abrechnung (vereinfachte Abrechnungsmethode, auf Salon-Umsatz ohne Artisten-Anteil).</div>
+            {selectedId && <TaxRatesSection locationId={selectedId} />}
           </div>
 
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>

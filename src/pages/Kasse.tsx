@@ -27,6 +27,9 @@ updateAppointment,
 deleteAppointment,
 deleteAppointmentFull,
 sendReceiptEmail,
+fetchTaxRates,
+taxRateAt,
+type TaxRate,
 updateCustomer,
 fetchDocumentsForAppointment,
 uploadCustomerFile,
@@ -949,6 +952,7 @@ if (voucher.status === 'eingelöst' || voucher.remaining_value <= 0) {
   customerLabel: string;
   customerId: string | null;
   salonSharePct?: number | null; // beim Kassieren gespeicherter Salon-Anteil (alte Quittungen)
+  dateISO?: string; // Verkaufsdatum (für den dann gültigen MWST-Satz)
   contextLabel: string | null;
   date: string;
   artist: Artist | null;
@@ -959,6 +963,8 @@ if (voucher.status === 'eingelöst' || voucher.remaining_value <= 0) {
   const [activeArtist, setActiveArtist] = useState<Artist | null>(null);
   const [contextError, setContextError] = useState<string | null>(null);
   const [alreadyKassiert, setAlreadyKassiert] = useState(false);
+  // Steuersätze mit Gültigkeit für die Quittung (Satz am Verkaufsdatum).
+  const [receiptTaxRates, setReceiptTaxRates] = useState<TaxRate[]>([]);
   // Quittung per E-Mail
   const [showSendReceipt, setShowSendReceipt] = useState(false);
   const [receiptEmail, setReceiptEmail] = useState('');
@@ -1034,6 +1040,7 @@ if (voucher.status === 'eingelöst' || voucher.remaining_value <= 0) {
   customerId: customer?.id || null,
   contextLabel: null,
   date: new Date(order.created_at).toLocaleString('de-CH', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }),
+  dateISO: String(order.created_at).slice(0, 10),
   artist: null,
   location: allLocations.find((l) => l.id === order.location_id) || null,
   });
@@ -1078,6 +1085,7 @@ if (voucher.status === 'eingelöst' || voucher.remaining_value <= 0) {
   customerId: customer?.id || null,
   contextLabel: `Termin: ${artist?.name || '—'} · ${new Date(appt.start_time).toLocaleString('de-CH', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}`,
   date: new Date(order.created_at).toLocaleString('de-CH', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }),
+  dateISO: String(order.created_at).slice(0, 10),
   artist: artist || null,
   salonSharePct: order.salon_share_pct != null ? Number(order.salon_share_pct) : null,
   location: allLocations.find((l) => l.id === (appt.location_id || order.location_id)) || null,
@@ -1120,6 +1128,12 @@ if (voucher.status === 'eingelöst' || voucher.remaining_value <= 0) {
   }
   })();
   }, [appointmentId]);
+
+  useEffect(() => {
+    const locId = receipt?.location?.id;
+    if (!locId) return;
+    fetchTaxRates(locId).then(setReceiptTaxRates).catch(() => setReceiptTaxRates([]));
+  }, [receipt?.location?.id]);
 
   function reloadApptFiles() {
   if (!appointmentId) return;
@@ -1265,6 +1279,7 @@ if (voucher.status === 'eingelöst' || voucher.remaining_value <= 0) {
   customerId: selectedCustomerId || null,
   contextLabel,
   date: new Date().toLocaleString('de-CH', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }),
+  dateISO: new Date().toISOString().slice(0, 10),
   artist: activeArtist,
   location: locations.find((l) => l.id === selectedLocationId) || null,
 
@@ -1359,7 +1374,10 @@ return (
 
 if (completed) {
 const sharePct = receipt?.salonSharePct != null ? receipt.salonSharePct : receipt?.artist ? (receipt.artist.is_employee ? 100 : receipt.artist.revenue_share_pct ?? 0) : 100;
-const location = receipt?.location;
+const baseLocation = receipt?.location;
+// MWST-Satz, der am Verkaufsdatum gilt (Gültigkeits-Tabelle), sonst Location-Feld.
+const rateAtSale = receipt?.dateISO ? taxRateAt(receiptTaxRates.filter((r) => r.location_id === baseLocation?.id), receipt.dateISO) : null;
+const location = baseLocation ? { ...baseLocation, mwst_prozent: rateAtSale?.mwst_prozent ?? baseLocation.mwst_prozent } : baseLocation;
 const mwstActive = !!(location?.vat_number && location?.mwst_prozent);
 
 function cardData(variant: 'salon' | 'artist') {

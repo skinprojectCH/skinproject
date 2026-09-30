@@ -74,6 +74,7 @@ Web-App unter sknpr.ch. Sprache: Deutsch (Schweiz, "ss" statt "ß"). Beträge in
 - **Schichtplan**: Monatsplan pro Artist und Standort (Arbeitszeiten). Nach Änderungen "Speichern".
 - **Absenzen**: Ferien, krank, abwesend verwalten.
 - **Locations**: Standorte (Firma, Adresse, MWST-Nummer und Saldosteuersatz), Haupt-Location, Salon Manager/Mitarbeiter mit PIN, Admin-Zugänge, Registrierungs-Link.
+- **Steuersätze mit Gültigkeit** (Settings → Locations → Standort öffnen, unter MWST): neuen MWST-Satz und/oder Saldosteuersatz mit "Gültig ab" (z.B. 01.01.2027) im Voraus erfassen → "+ Erfassen". Ab diesem Datum verwenden Quittungen und MWST-Berechnung automatisch den neuen Satz; ältere Verkäufe behalten den alten. Geplante Sätze können vor Inkrafttreten gelöscht werden. Umfasst ein MWST-Zeitraum einen Satzwechsel, wird er automatisch aufgeteilt.
 - **E-Mail & Pflege**: Pflegeanleitungen Tattoo/Piercing, Dankeschön-Rabatt in der Mail, Text der Einverständniserklärung.
 - **Gutschein & Anzahlung**: Listen aller Gutscheine (Kasse und Online-Kauf über Stripe) und Anzahlungen mit Restwert und Status.
 - **Service & Artikel**: Produkte (Artikel) und Dienstleistungen mit Kategorien, Preis, Dauer, aktiv/inaktiv.

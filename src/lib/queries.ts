@@ -1998,6 +1998,38 @@ export async function fetchPaymentMethodStats(startDateISO: string, endDateISO: 
   return { byMethod, moneyInTotal, byMonth: months };
 }
 
+// ---------- Steuersätze mit Gültigkeit (Migration 043) ----------
+export interface TaxRate {
+  id: string;
+  location_id: string;
+  valid_from: string; // YYYY-MM-DD
+  mwst_prozent: number | null;
+  saldosteuersatz: number | null;
+}
+
+export async function fetchTaxRates(locationId: string): Promise<TaxRate[]> {
+  const { data, error } = await supabase.from('location_tax_rates').select('*').eq('location_id', locationId).order('valid_from');
+  if (error) return []; // Tabelle fehlt noch (Migration nicht gelaufen) -> Rückfall auf Location-Felder
+  return ((data as any[]) || []).map((r) => ({ ...r, mwst_prozent: r.mwst_prozent != null ? Number(r.mwst_prozent) : null, saldosteuersatz: r.saldosteuersatz != null ? Number(r.saldosteuersatz) : null }));
+}
+
+export async function addTaxRate(input: { location_id: string; valid_from: string; mwst_prozent: number | null; saldosteuersatz: number | null }) {
+  const { error } = await supabase.from('location_tax_rates').upsert(input, { onConflict: 'location_id,valid_from' });
+  if (error) throw error;
+}
+
+export async function deleteTaxRate(id: string) {
+  const { error } = await supabase.from('location_tax_rates').delete().eq('id', id);
+  if (error) throw error;
+}
+
+// Satz, der an einem Datum gilt: letzter Eintrag mit valid_from <= Datum.
+export function taxRateAt(rates: TaxRate[], dateISO: string): TaxRate | null {
+  let found: TaxRate | null = null;
+  for (const r of rates) if (r.valid_from <= dateISO.slice(0, 10)) found = r;
+  return found;
+}
+
 // ---------- Kassenbestand ----------
 // Fixer Startbetrag pro Location (z.B. 300 CHF Wechselgeld) -- nur der Hauptadmin darf
 // diesen Basiswert ändern.
