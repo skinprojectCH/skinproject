@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { isNoMoneyIn } from '../../lib/paymentMethods';
 import { useLocationContext } from '../../lib/locationContext';
 import {
   fetchCustomerStatsForMonth,
@@ -316,10 +317,10 @@ function PerformanceTable({ title, rows, total }: { title: string; rows: { id: s
   );
 }
 
-const DAY_PAY_LABELS: Record<string, string> = { bar: 'Bar', karte: 'Karte', twint: 'TWINT', rechnung: 'Rechnung', online: 'Online', gutschein: 'Gutschein', anzahlung: 'Anzahlung' };
+const DAY_PAY_LABELS: Record<string, string> = { bar: 'Bar', karte: 'Karte', twint: 'TWINT', rechnung: 'Rechnung', online: 'Online', gutschein: 'Gutschein', anzahlung: 'Anzahlung', anzahlung_alt: 'Anzahlung alte Kasse' };
 
 function DailySalesView({ daily }: { daily: { rows: DailySaleRow[]; byMethod: Record<string, number> } }) {
-  const methodOrder = ['bar', 'karte', 'twint', 'rechnung', 'online', 'gutschein', 'anzahlung'];
+  const methodOrder = ['bar', 'karte', 'twint', 'rechnung', 'online', 'gutschein', 'anzahlung', 'anzahlung_alt'];
   const methods = Object.keys(daily.byMethod).sort((a, b) => (methodOrder.indexOf(a) < 0 ? 99 : methodOrder.indexOf(a)) - (methodOrder.indexOf(b) < 0 ? 99 : methodOrder.indexOf(b)));
   for (const m of ['karte', 'bar']) if (!methods.includes(m)) methods.unshift(m);
   methods.sort((a, b) => (a === 'bar' ? -1 : b === 'bar' ? 1 : a === 'karte' ? -1 : b === 'karte' ? 1 : 0));
@@ -682,7 +683,7 @@ function RabattStatistik() {
   );
 }
 
-const PAY_LABELS: Record<string, string> = { bar: 'Bar', karte: 'Karte', twint: 'TWINT', rechnung: 'Rechnung', online: 'Online (Stripe)', gutschein: 'Gutschein eingelöst', anzahlung: 'Anzahlung eingelöst' };
+const PAY_LABELS: Record<string, string> = { bar: 'Bar', karte: 'Karte', twint: 'TWINT', rechnung: 'Rechnung', online: 'Online (Stripe)', gutschein: 'Gutschein eingelöst', anzahlung: 'Anzahlung eingelöst', anzahlung_alt: 'Anzahlung alte Kasse eingelöst' };
 const PAY_COLORS: Record<string, string> = { bar: '#5B8A72', karte: 'var(--color-slate)', twint: '#7A6FB0', rechnung: 'var(--color-taupe)', online: 'var(--color-accent)' };
 
 function MethodDonut({ parts, size = 160 }: { parts: { method: string; amount: number }[]; size?: number }) {
@@ -743,11 +744,11 @@ function ZahlungsartStatistik() {
   }, [month, monthYear, year]);
 
   function Block({ title, stats, nav }: { title: string; stats: PaymentMethodStats | null; nav: React.ReactNode }) {
-    const moneyIn = (stats?.byMethod || []).filter((p) => p.method !== 'gutschein' && p.method !== 'anzahlung');
+    const moneyIn = (stats?.byMethod || []).filter((p) => !isNoMoneyIn(p.method));
     // Bar und Karte immer anzeigen, auch wenn 0.
     for (const m of ['karte', 'bar']) if (!moneyIn.some((p) => p.method === m)) moneyIn.unshift({ method: m, amount: 0, count: 0 });
     moneyIn.sort((a, b) => (a.method === 'bar' ? -1 : b.method === 'bar' ? 1 : a.method === 'karte' ? -1 : b.method === 'karte' ? 1 : 0));
-    const redeemed = (stats?.byMethod || []).filter((p) => p.method === 'gutschein' || p.method === 'anzahlung');
+    const redeemed = (stats?.byMethod || []).filter((p) => isNoMoneyIn(p.method));
     const total = stats?.moneyInTotal || 0;
     return (
       <div style={{ border: '1px solid var(--color-border)', borderRadius: 6, background: 'var(--color-surface)', padding: 20, flex: 1, minWidth: 300 }}>

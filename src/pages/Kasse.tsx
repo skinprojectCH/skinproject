@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { paymentLabel, toDbMethod } from '../lib/paymentMethods';
 import { useLocation, useNavigate } from 'react-router-dom';
 import Modal from '../components/Modal';
 import { roundToRappen } from '../lib/format';
@@ -42,7 +43,7 @@ type Artist,
 type Voucher,
 } from '../lib/queries';
 
-const PAYMENT_METHODS = ['Karte', 'Bar', 'Rechnung', 'Gutschein', 'Anzahlung'];
+const PAYMENT_METHODS = ['Karte', 'Bar', 'Rechnung', 'Gutschein', 'Anzahlung', 'Anzahlung alte Kasse'];
 const SIMPLE_PAYMENT_METHODS = ['Karte', 'Bar', 'Rechnung']; // Gutschein/Anzahlung brauchen Zusatzschritt -> nur im Split-Dialog
 
 interface LineItem {
@@ -1246,7 +1247,7 @@ if (voucher.status === 'eingelöst' || voucher.remaining_value <= 0) {
   discount_value: i.discountValue || null,
   line_total: lineItemTotal(i),
   })),
-  payments: payments.map((p) => ({ ...p, method: p.method.toLowerCase() })),
+  payments: payments.map((p) => ({ ...p, method: toDbMethod(p.method) })),
   vouchersToCreate: items
   .filter((i) => i.kind === 'voucher')
   .map((i) => ({ code: i.voucherCode || i.refId, value: i.unitPrice, buyer_customer_id: selectedCustomerId || null })),
@@ -1395,7 +1396,7 @@ const rowsHtml = rows
 .map((r) => `<tr><td style="padding:3px 0;font-size:13px;">${esc(r.label)}${r.discountLabel ? ` <span style="font-size:11px;color:#888;">${esc(r.discountLabel)}</span>` : ''}</td><td style="padding:3px 0;font-size:13px;text-align:right;white-space:nowrap;">${chf(r.amount)}</td></tr>`)
 .join('');
 const mwstHtml = variant === 'salon' && mwstActive ? `<div style="font-size:11px;color:#777;margin-top:6px;">MWST ${location!.mwst_prozent}% (inkl.): ${chf(mwstAmount)}<br/>MWST-Nr.: ${esc(location!.vat_number || '')}</div>` : '';
-const payHtml = variant === 'salon' ? `<div style="font-size:12px;color:#777;margin-top:6px;">${(receipt?.payments || []).map((p) => `${esc(p.method)}: ${chf(p.amount)}`).join('<br/>')}</div>` : '';
+const payHtml = variant === 'salon' ? `<div style="font-size:12px;color:#777;margin-top:6px;">${(receipt?.payments || []).map((p) => `${esc(paymentLabel(p.method))}: ${chf(p.amount)}`).join('<br/>')}</div>` : '';
 return `<div style="border:1px solid #ddd;border-radius:6px;padding:16px 18px;margin-bottom:16px;">
 <div style="font-size:11px;text-transform:uppercase;letter-spacing:0.5px;color:#999;font-weight:700;margin-bottom:4px;">Quittung</div>
 <div style="font-size:14px;font-weight:700;">${esc(title)}</div>
@@ -1519,7 +1520,7 @@ MWST {location!.mwst_prozent}% (inkl.): {chf(mwstAmount)}
 <div style={{ fontSize: 12, color: '#777' }}>
 {receipt?.payments.map((p, i) => (
 <div key={i}>
-{p.method}: {chf(p.amount)}
+{paymentLabel(p.method)}: {chf(p.amount)}
 </div>
 ))}
 </div>

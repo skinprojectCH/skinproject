@@ -1,4 +1,5 @@
 import { supabase } from './supabaseClient';
+import { isNoMoneyIn } from './paymentMethods';
 import { HEALTH_QUESTION_LABELS, NON_HEALTH_KEYS } from './healthQuestions';
 
 // ---------- Types (spiegeln db/schema.sql) ----------
@@ -1216,6 +1217,8 @@ export interface LocationBilling {
   lateReceipts: LateReceiptEntry[]; // im Zeitraum eingegangene Zahlungen für Termine VOR dem Zeitraum (kein Umsatz, nur Geldeingang)
   lateReceiptsTotal: number;
   paymentsByMethod: { method: string; amount: number; count: number }[]; // Einnahmen nach Zahlungsart (nach Zahlungsdatum)
+  legacyDeposits: { customerLabel: string; amount: number }[]; // eingelöste Anzahlungen aus der ALTEN Kasse (temporär)
+  legacyDepositsTotal: number;
 }
 
 export interface OpenReceivableEntry {
@@ -1338,7 +1341,7 @@ export async function fetchLocationBilling(locationId: string, startDateISO: str
     cur.count += 1;
     methodMap.set(m, cur);
   }
-  const METHOD_ORDER = ['bar', 'karte', 'twint', 'rechnung', 'online', 'gutschein', 'anzahlung'];
+  const METHOD_ORDER = ['bar', 'karte', 'twint', 'rechnung', 'online', 'gutschein', 'anzahlung', 'anzahlung_alt'];
   const paymentsByMethod = [...methodMap.entries()]
     .map(([method, v]) => ({ method, amount: v.amount, count: v.count }))
     .sort((a, b) => (METHOD_ORDER.indexOf(a.method) + 99 * +(METHOD_ORDER.indexOf(a.method) < 0)) - (METHOD_ORDER.indexOf(b.method) + 99 * +(METHOD_ORDER.indexOf(b.method) < 0)));
@@ -1362,10 +1365,12 @@ export async function fetchLocationBilling(locationId: string, startDateISO: str
   // laufen "Dienstleistungen" und "Anzahlung" bei rückwirkend kassierten Terminen auseinander.
   let anzahlungRedeemedRevenue = 0;
   const redeemedVouchers: RedeemedVoucherEntry[] = [];
+  const legacyDeposits: { customerLabel: string; amount: number }[] = [];
   for (const order of [...paidApptOrders, ...walkInRows]) {
     const customerLabel = order.customers ? `${order.customers.vorname} ${order.customers.name}` : 'Laufkunde';
     for (const p of order.payments || []) {
       if (p.method === 'anzahlung') anzahlungRedeemedRevenue += Number(p.amount);
+      if (p.method === 'anzahlung_alt') legacyDeposits.push({ customerLabel, amount: Number(p.amount) });
       if (p.voucher_id && p.vouchers) {
         redeemedVouchers.push({ code: p.vouchers.code, type: p.vouchers.type, amount: Number(p.amount), customerLabel, source: p.vouchers.source });
       }
@@ -1423,6 +1428,8 @@ export async function fetchLocationBilling(locationId: string, startDateISO: str
     lateReceipts,
     lateReceiptsTotal,
     paymentsByMethod,
+    legacyDeposits,
+    legacyDepositsTotal: legacyDeposits.reduce((s, d) => s + d.amount, 0),
   };
 }
 
@@ -1916,14 +1923,14 @@ export async function fetchPaymentMethodStats(startDateISO: string, endDateISO: 
     cur.amount += amount;
     cur.count += 1;
     methodMap.set(method, cur);
-    if (method !== 'gutschein' && method !== 'anzahlung') {
+    if (!isNoMoneyIn(method)) {
       moneyInTotal += amount;
       const m = new Date(p.orders.created_at).getMonth();
       months[m].byMethod[method] = (months[m].byMethod[method] || 0) + amount;
       months[m].total += amount;
     }
   }
-  const ORDER = ['bar', 'karte', 'twint', 'rechnung', 'online', 'gutschein', 'anzahlung'];
+  const ORDER = ['bar', 'karte', 'twint', 'rechnung', 'online', 'gutschein', 'anzahlung', 'anzahlung_alt'];
   const rank = (m: string) => (ORDER.indexOf(m) < 0 ? 99 : ORDER.indexOf(m));
   const byMethod = [...methodMap.entries()].map(([method, v]) => ({ method, ...v })).sort((a, b) => rank(a.method) - rank(b.method));
   return { byMethod, moneyInTotal, byMonth: months };
