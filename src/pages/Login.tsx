@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import PasswordInput from '../components/PasswordInput';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabaseClient';
 
@@ -175,7 +176,7 @@ export default function Login() {
           <label className="label-uppercase" htmlFor="password">
             Passwort
           </label>
-          <input id="password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} required style={inputStyle} />
+          <PasswordInput id="password" value={password} onChange={setPassword} required style={inputStyle} />
           {error && <p style={{ color: 'var(--color-destructive)', fontSize: 12, marginTop: 4 }}>{error}</p>}
           <button type="submit" className="btn btn-primary" style={{ width: '100%', marginTop: 20 }} disabled={loading}>
             {loading ? 'Anmelden…' : 'Anmelden'}

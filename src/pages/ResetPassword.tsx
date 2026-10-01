@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import PasswordInput from '../components/PasswordInput';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabaseClient';
 
@@ -74,12 +75,12 @@ export default function ResetPassword() {
             <label className="label-uppercase" htmlFor="password">
               Neues Passwort
             </label>
-            <input id="password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} required style={inputStyle} autoFocus />
+            <PasswordInput id="password" value={password} onChange={setPassword} required style={inputStyle} autoFocus />
 
             <label className="label-uppercase" htmlFor="confirm">
               Passwort bestätigen
             </label>
-            <input id="confirm" type="password" value={confirm} onChange={(e) => setConfirm(e.target.value)} required style={inputStyle} />
+            <PasswordInput id="confirm" value={confirm} onChange={setConfirm} required style={inputStyle} />
 
             {error && <p style={{ color: 'var(--color-destructive)', fontSize: 12, marginTop: 4 }}>{error}</p>}
 
