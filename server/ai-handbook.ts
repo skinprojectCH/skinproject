@@ -91,7 +91,7 @@ Web-App unter sknpr.ch. Sprache: Deutsch (Schweiz, "ss" statt "ß"). Beträge in
 - Zeitraum Tag / Monat / Jahr / MWST. PDF-Export.
 - Umsatz Salon (Anteil Dienstleistungen, Produkte, Gutscheine), Umsatz Artists, Auszahlung pro Artist (Button "Detail" zeigt jeden Termin), MWST.
 - **Einnahmen nach Zahlungsart**: Box mit Bar, Karte (immer), Rechnung, Online und Total für den gewählten Zeitraum (nach Zahlungsdatum).
-- **Kassenbestand**: Start-Kassenbestand + NUR Bar-Zahlungen + Auslagen/Differenzen, jeweils ab dem Zeitpunkt, an dem der Startbetrag gesetzt wurde. Die Herleitung steht unter dem Betrag. In der Kalender-Listenansicht steht bei kassierten Terminen die Zahlungsart.
+- **Kassenbestand**: Start-Kassenbestand + NUR Bar-Zahlungen (nur Salon-Anteil; der Bar-Anteil der Artists wird direkt an die Artists ausbezahlt und ist nicht in der Kasse) + Auslagen/Differenzen, jeweils ab dem Zeitpunkt, an dem der Startbetrag gesetzt wurde. Die Herleitung steht unter dem Betrag. In der Kalender-Listenansicht steht bei kassierten Terminen die Zahlungsart.
   - "+ Auslage": Bargeld aus der Kasse (z.B. Materialeinkauf). Betrag positiv eingeben, wird automatisch abgezogen.
   - **"Kassensturz"**: Geld zählen und den **gezählten Betrag** eingeben. Das System zeigt sofort die Differenz (+ zu viel, − zu wenig, "Stimmt ✓") und setzt den Kassenbestand auf den gezählten Betrag. Die Notiz ist automatisch "Kassensturz - Datum". Unter "Gezählt von" den Salon Manager auswählen (Pflicht). Erscheint im Abschluss als Differenz mit Name.
   - "Startbetrag ändern": nur Admin.

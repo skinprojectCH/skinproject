@@ -2085,7 +2085,8 @@ export interface CashAdjustment {
 export interface CashBalanceDetail {
   startingBalance: number;
   startSetAt: string | null; // ab diesem Zeitpunkt wird gezählt
-  cashIn: number; // Bar-Einnahmen seit startSetAt
+  cashIn: number; // Bar-Einnahmen SALON seit startSetAt (ohne Artist-Anteil)
+  artistCash: number; // Bar-Anteil der Artists seit startSetAt -- geht direkt an den Artist, nicht in die Kasse
   adjustments: number; // Auslagen + Differenzen seit startSetAt
   balance: number;
 }
@@ -2102,7 +2103,7 @@ export async function fetchCashBalanceDetail(locationId: string): Promise<CashBa
 
   let payQuery = supabase
     .from('payments')
-    .select('amount, method, orders!inner(location_id, status, created_at)')
+    .select(`amount, method, orders!inner(location_id, status, created_at, subtotal, total, salon_share_pct, order_line_items(service_id, line_total), ${ORDER_ARTIST_EMBED})`)
     .eq('method', 'bar')
     .eq('orders.location_id', locationId)
     .eq('orders.status', 'bezahlt');
@@ -2114,9 +2115,18 @@ export async function fetchCashBalanceDetail(locationId: string): Promise<CashBa
   const [{ data: cashPayments, error: payError }, { data: adjustments, error: adjError }] = await Promise.all([payQuery, adjQuery]);
   if (payError) throw payError;
   if (adjError) throw adjError;
-  const cashIn = ((cashPayments as any[]) || []).filter((p) => p.method === 'bar').reduce((s, p) => s + Number(p.amount), 0);
+  // Nur der Salon-Anteil der Bar-Zahlungen zählt zum Kassenbestand; der Artist-Anteil wird
+  // dem Artist direkt ausbezahlt und liegt nicht in der Salonkasse.
+  let cashIn = 0;
+  let artistCash = 0;
+  for (const p of ((cashPayments as any[]) || []).filter((x) => x.method === 'bar')) {
+    const amount = Number(p.amount);
+    const salon = amount * salonFactorOfOrder(p.orders);
+    cashIn += salon;
+    artistCash += amount - salon;
+  }
   const adjustmentTotal = ((adjustments as any[]) || []).reduce((s, a) => s + Number(a.amount), 0);
-  return { startingBalance, startSetAt, cashIn, adjustments: adjustmentTotal, balance: startingBalance + cashIn + adjustmentTotal };
+  return { startingBalance, startSetAt, cashIn, artistCash, adjustments: adjustmentTotal, balance: startingBalance + cashIn + adjustmentTotal };
 }
 
 export async function fetchCashBalance(locationId: string): Promise<number> {

@@ -155,8 +155,13 @@ function KassenbestandBox({ locationId, isHauptadmin, dateISO }: { locationId: s
             {!loading && <div style={{ fontFamily: 'var(--font-heading)', fontSize: 22, fontWeight: 700 }}>{formatCHF(balance)}</div>}
             {!loading && cashDetail && (
               <div style={{ fontSize: 11, color: '#999', marginTop: 4 }}>
-                Start {formatCHF(cashDetail.startingBalance)} + Bar-Einnahmen {formatCHF(cashDetail.cashIn)} {cashDetail.adjustments < 0 ? '−' : '+'} Auslagen/Differenzen {formatCHF(Math.abs(cashDetail.adjustments))}
+                Start {formatCHF(cashDetail.startingBalance)} + Bar-Einnahmen Salon {formatCHF(cashDetail.cashIn)} {cashDetail.adjustments < 0 ? '−' : '+'} Auslagen/Differenzen {formatCHF(Math.abs(cashDetail.adjustments))}
                 {cashDetail.startSetAt && ` · seit ${new Date(cashDetail.startSetAt).toLocaleString('de-CH', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })}`}
+              </div>
+            )}
+            {!loading && cashDetail && cashDetail.artistCash > 0.004 && (
+              <div style={{ fontSize: 11, color: '#999', marginTop: 2 }}>
+                Bar-Anteil Artists (direkt an Artists, nicht in der Kasse): {formatCHF(cashDetail.artistCash)}
               </div>
             )}
           </div>
