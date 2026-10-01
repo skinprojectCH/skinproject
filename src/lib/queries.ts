@@ -2085,8 +2085,8 @@ export interface CashAdjustment {
 export interface CashBalanceDetail {
   startingBalance: number;
   startSetAt: string | null; // ab diesem Zeitpunkt wird gezählt
-  cashIn: number; // Bar-Einnahmen SALON seit startSetAt (ohne Artist-Anteil)
-  artistCash: number; // Bar-Anteil der Artists seit startSetAt -- geht direkt an den Artist, nicht in die Kasse
+  cashIn: number; // ALLE Bar-Einnahmen seit startSetAt
+  artistPayout: number; // Auszahlung an Artists (ihr Anteil an allen bezahlten Dienstleistungen, egal welche Zahlungsart) -- wird abends bar aus der Kasse bezahlt
   adjustments: number; // Auslagen + Differenzen seit startSetAt
   balance: number;
 }
@@ -2103,30 +2103,32 @@ export async function fetchCashBalanceDetail(locationId: string): Promise<CashBa
 
   let payQuery = supabase
     .from('payments')
-    .select(`amount, method, orders!inner(location_id, status, created_at, subtotal, total, salon_share_pct, order_line_items(service_id, line_total), ${ORDER_ARTIST_EMBED})`)
+    .select('amount, method, orders!inner(location_id, status, created_at)')
     .eq('method', 'bar')
     .eq('orders.location_id', locationId)
     .eq('orders.status', 'bezahlt');
   let adjQuery = supabase.from('cash_adjustments').select('amount, created_at').eq('location_id', locationId);
+  // Artist-Auszahlungen: der Salon bezahlt die Artists abends BAR aus der Kasse -- für jede
+  // bezahlte Dienstleistung (auch wenn der Kunde mit Karte bezahlt hat). Wird automatisch abgezogen.
+  let payoutQuery = supabase
+    .from('orders')
+    .select(`subtotal, total, salon_share_pct, order_line_items(service_id, line_total), ${ORDER_ARTIST_EMBED}`)
+    .eq('location_id', locationId)
+    .eq('status', 'bezahlt')
+    .eq('is_anzahlung', false);
   if (startSetAt) {
     payQuery = payQuery.gte('orders.created_at', startSetAt);
     adjQuery = adjQuery.gte('created_at', startSetAt);
+    payoutQuery = payoutQuery.gte('created_at', startSetAt);
   }
-  const [{ data: cashPayments, error: payError }, { data: adjustments, error: adjError }] = await Promise.all([payQuery, adjQuery]);
+  const [{ data: cashPayments, error: payError }, { data: adjustments, error: adjError }, { data: payoutOrders, error: poError }] = await Promise.all([payQuery, adjQuery, payoutQuery]);
   if (payError) throw payError;
   if (adjError) throw adjError;
-  // Nur der Salon-Anteil der Bar-Zahlungen zählt zum Kassenbestand; der Artist-Anteil wird
-  // dem Artist direkt ausbezahlt und liegt nicht in der Salonkasse.
-  let cashIn = 0;
-  let artistCash = 0;
-  for (const p of ((cashPayments as any[]) || []).filter((x) => x.method === 'bar')) {
-    const amount = Number(p.amount);
-    const salon = amount * salonFactorOfOrder(p.orders);
-    cashIn += salon;
-    artistCash += amount - salon;
-  }
+  if (poError) throw poError;
+  const cashIn = ((cashPayments as any[]) || []).filter((p) => p.method === 'bar').reduce((s, p) => s + Number(p.amount), 0);
+  const artistPayout = ((payoutOrders as any[]) || []).reduce((s, o) => s + artistAmountOfOrder(o), 0);
   const adjustmentTotal = ((adjustments as any[]) || []).reduce((s, a) => s + Number(a.amount), 0);
-  return { startingBalance, startSetAt, cashIn, artistCash, adjustments: adjustmentTotal, balance: startingBalance + cashIn + adjustmentTotal };
+  return { startingBalance, startSetAt, cashIn, artistPayout, adjustments: adjustmentTotal, balance: startingBalance + cashIn - artistPayout + adjustmentTotal };
 }
 
 export async function fetchCashBalance(locationId: string): Promise<number> {
