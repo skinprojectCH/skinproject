@@ -392,7 +392,7 @@ async function downloadLocationSummaryPdf(opts: {
     ['  davon Dienstleistungen (Anteil)', formatCHF(b.salonServiceRevenue)],
     ['  davon Produkte', formatCHF(b.productRevenue)],
     ...(b.anzahlungRedeemedRevenue > 0 ? ([['  davon Anzahlung', formatCHF(b.anzahlungRedeemedRevenue)]] as [string, string][]) : []),
-    ['Termine', String(b.orderCount)],
+    ['Verkäufe (Termine + Kassenverkäufe)', String(b.orderCount)],
     ...(b.voucherRevenue > 0 ? ([['Gutschein-Verkäufe (kein Umsatz, erst beim Einlösen)', formatCHF(b.voucherRevenue)]] as [string, string][]) : []),
   ];
   for (const [label, value] of summaryRows) {
@@ -973,6 +973,35 @@ export default function Abrechnung() {
                     Zusätzlich mit Guthaben bezahlt (kein Geldeingang): {redeemed.map((p) => `${label[p.method]} ${formatCHF(p.amount)}`).join(' · ')}
                   </div>
                 )}
+                {(() => {
+                  // Abgleich: wie setzen sich die Einnahmen aus Umsatz & Co. zusammen?
+                  const redeemedTotal = redeemed.reduce((x, p) => x + p.amount, 0);
+                  const parts: [string, number][] = [
+                    ['Umsatz', billing.salonRevenue],
+                    ['+ Gutschein-Verkäufe', billing.voucherRevenue],
+                    ['+ Anzahlungs-Verkäufe', billing.anzahlungSalesTotal],
+                    ['+ Zahlungseingang offene Posten', billing.lateReceiptsTotal],
+                    ['− offene Debitoren', -billing.openReceivablesTotal],
+                    ['− mit Guthaben bezahlt', -redeemedTotal],
+                  ];
+                  const expected = parts.reduce((x, [, v]) => x + v, 0);
+                  const diff = Math.round((totalIn - expected) * 100) / 100;
+                  return (
+                    <div style={{ fontSize: 11, color: '#777', marginTop: 10, borderTop: '1px solid var(--color-border)', paddingTop: 8 }}>
+                      <strong>Abgleich:</strong>{' '}
+                      {parts
+                        .filter(([, v], i) => i === 0 || Math.abs(v) > 0.004)
+                        .map(([l, v]) => `${l} ${formatCHF(Math.abs(v))}`)
+                        .join(' ')}{' '}
+                      = <strong>{formatCHF(expected)}</strong>
+                      {Math.abs(diff) >= 0.05 ? (
+                        <span style={{ color: 'var(--color-destructive)', fontWeight: 700 }}> · Abweichung zu Einnahmen: {formatCHF(diff)}</span>
+                      ) : (
+                        <span style={{ color: '#1a7a3f', fontWeight: 700 }}> ✓ stimmt mit Einnahmen überein</span>
+                      )}
+                    </div>
+                  );
+                })()}
                 <div style={{ fontSize: 11, color: '#999', marginTop: 6 }}>Nach Zahlungsdatum – inkl. Anzahlungs-Verkäufe und nachträglich bezahlter Termine.</div>
               </div>
             );
@@ -1013,8 +1042,9 @@ export default function Abrechnung() {
               <div style={{ fontSize: 10, color: '#bbb', marginTop: 2 }}>Auszahlungen gesamt</div>
             </div>
             <div style={summaryCardStyle}>
-              <div style={{ fontSize: 11, color: '#999', textTransform: 'uppercase', marginBottom: 8, fontWeight: 600 }}>Termine</div>
+              <div style={{ fontSize: 11, color: '#999', textTransform: 'uppercase', marginBottom: 8, fontWeight: 600 }}>Verkäufe</div>
               <div style={{ fontFamily: 'var(--font-heading)', fontSize: 22, fontWeight: 700 }}>{billing.orderCount}</div>
+              <div style={{ fontSize: 10, color: '#bbb', marginTop: 2 }}>Termine + Kassenverkäufe</div>
             </div>
             <div style={summaryCardStyle}>
               <div style={{ fontSize: 11, color: '#999', textTransform: 'uppercase', marginBottom: 8, fontWeight: 600 }}>Umsatz</div>

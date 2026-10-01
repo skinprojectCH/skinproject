@@ -1268,6 +1268,7 @@ export interface LocationBilling {
   paymentsByMethod: { method: string; amount: number; count: number }[]; // Einnahmen nach Zahlungsart (nach Zahlungsdatum)
   legacyDeposits: { customerLabel: string; amount: number; type: 'Anzahlung' | 'Gutschein' }[]; // eingelöste Anzahlungen/Gutscheine aus der ALTEN Kasse (temporär)
   legacyDepositsTotal: number;
+  anzahlungSalesTotal: number; // im Zeitraum verkaufte Anzahlungen (Geld rein, kein Umsatz)
 }
 
 export interface OpenReceivableEntry {
@@ -1372,6 +1373,16 @@ export async function fetchLocationBilling(locationId: string, startDateISO: str
   }));
   const lateReceiptsTotal = lateReceipts.reduce((s, r) => s + r.amount, 0);
 
+  const { data: anzSales } = await supabase
+    .from('orders')
+    .select('total')
+    .eq('location_id', locationId)
+    .eq('status', 'bezahlt')
+    .eq('is_anzahlung', true)
+    .gte('created_at', start)
+    .lte('created_at', end);
+  const anzahlungSalesTotal = ((anzSales as any[]) || []).reduce((s, o) => s + Number(o.total), 0);
+
   // Einnahmen nach Zahlungsart: alle Zahlungen, die im Zeitraum kassiert wurden (Bestelldatum),
   // inkl. Anzahlungs-Verkäufe und nachträglich bezahlte Termine -- entspricht dem Geldfluss.
   const { data: periodPayments, error: ppError } = await supabase
@@ -1467,7 +1478,15 @@ export async function fetchLocationBilling(locationId: string, startDateISO: str
     r.isEmployee = r.payout <= 0.005;
   }
   const artistRevenue = artistRows.reduce((s, r) => s + r.revenue, 0);
-  const salonServiceRevenue = artistRows.reduce((s, r) => s + (r as any).salonAmount, 0);
+  // Dienstleistungen OHNE Artist (Verkauf ohne Termin, z.B. "Schmuck wechseln" direkt an der
+  // Kasse, oder Termin ohne Artist) gehören zu 100% dem Salon -- vorher fehlten sie hier.
+  const serviceRevenueOf = (o: any) => {
+    const factor = Number(o.subtotal) > 0 ? Number(o.total) / Number(o.subtotal) : 1;
+    return (o.order_line_items || []).filter((li: any) => li.service_id).reduce((s: number, li: any) => s + Number(li.line_total || 0), 0) * factor;
+  };
+  const walkInServiceRevenue = walkInRows.reduce((s, o) => s + serviceRevenueOf(o), 0);
+  const noArtistApptServiceRevenue = apptRows.filter((a) => !a.artists).reduce((s, a) => s + appointmentServiceRevenue(a), 0);
+  const salonServiceRevenue = artistRows.reduce((s, r) => s + (r as any).salonAmount, 0) + walkInServiceRevenue + noArtistApptServiceRevenue;
 
   return {
     salonRevenue,
@@ -1488,6 +1507,7 @@ export async function fetchLocationBilling(locationId: string, startDateISO: str
     paymentsByMethod,
     legacyDeposits,
     legacyDepositsTotal: legacyDeposits.reduce((s, d) => s + d.amount, 0),
+    anzahlungSalesTotal,
   };
 }
 
