@@ -47,6 +47,8 @@ type Voucher,
 } from '../lib/queries';
 
 const PAYMENT_METHODS = ['Karte', 'Bar', 'Rechnung', 'Gutschein', 'Anzahlung', 'Anzahlung alte Kasse'];
+// 'Gutschein ALT' = Gutschein aus der alten Kassensoftware (ohne Code), nur für Admin sichtbar.
+const ADMIN_ONLY_PAYMENT_METHODS = ['Gutschein ALT'];
 const SIMPLE_PAYMENT_METHODS = ['Karte', 'Bar', 'Rechnung']; // Gutschein/Anzahlung brauchen Zusatzschritt -> nur im Split-Dialog
 
 interface LineItem {
@@ -521,6 +523,8 @@ initialAnzahlungList?: Voucher[] | null;
 onClose: () => void;
 onComplete: (payments: { method: string; amount: number; voucher_id?: string | null }[], total: number, discountType: 'percent' | 'chf' | null, discountValue: number) => Promise<void>;
 }) {
+const { isAdmin } = useLocationContext();
+const methodOptions = isAdmin ? [...PAYMENT_METHODS, ...ADMIN_ONLY_PAYMENT_METHODS] : PAYMENT_METHODS;
 function allocateAnzahlungRows(list: Voucher[], targetAmount: number, excludeIds: Set<string> = new Set()): { rows: SplitPayment[]; remaining: number } {
 let remaining = targetAmount;
 const rows: SplitPayment[] = [];
@@ -703,7 +707,7 @@ if (voucher.status === 'eingelöst' || voucher.remaining_value <= 0) {
   flexShrink: 0,
   }}
   >
-  {PAYMENT_METHODS.map((m) => (
+  {methodOptions.map((m) => (
   <option key={m}>{m}</option>
   ))}
   </select>
@@ -748,7 +752,7 @@ if (voucher.status === 'eingelöst' || voucher.remaining_value <= 0) {
   flexShrink: 0,
   }}
   >
-  {PAYMENT_METHODS.map((m) => (
+  {methodOptions.map((m) => (
   <option key={m}>{m}</option>
   ))}
   </select>
@@ -776,7 +780,7 @@ if (voucher.status === 'eingelöst' || voucher.remaining_value <= 0) {
   }}
   style={{ flex: 1, border: '1px solid #ddd', borderRadius: 4, padding: '8px 10px', fontSize: 13 }}
   >
-  {PAYMENT_METHODS.map((m) => (
+  {methodOptions.map((m) => (
   <option key={m}>{m}</option>
   ))}
   </select>

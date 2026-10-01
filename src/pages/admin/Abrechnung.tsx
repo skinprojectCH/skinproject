@@ -485,7 +485,7 @@ async function downloadLocationSummaryPdf(opts: {
     }
   };
   {
-    const lbl: Record<string, string> = { bar: 'Bar', karte: 'Karte', twint: 'TWINT', rechnung: 'Rechnung', online: 'Online (Stripe)', gutschein: 'Gutschein eingelöst (kein Geldeingang)', anzahlung: 'Anzahlung eingelöst (kein Geldeingang)', anzahlung_alt: 'Anzahlung alte Kasse eingelöst (kein Geldeingang)' };
+    const lbl: Record<string, string> = { bar: 'Bar', karte: 'Karte', twint: 'TWINT', rechnung: 'Rechnung', online: 'Online (Stripe)', gutschein: 'Gutschein eingelöst (kein Geldeingang)', anzahlung: 'Anzahlung eingelöst (kein Geldeingang)', anzahlung_alt: 'Anzahlung alte Kasse eingelöst (kein Geldeingang)', gutschein_alt: 'Gutschein ALT eingelöst (kein Geldeingang)' };
     const totalIn = b.paymentsByMethod.filter((p) => !isNoMoneyIn(p.method)).reduce((s, p) => s + p.amount, 0);
     if (b.paymentsByMethod.length > 0) {
       pdfList(
@@ -496,8 +496,8 @@ async function downloadLocationSummaryPdf(opts: {
   }
   if (b.legacyDeposits.length > 0) {
     pdfList(
-      `Anzahlungen aus alter Kasse eingelöst: ${formatCHF(b.legacyDepositsTotal)}`,
-      b.legacyDeposits.map((d) => ({ label: `${d.customerLabel} (manuell erfasst, kein Geldeingang)`, amount: d.amount }))
+      `Alte Kasse eingelöst (Anzahlungen & Gutscheine): ${formatCHF(b.legacyDepositsTotal)}`,
+      b.legacyDeposits.map((d) => ({ label: `${d.type} ALT · ${d.customerLabel} (manuell erfasst, kein Geldeingang)`, amount: d.amount }))
     );
   }
   if (b.openReceivables.length > 0) {
@@ -944,7 +944,7 @@ export default function Abrechnung() {
             </button>
           </div>
           {(() => {
-            const label: Record<string, string> = { bar: 'Bar', karte: 'Karte', twint: 'TWINT', rechnung: 'Rechnung', online: 'Online (Stripe)', gutschein: 'Gutschein eingelöst', anzahlung: 'Anzahlung eingelöst', anzahlung_alt: 'Anzahlung alte Kasse' };
+            const label: Record<string, string> = { bar: 'Bar', karte: 'Karte', twint: 'TWINT', rechnung: 'Rechnung', online: 'Online (Stripe)', gutschein: 'Gutschein eingelöst', anzahlung: 'Anzahlung eingelöst', anzahlung_alt: 'Anzahlung alte Kasse', gutschein_alt: 'Gutschein ALT' };
             const moneyIn = billing.paymentsByMethod.filter((p) => !isNoMoneyIn(p.method));
             const redeemed = billing.paymentsByMethod.filter((p) => isNoMoneyIn(p.method));
             const totalIn = moneyIn.reduce((s, p) => s + p.amount, 0);
@@ -1081,18 +1081,20 @@ export default function Abrechnung() {
                 {billing.legacyDeposits.length > 0 && (
                   <div style={{ marginTop: 20 }}>
                     <div style={{ fontSize: 12, fontWeight: 700, marginBottom: 8, color: '#8a6a10' }}>
-                      Anzahlungen aus alter Kasse eingelöst · {formatCHF(billing.legacyDepositsTotal)}
+                      Alte Kasse eingelöst (Anzahlungen & Gutscheine) · {formatCHF(billing.legacyDepositsTotal)}
                     </div>
                     <div style={{ border: '1px solid #E3C46B', borderRadius: 6, background: '#FFF7DC', overflow: 'hidden' }}>
                       {billing.legacyDeposits.map((d, i) => (
                         <div key={i} style={{ display: 'flex', justifyContent: 'space-between', padding: '10px 14px', fontSize: 13, borderBottom: i < billing.legacyDeposits.length - 1 ? '1px solid #EFDDA6' : 'none' }}>
-                          <span>{d.customerLabel}</span>
+                          <span>
+                            <strong style={{ fontWeight: 600 }}>{d.type} ALT</strong> · {d.customerLabel}
+                          </span>
                           <strong>{formatCHF(d.amount)}</strong>
                         </div>
                       ))}
                     </div>
                     <div style={{ fontSize: 11, color: '#999', marginTop: 6 }}>
-                      Manuell erfasst: Der Kunde hat diese Anzahlung noch in der alten Kasse bezahlt. Kein Geldeingang heute – der Umsatz der Leistung ist im Salon-Umsatz enthalten.
+                      Manuell erfasst: Anzahlung bzw. Gutschein wurde noch in der alten Kasse bezahlt. Kein Geldeingang heute – der Umsatz der Leistung ist im Salon-Umsatz enthalten.
                     </div>
                   </div>
                 )}

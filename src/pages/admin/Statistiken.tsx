@@ -317,10 +317,10 @@ function PerformanceTable({ title, rows, total }: { title: string; rows: { id: s
   );
 }
 
-const DAY_PAY_LABELS: Record<string, string> = { bar: 'Bar', karte: 'Karte', twint: 'TWINT', rechnung: 'Rechnung', online: 'Online', gutschein: 'Gutschein', anzahlung: 'Anzahlung', anzahlung_alt: 'Anzahlung alte Kasse' };
+const DAY_PAY_LABELS: Record<string, string> = { bar: 'Bar', karte: 'Karte', twint: 'TWINT', rechnung: 'Rechnung', online: 'Online', gutschein: 'Gutschein', anzahlung: 'Anzahlung', anzahlung_alt: 'Anzahlung alte Kasse', gutschein_alt: 'Gutschein ALT' };
 
 function DailySalesView({ daily }: { daily: { rows: DailySaleRow[]; byMethod: Record<string, number> } }) {
-  const methodOrder = ['bar', 'karte', 'twint', 'rechnung', 'online', 'gutschein', 'anzahlung', 'anzahlung_alt'];
+  const methodOrder = ['bar', 'karte', 'twint', 'rechnung', 'online', 'gutschein', 'anzahlung', 'anzahlung_alt', 'gutschein_alt'];
   const methods = Object.keys(daily.byMethod).sort((a, b) => (methodOrder.indexOf(a) < 0 ? 99 : methodOrder.indexOf(a)) - (methodOrder.indexOf(b) < 0 ? 99 : methodOrder.indexOf(b)));
   for (const m of ['karte', 'bar']) if (!methods.includes(m)) methods.unshift(m);
   methods.sort((a, b) => (a === 'bar' ? -1 : b === 'bar' ? 1 : a === 'karte' ? -1 : b === 'karte' ? 1 : 0));
@@ -685,7 +685,7 @@ function RabattStatistik() {
   );
 }
 
-const PAY_LABELS: Record<string, string> = { bar: 'Bar', karte: 'Karte', twint: 'TWINT', rechnung: 'Rechnung', online: 'Online (Stripe)', gutschein: 'Gutschein eingelöst', anzahlung: 'Anzahlung eingelöst', anzahlung_alt: 'Anzahlung alte Kasse eingelöst' };
+const PAY_LABELS: Record<string, string> = { bar: 'Bar', karte: 'Karte', twint: 'TWINT', rechnung: 'Rechnung', online: 'Online (Stripe)', gutschein: 'Gutschein eingelöst', anzahlung: 'Anzahlung eingelöst', anzahlung_alt: 'Anzahlung alte Kasse eingelöst', gutschein_alt: 'Gutschein ALT eingelöst' };
 const PAY_COLORS: Record<string, string> = { bar: '#5B8A72', karte: 'var(--color-slate)', twint: '#7A6FB0', rechnung: 'var(--color-taupe)', online: 'var(--color-accent)' };
 
 function MethodDonut({ parts, size = 160 }: { parts: { method: string; amount: number }[]; size?: number }) {

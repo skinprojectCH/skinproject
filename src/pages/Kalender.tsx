@@ -31,7 +31,7 @@ interface LoadedAppointment {
   payments: { method: string; amount: number }[];
 }
 
-const PAYMENT_LABELS: Record<string, string> = { bar: 'Bar', karte: 'Karte', twint: 'TWINT', rechnung: 'Rechnung', online: 'Online', gutschein: 'Gutschein', anzahlung: 'Anzahlung', anzahlung_alt: 'Anzahlung alte Kasse' };
+const PAYMENT_LABELS: Record<string, string> = { bar: 'Bar', karte: 'Karte', twint: 'TWINT', rechnung: 'Rechnung', online: 'Online', gutschein: 'Gutschein', anzahlung: 'Anzahlung', anzahlung_alt: 'Anzahlung alte Kasse', gutschein_alt: 'Gutschein ALT' };
 
 function PaymentBadges({ payments }: { payments: { method: string; amount: number }[] }) {
   if (!payments || payments.length === 0) return null;
