@@ -47,8 +47,8 @@ type Voucher,
 } from '../lib/queries';
 
 const PAYMENT_METHODS = ['Karte', 'Bar', 'Rechnung', 'Gutschein', 'Anzahlung', 'Anzahlung alte Kasse'];
-// 'Gutschein ALT' = Gutschein aus der alten Kassensoftware (ohne Code), nur für Admin sichtbar.
-const ADMIN_ONLY_PAYMENT_METHODS = ['Gutschein ALT'];
+// 'Gutschein alte Kasse' = Gutschein aus der alten Kassensoftware (ohne Code), nur für Admin sichtbar.
+const ADMIN_ONLY_PAYMENT_METHODS = ['Gutschein alte Kasse'];
 const SIMPLE_PAYMENT_METHODS = ['Karte', 'Bar', 'Rechnung']; // Gutschein/Anzahlung brauchen Zusatzschritt -> nur im Split-Dialog
 
 interface LineItem {

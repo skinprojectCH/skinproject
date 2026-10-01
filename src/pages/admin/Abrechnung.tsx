@@ -485,7 +485,7 @@ async function downloadLocationSummaryPdf(opts: {
     }
   };
   {
-    const lbl: Record<string, string> = { bar: 'Bar', karte: 'Karte', twint: 'TWINT', rechnung: 'Rechnung', online: 'Online (Stripe)', gutschein: 'Gutschein eingelöst (kein Geldeingang)', anzahlung: 'Anzahlung eingelöst (kein Geldeingang)', anzahlung_alt: 'Anzahlung alte Kasse eingelöst (kein Geldeingang)', gutschein_alt: 'Gutschein ALT eingelöst (kein Geldeingang)' };
+    const lbl: Record<string, string> = { bar: 'Bar', karte: 'Karte', twint: 'TWINT', rechnung: 'Rechnung', online: 'Online (Stripe)', gutschein: 'Gutschein eingelöst (kein Geldeingang)', anzahlung: 'Anzahlung eingelöst (kein Geldeingang)', anzahlung_alt: 'Anzahlung alte Kasse eingelöst (kein Geldeingang)', gutschein_alt: 'Gutschein alte Kasse eingelöst (kein Geldeingang)' };
     const totalIn = b.paymentsByMethod.filter((p) => !isNoMoneyIn(p.method)).reduce((s, p) => s + p.amount, 0);
     if (b.paymentsByMethod.length > 0) {
       pdfList(
@@ -497,7 +497,7 @@ async function downloadLocationSummaryPdf(opts: {
   if (b.legacyDeposits.length > 0) {
     pdfList(
       `Alte Kasse eingelöst (Anzahlungen & Gutscheine): ${formatCHF(b.legacyDepositsTotal)}`,
-      b.legacyDeposits.map((d) => ({ label: `${d.type} ALT · ${d.customerLabel} (manuell erfasst, kein Geldeingang)`, amount: d.amount }))
+      b.legacyDeposits.map((d) => ({ label: `${d.type} alte Kasse · ${d.customerLabel} (manuell erfasst, kein Geldeingang)`, amount: d.amount }))
     );
   }
   if (b.openReceivables.length > 0) {
@@ -944,7 +944,7 @@ export default function Abrechnung() {
             </button>
           </div>
           {(() => {
-            const label: Record<string, string> = { bar: 'Bar', karte: 'Karte', twint: 'TWINT', rechnung: 'Rechnung', online: 'Online (Stripe)', gutschein: 'Gutschein eingelöst', anzahlung: 'Anzahlung eingelöst', anzahlung_alt: 'Anzahlung alte Kasse', gutschein_alt: 'Gutschein ALT' };
+            const label: Record<string, string> = { bar: 'Bar', karte: 'Karte', twint: 'TWINT', rechnung: 'Rechnung', online: 'Online (Stripe)', gutschein: 'Gutschein eingelöst', anzahlung: 'Anzahlung eingelöst', anzahlung_alt: 'Anzahlung alte Kasse', gutschein_alt: 'Gutschein alte Kasse' };
             const moneyIn = billing.paymentsByMethod.filter((p) => !isNoMoneyIn(p.method));
             const redeemed = billing.paymentsByMethod.filter((p) => isNoMoneyIn(p.method));
             const totalIn = moneyIn.reduce((s, p) => s + p.amount, 0);
@@ -1087,7 +1087,7 @@ export default function Abrechnung() {
                       {billing.legacyDeposits.map((d, i) => (
                         <div key={i} style={{ display: 'flex', justifyContent: 'space-between', padding: '10px 14px', fontSize: 13, borderBottom: i < billing.legacyDeposits.length - 1 ? '1px solid #EFDDA6' : 'none' }}>
                           <span>
-                            <strong style={{ fontWeight: 600 }}>{d.type} ALT</strong> · {d.customerLabel}
+                            <strong style={{ fontWeight: 600 }}>{d.type} alte Kasse</strong> · {d.customerLabel}
                           </span>
                           <strong>{formatCHF(d.amount)}</strong>
                         </div>

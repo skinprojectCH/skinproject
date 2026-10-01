@@ -10,7 +10,7 @@ export const PAYMENT_LABELS: Record<string, string> = {
   gutschein: 'Gutschein',
   anzahlung: 'Anzahlung',
   anzahlung_alt: 'Anzahlung alte Kasse',
-  gutschein_alt: 'Gutschein ALT',
+  gutschein_alt: 'Gutschein alte Kasse',
 };
 
 export function paymentLabel(method: string) {
@@ -27,6 +27,6 @@ export function isNoMoneyIn(method: string) {
 export function toDbMethod(uiMethod: string) {
   const m = String(uiMethod || '').toLowerCase();
   if (m === 'anzahlung alte kasse') return 'anzahlung_alt';
-  if (m === 'gutschein alt') return 'gutschein_alt';
+  if (m === 'gutschein alte kasse' || m === 'gutschein alt') return 'gutschein_alt';
   return m;
 }
