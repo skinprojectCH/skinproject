@@ -5,12 +5,16 @@ function normalizePhone(raw: string): string {
   if (!trimmed) return '';
   const hasExplicitCountryCode = trimmed.startsWith('+');
   let digits = trimmed.replace(/[^\d+]/g, '').replace(/\+/g, '');
-  if (hasExplicitCountryCode) return digits ? `+${digits}` : '';
+  if (hasExplicitCountryCode) {
+    if (digits.startsWith('410')) digits = '41' + digits.slice(3); // "+41 079…" -> führende 0 weg
+    return digits ? `+${digits}` : '';
+  }
   if (digits.startsWith('0041')) digits = digits.slice(2);
   else if (digits.startsWith('41')) {
     // schon mit Landesvorwahl
   } else if (digits.startsWith('0')) digits = '41' + digits.slice(1);
   else if (digits.length > 0) digits = '41' + digits;
+  if (digits.startsWith('410')) digits = '41' + digits.slice(3); // "+41 079…" -> führende 0 weg
   return digits ? `+${digits}` : '';
 }
 

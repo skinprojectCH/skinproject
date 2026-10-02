@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { normalizePhone } from '../../lib/format';
 import { useParams } from 'react-router-dom';
 
 type Step = 'phone' | 'kundendaten' | 'geburtsdatum' | 'ausweis' | 'gesundheit' | 'unterschrift' | 'einverstaendnis' | 'einverstaendnis-detail' | 'fertig';
@@ -420,7 +421,7 @@ export default function RegisterCustomer() {
         name: name.trim(),
         strasse: strasse.trim(),
         plz_ort: plzOrt.trim(),
-        phone: phone.trim(),
+        phone: normalizePhone(phone) || phone.trim(),
         email: email.trim() || null,
         whatsapp_opt_in: whatsappOptIn,
         werbung_opt_in: werbungOptIn,

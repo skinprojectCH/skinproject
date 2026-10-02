@@ -11,6 +11,7 @@ export function normalizePhone(raw: string): string {
   digits = digits.replace(/\+/g, '');
 
   if (hasExplicitCountryCode) {
+    if (digits.startsWith('410')) digits = '41' + digits.slice(3); // "+41 079…" -> führende 0 weg
     return digits ? `+${digits}` : '';
   }
 
@@ -24,6 +25,7 @@ export function normalizePhone(raw: string): string {
     digits = '41' + digits; // "79.." -> "4179.."
   }
 
+  if (digits.startsWith('410')) digits = '41' + digits.slice(3); // "+41 079…" -> führende 0 weg
   return digits ? `+${digits}` : '';
 }
 
