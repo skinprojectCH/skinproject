@@ -2142,6 +2142,12 @@ export async function addCashAdjustment(locationId: string, type: 'auslage' | 'd
   if (error) throw error;
 }
 
+// Nur Admin (UI): falsch erfassten Eintrag (z.B. vertippter Kassensturz) löschen.
+export async function deleteCashAdjustment(id: string) {
+  const { error } = await supabase.from('cash_adjustments').delete().eq('id', id);
+  if (error) throw error;
+}
+
 // Auslagen/Differenzen eines einzelnen Tages -- für die Anzeige im Tagesabschluss.
 export async function fetchCashAdjustmentsForDay(locationId: string, dateISO: string): Promise<CashAdjustment[]> {
   const start = `${dateISO}T00:00:00`;

@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { isNoMoneyIn } from '../../lib/paymentMethods';
 import { useLocationContext } from '../../lib/locationContext';
-import { fetchLocationBilling, fetchLocationArtistBillingDetail, fetchLocations, fetchCashStartingBalance, setCashStartingBalance, fetchCashBalance, fetchCashBalanceDetail, type CashBalanceDetail, addCashAdjustment, fetchCashAdjustmentsForDay, fetchLocationManagers, fetchTaxRates, taxRateAt, type LocationManager, type LocationBilling, type LocationBillingArtistRow, type LocationArtistBillingEntry, type CashAdjustment, type RedeemedVoucherEntry } from '../../lib/queries';
+import { fetchLocationBilling, fetchLocationArtistBillingDetail, fetchLocations, fetchCashStartingBalance, setCashStartingBalance, fetchCashBalance, fetchCashBalanceDetail, type CashBalanceDetail, addCashAdjustment, deleteCashAdjustment, fetchCashAdjustmentsForDay, fetchLocationManagers, fetchTaxRates, taxRateAt, type LocationManager, type LocationBilling, type LocationBillingArtistRow, type LocationArtistBillingEntry, type CashAdjustment, type RedeemedVoucherEntry } from '../../lib/queries';
 import { formatCHF } from '../../lib/format';
 import Modal from '../../components/Modal';
 
@@ -102,6 +102,21 @@ function KassenbestandBox({ locationId, isHauptadmin, dateISO }: { locationId: s
   const countedValid = formType === 'differenz' && formAmount.trim() !== '' && !isNaN(parsedFormAmount) && parsedFormAmount >= 0;
   const previewDiff = countedValid ? Math.round((parsedFormAmount - balance) * 100) / 100 : null;
 
+  // Plausibilitätsprüfung: grosse Kassensturz-Differenz erst nach Bestätigung speichern
+  // (z.B. "10" statt "1'677.30" vertippt).
+  const [confirmBigDiff, setConfirmBigDiff] = useState(false);
+  const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
+  useEffect(() => setConfirmBigDiff(false), [formAmount, formType]);
+
+  async function handleDeleteAdjustment(id: string) {
+    try {
+      await deleteCashAdjustment(id);
+      reload();
+    } catch (e: any) {
+      setError(e.message);
+    }
+  }
+
   async function handleSaveAdjustment() {
     if (!formType) return;
     const raw = parseFloat(formAmount.replace(',', '.'));
@@ -121,6 +136,11 @@ function KassenbestandBox({ locationId, isHauptadmin, dateISO }: { locationId: s
         // Soll-Bestand frisch laden (falls seit dem Öffnen kassiert wurde), dann Differenz.
         const current = await fetchCashBalance(locationId);
         const diff = Math.round((raw - current) * 100) / 100;
+        if (Math.abs(diff) > 50 && !confirmBigDiff) {
+          setConfirmBigDiff(true);
+          setError(`Achtung: Differenz von ${formatCHF(diff)} – bitte gezählten Betrag prüfen. Nochmals „Erfassen“ klicken, um trotzdem zu speichern.`);
+          return;
+        }
         const note = `${formNote.trim() || `Kassensturz - ${todayLabel()}`} · Gezählt: ${formatCHF(raw)}`;
         // Auch 0 wird gespeichert -- dokumentiert, dass der Kassensturz gemacht wurde und stimmte.
         await addCashAdjustment(locationId, 'differenz', diff, note, countedBy);
@@ -313,9 +333,23 @@ function KassenbestandBox({ locationId, isHauptadmin, dateISO }: { locationId: s
                   {a.created_by ? ` · gezählt von ${a.created_by}` : ''}
                   <span style={{ color: '#999' }}> · {new Date(a.created_at).toLocaleTimeString('de-CH', { hour: '2-digit', minute: '2-digit' })}</span>
                 </div>
-                <div style={{ fontWeight: 700, color: a.amount >= 0 ? '#1a7a3f' : 'var(--color-destructive)' }}>
-                  {a.amount >= 0 ? '+' : ''}
-                  {formatCHF(a.amount)}
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <div style={{ fontWeight: 700, color: a.amount >= 0 ? '#1a7a3f' : 'var(--color-destructive)' }}>
+                    {a.amount >= 0 ? '+' : ''}
+                    {formatCHF(a.amount)}
+                  </div>
+                  {isHauptadmin && (
+                    <span
+                      onClick={() => {
+                        if (pendingDeleteId === a.id) handleDeleteAdjustment(a.id);
+                        else setPendingDeleteId(a.id);
+                      }}
+                      title="Eintrag löschen (nur Admin)"
+                      style={{ cursor: 'pointer', fontSize: 11, color: pendingDeleteId === a.id ? 'var(--color-destructive)' : '#bbb', fontWeight: pendingDeleteId === a.id ? 700 : 400 }}
+                    >
+                      {pendingDeleteId === a.id ? 'Wirklich löschen?' : '✕'}
+                    </span>
+                  )}
                 </div>
               </div>
             ))}
