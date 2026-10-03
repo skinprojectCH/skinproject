@@ -10,6 +10,7 @@ import Kasse from './pages/Kasse';
 import Kunden from './pages/Kunden';
 import KundenImport from './pages/admin/KundenImport';
 import KundenExport from './pages/admin/KundenExport';
+import Duplikate from './pages/admin/Duplikate';
 import KundeDetail from './pages/KundeDetail';
 import AdminIndex from './pages/admin/AdminIndex';
 import Artists from './pages/admin/Artists';
@@ -50,6 +51,7 @@ export default function App() {
         <Route element={<RequireAdmin />}>
           <Route path="/admin/kundenimport" element={<KundenImport />} />
           <Route path="/admin/kundenexport" element={<KundenExport />} />
+          <Route path="/admin/duplikate" element={<Duplikate />} />
         </Route>
 
         <Route element={<RequireBackoffice />}>

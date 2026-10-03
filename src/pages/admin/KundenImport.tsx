@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import Papa from 'papaparse';
 import { processImportRows, type ImportCustomer, type RawImportRow } from '../../lib/customerImport';
-import { fetchExistingCustomerEmails, bulkInsertCustomers } from '../../lib/queries';
+import { fetchExistingCustomerEmails, fetchExistingCustomerPhones, customerKey, bulkInsertCustomers } from '../../lib/queries';
 
 type Phase = 'idle' | 'parsed' | 'importing' | 'done' | 'error';
 
@@ -33,8 +33,11 @@ export default function KundenImport() {
           setProcessed(deduped);
           setWithHealthNotice(deduped.filter((c) => c.health_notice).length);
 
-          const existingEmails = await fetchExistingCustomerEmails();
-          const fresh = deduped.filter((c) => !c.email || !existingEmails.has(c.email.toLowerCase()));
+          const [existingEmails, existingKeys] = await Promise.all([fetchExistingCustomerEmails(), fetchExistingCustomerPhones()]);
+          // Bestehende Kunden überspringen: gleiche E-Mail ODER gleiche Nummer + gleicher Name.
+          const fresh = deduped.filter(
+            (c) => !(c.email && existingEmails.has(c.email.toLowerCase())) && !(c.phone && existingKeys.has(customerKey(c.phone, c.vorname, c.name)))
+          );
           setToImport(fresh);
           setNewCount(fresh.length);
           setDuplicateCount(deduped.length - fresh.length);

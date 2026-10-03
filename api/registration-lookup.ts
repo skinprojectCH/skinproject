@@ -27,7 +27,7 @@ export default async function handler(req: any, res: any) {
     return;
   }
 
-  const { phone } = req.body || {};
+  const { phone, customerId } = req.body || {};
   const normalized = normalizePhone(phone || '');
   if (!normalized) {
     res.status(400).json({ error: 'Telefonnummer fehlt.' });
@@ -42,29 +42,54 @@ export default async function handler(req: any, res: any) {
   }
 
   const admin = createClient(supabaseUrl, serviceRoleKey, { auth: { autoRefreshToken: false, persistSession: false } });
+  const FIELDS = 'id, vorname, name, email, phone, parent_phone, birthdate, strasse, plz_ort, whatsapp_opt_in, werbung_opt_in, created_at';
 
   try {
-    // Mehrere Kunden mit derselben Nummer möglich (Duplikate aus dem Import, Geschwister,
-    // Eltern-Nummer) -> NICHT .maybeSingle() (wirft dann einen Fehler), sondern den
-    // zuletzt aktualisierten/erstellten Treffer nehmen.
+    // Alle Personen unter dieser Nummer: eigene Nummer ODER als Eltern-Nummer hinterlegt
+    // (Kinder ohne Handy). Mehrere Treffer sind normal (Familie, Duplikate).
     const { data: matches, error } = await admin
       .from('customers')
-      .select('id, vorname, name, email, phone, birthdate, strasse, plz_ort, whatsapp_opt_in, werbung_opt_in, created_at')
-      .eq('phone', normalized)
+      .select(FIELDS)
+      .or(`phone.eq.${normalized},parent_phone.eq.${normalized}`)
       .order('created_at', { ascending: false })
-      .limit(5);
+      .limit(30);
     if (error) {
       res.status(400).json({ error: error.message });
       return;
     }
-    // Bevorzugt den Eintrag mit den meisten ausgefüllten Angaben, bei Gleichstand den neusten.
-    const score = (c: any) => ['email', 'birthdate', 'strasse', 'plz_ort'].filter((k) => c[k]).length;
-    const customer = [...(matches || [])].sort((a: any, b: any) => score(b) - score(a))[0] || null;
-    if (!customer) {
-      res.status(200).json({ found: false, normalizedPhone: normalized });
+    const list = (matches as any[]) || [];
+
+    // Schritt 2: konkrete Person gewählt -> deren Daten (nur wenn sie zu dieser Nummer gehört).
+    if (customerId) {
+      const customer = list.find((c) => c.id === customerId);
+      if (!customer) {
+        res.status(404).json({ error: 'Person nicht gefunden.' });
+        return;
+      }
+      res.status(200).json({ found: true, customer });
       return;
     }
-    res.status(200).json({ found: true, customer });
+
+    if (list.length === 0) {
+      res.status(200).json({ found: false, normalizedPhone: normalized, people: [] });
+      return;
+    }
+
+    // Gleiche Person mehrfach (Duplikate) nur einmal anzeigen: pro Vor-/Nachname den
+    // Eintrag mit den meisten Angaben (bei Gleichstand den neusten).
+    const score = (c: any) => ['email', 'birthdate', 'strasse', 'plz_ort'].filter((k) => c[k]).length;
+    const byName = new Map<string, any>();
+    for (const c of list) {
+      const key = `${(c.vorname || '').trim().toLowerCase()}|${(c.name || '').trim().toLowerCase()}`;
+      const prev = byName.get(key);
+      if (!prev || score(c) > score(prev)) byName.set(key, c);
+    }
+    // Datenschutz: nur Vorname + Initiale des Nachnamens zurückgeben.
+    const people = [...byName.values()].map((c) => ({
+      id: c.id,
+      label: `${(c.vorname || '').trim()} ${(c.name || '').trim().charAt(0).toUpperCase()}.`.trim(),
+    }));
+    res.status(200).json({ found: true, normalizedPhone: normalized, people });
   } catch (e: any) {
     res.status(500).json({ error: e.message || 'Unbekannter Fehler.' });
   }

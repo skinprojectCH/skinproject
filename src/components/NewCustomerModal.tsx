@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { createCustomer } from '../lib/queries';
+import { createCustomer, findPossibleDuplicates, type Customer } from '../lib/queries';
+import DuplicateWarning from './DuplicateWarning';
 import { normalizePhone } from '../lib/format';
 import Modal from './Modal';
 
@@ -16,6 +17,7 @@ export default function NewCustomerModal({ onClose, onCreated }: { onClose: () =
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [attempted, setAttempted] = useState(false);
+  const [duplicates, setDuplicates] = useState<Customer[] | null>(null);
 
   const vornameValid = vorname.trim().length > 0;
   const nameValid = name.trim().length > 0;
@@ -28,12 +30,20 @@ export default function NewCustomerModal({ onClose, onCreated }: { onClose: () =
   const birthdateValid = true;
   const allValid = vornameValid && nameValid && phoneValid && emailValid && strasseValid && plzOrtValid && birthdateValid;
 
-  async function handleCreate() {
+  async function handleCreate(skipDuplicateCheck = false) {
     setAttempted(true);
     if (!allValid) return;
     setSaving(true);
     setError(null);
     try {
+      if (!skipDuplicateCheck) {
+        const found = await findPossibleDuplicates({ phone, vorname, name, birthdate: birthdate || null });
+        if (found.length > 0) {
+          setDuplicates(found);
+          setSaving(false);
+          return;
+        }
+      }
       const created = await createCustomer({
         vorname: vorname.trim(),
         name: name.trim(),
@@ -115,11 +125,21 @@ export default function NewCustomerModal({ onClose, onCreated }: { onClose: () =
       </div>
       {attempted && !allValid && <div style={{ fontSize: 11, color: 'var(--color-destructive)', marginBottom: 8 }}>Pflichtfelder: Name, Vorname und Mobile.</div>}
       {error && <div style={{ fontSize: 12, color: 'var(--color-destructive)', marginBottom: 12 }}>{error}</div>}
-      <div style={{ display: 'flex', gap: 10 }}>
+      {duplicates && duplicates.length > 0 && (
+        <DuplicateWarning
+          matches={duplicates}
+          useLabel="Diesen auswählen"
+          onUse={(c) => onCreated(c.id)}
+          onCreateAnyway={() => handleCreate(true)}
+          onCancel={() => setDuplicates(null)}
+          creating={saving}
+        />
+      )}
+      <div style={{ display: 'flex', gap: 10, ...(duplicates && duplicates.length > 0 ? { display: 'none' } : {}) }}>
         <button className="btn btn-secondary" style={{ flex: 1, justifyContent: 'center' }} onClick={onClose}>
           Abbrechen
         </button>
-        <button className="btn btn-primary" style={{ flex: 1, justifyContent: 'center', opacity: saving ? 0.6 : 1 }} disabled={saving} onClick={handleCreate}>
+        <button className="btn btn-primary" style={{ flex: 1, justifyContent: 'center', opacity: saving ? 0.6 : 1 }} disabled={saving} onClick={() => handleCreate()}>
           {saving ? 'Speichert…' : 'Erstellen'}
         </button>
       </div>

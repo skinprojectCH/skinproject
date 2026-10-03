@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { normalizePhone } from '../../lib/format';
 import { useParams } from 'react-router-dom';
 
-type Step = 'phone' | 'kundendaten' | 'geburtsdatum' | 'ausweis' | 'gesundheit' | 'unterschrift' | 'einverstaendnis' | 'einverstaendnis-detail' | 'fertig';
+type Step = 'phone' | 'auswahl' | 'kundendaten' | 'geburtsdatum' | 'ausweis' | 'gesundheit' | 'unterschrift' | 'einverstaendnis' | 'einverstaendnis-detail' | 'fertig';
 
 const GENERAL_QUESTIONS = [
   { key: 'pregnant', label: 'Schwanger' },
@@ -304,6 +304,9 @@ export default function RegisterCustomer() {
 
   const [birthdate, setBirthdate] = useState('');
   const [parentPhone, setParentPhone] = useState('');
+  // Personen unter der eingegebenen Nummer (Familie: Eltern + Kinder ohne eigenes Handy)
+  const [people, setPeople] = useState<{ id: string; label: string }[]>([]);
+  const [normalizedLookupPhone, setNormalizedLookupPhone] = useState('');
   const [savingBirthdate, setSavingBirthdate] = useState(false);
 
   const [uploadingId, setUploadingId] = useState(false);
@@ -345,6 +348,8 @@ export default function RegisterCustomer() {
       setStep('phone');
       setCustomerId(null);
       setPhone('');
+      setPeople([]);
+      setParentPhone('');
       setLookupError(null);
       setVorname('');
       setName('');
@@ -372,6 +377,37 @@ export default function RegisterCustomer() {
   const age = birthdate ? Math.floor((Date.now() - new Date(birthdate).getTime()) / (365.25 * 24 * 3600 * 1000)) : null;
   const isMinor = age !== null && age < 18;
 
+  function applyCustomer(c: any) {
+    setCustomerId(c.id);
+    setVorname(c.vorname || '');
+    setName(c.name || '');
+    setStrasse(c.strasse || '');
+    setPlzOrt(c.plz_ort || '');
+    setEmail(c.email || '');
+    setPhone(c.phone || phone);
+    if (c.parent_phone) setParentPhone(c.parent_phone);
+    if (c.birthdate) setBirthdate(c.birthdate);
+    // Standardmässig Ja vorausgewählt (auch bei bestehenden Kunden) -- Kunde kann im Formular auf Nein wechseln.
+    setWhatsappOptIn(true);
+    setWerbungOptIn(true);
+  }
+
+  function startNewPerson(normalized: string) {
+    setCustomerId(null);
+    setVorname('');
+    setName('');
+    setStrasse('');
+    setPlzOrt('');
+    setEmail('');
+    setBirthdate('');
+    setPhone(normalized || phone);
+    // Kind ohne eigenes Handy: Nummer gleich als Eltern-Nummer vorschlagen.
+    setParentPhone(normalized || phone);
+    setWhatsappOptIn(true);
+    setWerbungOptIn(true);
+    setStep('kundendaten');
+  }
+
   async function handlePhoneSubmit() {
     if (!phone.trim()) return;
     setLookingUp(true);
@@ -384,22 +420,33 @@ export default function RegisterCustomer() {
       });
       const body = await res.json();
       if (!res.ok) throw new Error(body.error || 'Unbekannter Fehler.');
-      if (body.found) {
-        const c = body.customer;
-        setCustomerId(c.id);
-        setVorname(c.vorname || '');
-        setName(c.name || '');
-        setStrasse(c.strasse || '');
-        setPlzOrt(c.plz_ort || '');
-        setEmail(c.email || '');
-        setPhone(c.phone || phone);
-        if (c.birthdate) setBirthdate(c.birthdate);
-        // Standardmässig Ja vorausgewählt (auch bei bestehenden Kunden) -- Kunde kann im Formular auf Nein wechseln.
-        setWhatsappOptIn(true);
-        setWerbungOptIn(true);
+      setNormalizedLookupPhone(body.normalizedPhone || phone);
+      if (body.found && (body.people || []).length > 0) {
+        // Unter dieser Nummer gibt es schon jemanden -> fragen, wer heute behandelt wird.
+        setPeople(body.people);
+        setStep('auswahl');
       } else {
-        setPhone(body.normalizedPhone || phone);
+        startNewPerson(body.normalizedPhone || phone);
       }
+    } catch (e: any) {
+      setLookupError(e.message);
+    } finally {
+      setLookingUp(false);
+    }
+  }
+
+  async function handleChoosePerson(id: string) {
+    setLookingUp(true);
+    setLookupError(null);
+    try {
+      const res = await fetch('/api/registration-lookup', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ phone: normalizedLookupPhone || phone, customerId: id }),
+      });
+      const body = await res.json();
+      if (!res.ok) throw new Error(body.error || 'Unbekannter Fehler.');
+      applyCustomer(body.customer);
       setStep('kundendaten');
     } catch (e: any) {
       setLookupError(e.message);
@@ -455,7 +502,7 @@ export default function RegisterCustomer() {
     setProfileError(null);
     try {
       const patch: Record<string, any> = { birthdate };
-      if (isMinor) patch.parent_phone = parentPhone.trim();
+      if (isMinor) patch.parent_phone = normalizePhone(parentPhone) || parentPhone.trim();
       const res = await fetch('/api/registration-save-profile', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -595,6 +642,36 @@ export default function RegisterCustomer() {
             </div>
             <button style={{ ...primaryBtn, opacity: phone.trim() && !lookingUp ? 1 : 0.4 }} disabled={!phone.trim() || lookingUp} onClick={handlePhoneSubmit}>
               {lookingUp ? 'Prüft…' : 'Weiter'}
+            </button>
+          </div>
+        )}
+
+        {step === 'auswahl' && (
+          <div style={cardInner}>
+            <div style={heading}>Wer wird heute behandelt?</div>
+            <div style={subtext}>Unter dieser Nummer gibt es schon ein Profil. Bitte wähle die Person aus – oder registriere eine neue Person (z.B. ein Kind ohne eigenes Handy).</div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 16 }}>
+              {people.map((p) => (
+                <button
+                  key={p.id}
+                  disabled={lookingUp}
+                  onClick={() => handleChoosePerson(p.id)}
+                  style={{ border: '1px solid #ddd', borderRadius: 10, padding: '14px 16px', fontSize: 15, background: '#fff', textAlign: 'left', cursor: 'pointer', fontFamily: "'Work Sans', sans-serif" }}
+                >
+                  {p.label}
+                </button>
+              ))}
+              <button
+                disabled={lookingUp}
+                onClick={() => startNewPerson(normalizedLookupPhone)}
+                style={{ border: '1px dashed var(--color-accent)', borderRadius: 10, padding: '14px 16px', fontSize: 15, background: 'transparent', color: 'var(--color-accent)', fontWeight: 600, textAlign: 'left', cursor: 'pointer', fontFamily: "'Work Sans', sans-serif" }}
+              >
+                + Eine andere Person (neu registrieren)
+              </button>
+            </div>
+            {lookupError && <div style={{ fontSize: 11, color: 'var(--color-destructive)', marginBottom: 8 }}>{lookupError}</div>}
+            <button style={{ background: 'none', border: 'none', color: '#999', fontSize: 12, cursor: 'pointer' }} onClick={() => setStep('phone')}>
+              ← Zurück
             </button>
           </div>
         )}

@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import DuplicateWarning from '../components/DuplicateWarning';
 import { useNavigate, useParams } from 'react-router-dom';
 import {
   fetchCustomer,
@@ -12,6 +13,7 @@ import {
   assignDocumentToAppointment,
   fetchAppointmentsForCustomer,
   type Customer,
+  findPossibleDuplicates,
   type CustomerDocument,
 } from '../lib/queries';
 import { normalizePhone, formatCHF } from '../lib/format';
@@ -341,13 +343,23 @@ export default function KundeDetail() {
     if (parentPhone.trim()) setParentPhone(normalizePhone(parentPhone));
   }
 
-  async function handleSave() {
+  const [duplicates, setDuplicates] = useState<Customer[] | null>(null);
+
+  async function handleSave(skipDuplicateCheck = false) {
     setAttempted(true);
     if (!canSave || !id) return;
     setSaving(true);
     setSaveError(null);
     setSaved(false);
     try {
+      if (isNew && !skipDuplicateCheck) {
+        const found = await findPossibleDuplicates({ phone, vorname, name, birthdate: birthdate || null });
+        if (found.length > 0) {
+          setDuplicates(found);
+          setSaving(false);
+          return;
+        }
+      }
       const patch = {
         vorname: vorname.trim(),
         name: name.trim(),
@@ -674,7 +686,17 @@ export default function KundeDetail() {
           {saveError && <div style={{ fontSize: 12, color: 'var(--color-destructive)', marginBottom: 12 }}>{saveError}</div>}
           {saved && <div style={{ fontSize: 12, color: '#1a7a3f', marginBottom: 12 }}>✓ Gespeichert.</div>}
 
-          <button className="btn btn-primary" style={{ width: '100%', justifyContent: 'center', marginBottom: 10, opacity: saving ? 0.6 : 1 }} disabled={saving} onClick={handleSave}>
+          {isNew && duplicates && duplicates.length > 0 && (
+            <DuplicateWarning
+              matches={duplicates}
+              useLabel="Diesen öffnen"
+              onUse={(c) => navigate(`/kunden/${c.id}`)}
+              onCreateAnyway={() => handleSave(true)}
+              onCancel={() => setDuplicates(null)}
+              creating={saving}
+            />
+          )}
+          <button className="btn btn-primary" style={{ width: '100%', justifyContent: 'center', marginBottom: 10, opacity: saving ? 0.6 : 1, ...(isNew && duplicates && duplicates.length > 0 ? { display: 'none' } : {}) }} disabled={saving} onClick={() => handleSave()}>
             {saving ? (isNew ? 'Erstellt…' : 'Speichert…') : isNew ? 'Kunde erstellen' : 'Speichern'}
           </button>
 

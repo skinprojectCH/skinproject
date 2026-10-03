@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { searchCustomers, fetchCustomerIdsWithMissingDocs, fetchCustomersByIds, fetchCustomersWithPendingHealthDocs, type Customer, type PendingHealthDoc } from '../lib/queries';
+import { fetchDuplicateCustomers, searchCustomers, fetchCustomerIdsWithMissingDocs, fetchCustomersByIds, fetchCustomersWithPendingHealthDocs, type Customer, type PendingHealthDoc } from '../lib/queries';
 import { useLocationContext } from '../lib/locationContext';
 
 function EditIcon() {
@@ -25,6 +25,15 @@ const [missingDocsFilter, setMissingDocsFilter] = useState(false);
 const [missingDocsCustomers, setMissingDocsCustomers] = useState<Customer[] | null>(null);
 const [missingDocsLoading, setMissingDocsLoading] = useState(false);
 const navigate = useNavigate();
+
+// Anzahl Telefonnummern mit mehreren Kunden (nur Admin, Migration 045).
+const [duplicateCount, setDuplicateCount] = useState<number | null>(null);
+useEffect(() => {
+if (!isAdmin) return;
+fetchDuplicateCustomers()
+.then((rows) => setDuplicateCount(new Set(rows.map((r) => r.phone)).size))
+.catch(() => setDuplicateCount(null));
+}, [isAdmin]);
 
 // Ohne Suche: Kunden mit offener (noch keinem Termin zugewiesener) Einverständniserklärung,
 // gleiche Quelle und Reihenfolge wie bei "Neuer Termin" -- wer zuerst ausgefüllt hat, steht oben.
@@ -131,6 +140,9 @@ style={{ border: '1px solid var(--color-border)', padding: '8px 14px', fontSize:
 </button>
 {isAdmin && (
 <>
+<button className="btn btn-secondary" onClick={() => navigate('/admin/duplikate')}>
+Duplikate{duplicateCount !== null ? ` (${duplicateCount})` : ''}
+</button>
 <button className="btn btn-secondary" onClick={() => navigate('/admin/kundenexport')}>
 Exportieren
 </button>

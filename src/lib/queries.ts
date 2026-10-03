@@ -1,4 +1,5 @@
 import { supabase } from './supabaseClient';
+import { normalizePhone } from './format';
 import { isNoMoneyIn } from './paymentMethods';
 import { HEALTH_QUESTION_LABELS, NON_HEALTH_KEYS } from './healthQuestions';
 
@@ -348,10 +349,101 @@ export async function deleteCustomer(id: string) {
 // ---------- Kunden-CSV-Import ----------
 // Liefert alle bereits vorhandenen E-Mail-Adressen (klein geschrieben) -- dient dazu,
 // beim Import Duplikate zu erkennen, ohne 8000+ Einzel-Queries abzusetzen.
-export async function fetchExistingCustomerEmails(): Promise<Set<string>> {
-  const { data, error } = await supabase.from('customers').select('email').not('email', 'is', null);
+// Vor dem Anlegen eines Kunden: gibt es schon jemanden mit dieser Nummer (auch als
+// Eltern-Nummer) oder mit gleichem Vor-/Nachnamen + Geburtsdatum?
+export async function findPossibleDuplicates(input: { phone?: string | null; vorname: string; name: string; birthdate?: string | null }) {
+  const results = new Map<string, Customer>();
+  const phone = input.phone ? normalizePhone(input.phone) : '';
+  if (phone) {
+    const { data } = await supabase.from('customers').select('*').or(`phone.eq.${phone},parent_phone.eq.${phone}`).limit(10);
+    for (const c of (data as Customer[]) || []) results.set(c.id, c);
+  }
+  if (input.birthdate && input.vorname.trim() && input.name.trim()) {
+    const { data } = await supabase
+      .from('customers')
+      .select('*')
+      .eq('birthdate', input.birthdate)
+      .ilike('vorname', input.vorname.trim())
+      .ilike('name', input.name.trim())
+      .limit(10);
+    for (const c of (data as Customer[]) || []) results.set(c.id, c);
+  }
+  return [...results.values()];
+}
+
+// ---------- Duplikate (Migration 045, nur Admin) ----------
+export interface DuplicateCustomerRow {
+  phone: string;
+  id: string;
+  vorname: string;
+  name: string;
+  birthdate: string | null;
+  email: string | null;
+  strasse: string | null;
+  plz_ort: string | null;
+  parent_phone: string | null;
+  notes: string | null;
+  health_notice: string | null;
+  created_at: string;
+  appt_count: number;
+  order_count: number;
+  doc_count: number;
+  photo_count: number;
+}
+
+export async function fetchDuplicateCustomers(): Promise<DuplicateCustomerRow[]> {
+  const all: DuplicateCustomerRow[] = [];
+  for (let from = 0; ; from += 1000) {
+    const { data, error } = await supabase.rpc('find_duplicate_customers').range(from, from + 999);
+    if (error) throw error;
+    all.push(...(((data as any[]) || []).map((r) => ({ ...r, appt_count: Number(r.appt_count), order_count: Number(r.order_count), doc_count: Number(r.doc_count), photo_count: Number(r.photo_count) }))));
+    if (!data || data.length < 1000) break;
+  }
+  return all;
+}
+
+export async function mergeCustomers(keepId: string, removeIds: string[]) {
+  const { error } = await supabase.rpc('merge_customers', { p_keep: keepId, p_remove: removeIds });
   if (error) throw error;
-  return new Set((data || []).map((r: any) => (r.email as string).toLowerCase()));
+}
+
+export async function ignoreDuplicatePhone(phone: string) {
+  const { error } = await supabase.from('customer_duplicate_ignores').upsert({ phone });
+  if (error) throw error;
+}
+
+export async function cleanupEmptyDuplicates(): Promise<number> {
+  const { data, error } = await supabase.rpc('cleanup_empty_duplicates');
+  if (error) throw error;
+  return Number(data) || 0;
+}
+
+export async function fetchExistingCustomerEmails(): Promise<Set<string>> {
+  // Seitenweise laden -- Supabase liefert pro Abfrage max. 1000 Zeilen (vorher wurden
+  // deshalb beim Import nicht alle bestehenden Kunden erkannt -> Duplikate).
+  const set = new Set<string>();
+  for (let from = 0; ; from += 1000) {
+    const { data, error } = await supabase.from('customers').select('email').not('email', 'is', null).range(from, from + 999);
+    if (error) throw error;
+    for (const r of (data as any[]) || []) set.add(String(r.email).toLowerCase());
+    if (!data || data.length < 1000) break;
+  }
+  return set;
+}
+
+// Schlüssel "telefon|vorname|nachname" (klein) aller bestehenden Kunden -- für den Import.
+export function customerKey(phone: string | null | undefined, vorname: string | null | undefined, name: string | null | undefined) {
+  return `${phone || ''}|${(vorname || '').trim().toLowerCase()}|${(name || '').trim().toLowerCase()}`;
+}
+export async function fetchExistingCustomerPhones(): Promise<Set<string>> {
+  const set = new Set<string>();
+  for (let from = 0; ; from += 1000) {
+    const { data, error } = await supabase.from('customers').select('phone, vorname, name').not('phone', 'is', null).range(from, from + 999);
+    if (error) throw error;
+    for (const r of (data as any[]) || []) set.add(customerKey(r.phone, r.vorname, r.name));
+    if (!data || data.length < 1000) break;
+  }
+  return set;
 }
 
 // Fügt Kunden in Batches ein (Supabase/Postgres mag keine Inserts mit tausenden

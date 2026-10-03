@@ -64,8 +64,15 @@ Web-App unter sknpr.ch. Sprache: Deutsch (Schweiz, "ss" statt "ß"). Beträge in
 - Kunde löschen geht nur, wenn er noch keine Termine/Bestellungen hat.
 - Nur Admin: Kunden importieren (CSV) und exportieren.
 
+## Duplikate (nur Admin)
+- Kunden → Button "Duplikate (Anzahl)": Kunden mit gleicher Telefonnummer, in Reitern "Gleicher Name", "Anderer Name", "Familie (Kind unter 18)".
+- Pro Nummer: Hauptprofil wählen (vorgeschlagen ist das mit den meisten Daten), die anderen ankreuzen → "Zusammenführen" (Termine, Verkäufe, Dokumente, Fotos, Gesundheitsfragen, Einverständnisse, Gutscheine/Anzahlungen werden übernommen, leere Felder ergänzt, übrige Profile gelöscht). "Verschiedene Personen" blendet die Nummer aus.
+- "Leere Duplikate bereinigen": löscht auf einmal alle leeren Profile (gleicher Name + Nummer, ohne Termine/Verkäufe/Dokumente).
+- Beim Anlegen eines Kunden (Kunden "+ Neu", "+ Neuen Kunden erfassen") warnt die App, wenn die Nummer oder Name + Geburtsdatum schon existieren: bestehenden öffnen/auswählen oder "Trotzdem neu anlegen" (z.B. Geschwister).
+
 ## Kunden-Registrierung (Tablet an der Rezeption)
 - Link /register/<Standort> (z.B. als QR-Code). Den Link findet der Admin unter Settings → Locations.
+- Gibt es unter der Nummer schon Profile (auch Kinder mit dieser Nummer als Eltern-Nummer), fragt das Tablet "Wer wird heute behandelt?" (nur Vorname + Initiale) mit "+ Eine andere Person" für z.B. ein Kind ohne eigenes Handy (Nummer wird dann als Eltern-Nummer vorgeschlagen).
 - Ablauf für den Kunden: Telefonnummer → bestehende Kunden werden erkannt und Daten vorausgefüllt → Daten, Interesse (Tattoo/Piercing), WhatsApp und Werbung (standardmässig "Ja"), E-Mail freiwillig → Gesundheitsfragen → Ausweisfoto (bei unter 18 zusätzlich Ausweis eines Elternteils) → Einverständniserklärung und digitale Unterschrift.
 - Danach erscheint der Kunde in "Offene Einverständniserklärungen" (Kunden-Seite) und im Dialog "Neuer Termin".
 
