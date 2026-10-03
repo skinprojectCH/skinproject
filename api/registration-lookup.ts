@@ -44,15 +44,22 @@ export default async function handler(req: any, res: any) {
   const admin = createClient(supabaseUrl, serviceRoleKey, { auth: { autoRefreshToken: false, persistSession: false } });
 
   try {
-    const { data: customer, error } = await admin
+    // Mehrere Kunden mit derselben Nummer möglich (Duplikate aus dem Import, Geschwister,
+    // Eltern-Nummer) -> NICHT .maybeSingle() (wirft dann einen Fehler), sondern den
+    // zuletzt aktualisierten/erstellten Treffer nehmen.
+    const { data: matches, error } = await admin
       .from('customers')
-      .select('id, vorname, name, email, phone, birthdate, strasse, plz_ort, whatsapp_opt_in, werbung_opt_in')
+      .select('id, vorname, name, email, phone, birthdate, strasse, plz_ort, whatsapp_opt_in, werbung_opt_in, created_at')
       .eq('phone', normalized)
-      .maybeSingle();
+      .order('created_at', { ascending: false })
+      .limit(5);
     if (error) {
       res.status(400).json({ error: error.message });
       return;
     }
+    // Bevorzugt den Eintrag mit den meisten ausgefüllten Angaben, bei Gleichstand den neusten.
+    const score = (c: any) => ['email', 'birthdate', 'strasse', 'plz_ort'].filter((k) => c[k]).length;
+    const customer = [...(matches || [])].sort((a: any, b: any) => score(b) - score(a))[0] || null;
     if (!customer) {
       res.status(200).json({ found: false, normalizedPhone: normalized });
       return;

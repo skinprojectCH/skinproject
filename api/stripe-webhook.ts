@@ -92,11 +92,11 @@ export default async function handler(req: any, res: any) {
       let customerId: string | null = null;
 
       if (phone) {
-        const { data: byPhone } = await admin.from('customers').select('id').eq('phone', phone).maybeSingle();
+        const { data: byPhone } = await admin.from('customers').select('id').eq('phone', phone).order('created_at', { ascending: false }).limit(1).maybeSingle(); // Duplikate möglich
         if (byPhone) customerId = byPhone.id;
       }
       if (!customerId && email) {
-        const { data: byEmail } = await admin.from('customers').select('id').eq('email', email).maybeSingle();
+        const { data: byEmail } = await admin.from('customers').select('id').eq('email', email).order('created_at', { ascending: false }).limit(1).maybeSingle(); // Duplikate möglich
         if (byEmail) customerId = byEmail.id;
       }
 
