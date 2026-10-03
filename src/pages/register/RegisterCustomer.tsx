@@ -305,7 +305,7 @@ export default function RegisterCustomer() {
   const [birthdate, setBirthdate] = useState('');
   const [parentPhone, setParentPhone] = useState('');
   // Personen unter der eingegebenen Nummer (Familie: Eltern + Kinder ohne eigenes Handy)
-  const [people, setPeople] = useState<{ id: string; label: string }[]>([]);
+  const [people, setPeople] = useState<{ id: string; label: string; minor?: boolean }[]>([]);
   const [normalizedLookupPhone, setNormalizedLookupPhone] = useState('');
   const [savingBirthdate, setSavingBirthdate] = useState(false);
 
@@ -658,7 +658,14 @@ export default function RegisterCustomer() {
                   onClick={() => handleChoosePerson(p.id)}
                   style={{ border: '1px solid #ddd', borderRadius: 10, padding: '14px 16px', fontSize: 15, background: '#fff', textAlign: 'left', cursor: 'pointer', fontFamily: "'Work Sans', sans-serif" }}
                 >
-                  {p.label}
+                  <span style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
+                    <span>{p.label}</span>
+                    {p.minor && (
+                      <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--color-accent)', border: '1px solid var(--color-accent)', borderRadius: 10, padding: '2px 8px', whiteSpace: 'nowrap' }}>
+                        unter 18
+                      </span>
+                    )}
+                  </span>
                 </button>
               ))}
               <button

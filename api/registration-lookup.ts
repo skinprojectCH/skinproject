@@ -91,9 +91,15 @@ export default async function handler(req: any, res: any) {
       if (!prev || score(c) > score(prev)) byName.set(key, c);
     }
     // Datenschutz: nur Vorname + Initiale des Nachnamens zurückgeben.
+    const isMinor = (b: string | null) => {
+      if (!b) return false;
+      const age = (Date.now() - new Date(`${b}T12:00:00`).getTime()) / (365.25 * 24 * 3600 * 1000);
+      return age < 18;
+    };
     const people = [...byName.values()].map((c) => ({
       id: c.id,
       label: `${(c.vorname || '').trim()} ${(c.name || '').trim().charAt(0).toUpperCase()}.`.trim(),
+      minor: isMinor(c.birthdate), // nur "unter 18" -- kein Geburtsdatum herausgeben
     }));
     res.status(200).json({ found: true, normalizedPhone: normalized, people });
   } catch (e: any) {
