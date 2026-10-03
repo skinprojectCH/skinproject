@@ -32,6 +32,7 @@ as $$
          (select count(*) from customer_documents d where d.customer_id = c.id and d.type = 'photo')
     from customers c
    where c.phone is not null
+     and length(regexp_replace(c.phone, '\D', '', 'g')) >= 10 -- unvollständige Nummern (z.B. "+41") ignorieren
      and c.phone in (select phone from customers where phone is not null group by phone having count(*) > 1)
      and c.phone not in (select phone from customer_duplicate_ignores)
      and app_role() = 'admin'

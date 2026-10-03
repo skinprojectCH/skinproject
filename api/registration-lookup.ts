@@ -33,6 +33,12 @@ export default async function handler(req: any, res: any) {
     res.status(400).json({ error: 'Telefonnummer fehlt.' });
     return;
   }
+  // Unvollständige Nummern (z.B. "+41" oder "+4149212" aus dem Import) würden fremde
+  // Personen anzeigen -> mindestens Landesvorwahl + 8 Ziffern verlangen.
+  if (normalized.replace(/\D/g, '').length < 10) {
+    res.status(400).json({ error: 'Bitte die vollständige Telefonnummer eingeben, z.B. 079 123 45 67.' });
+    return;
+  }
 
   const supabaseUrl = process.env.VITE_SUPABASE_URL;
   const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
