@@ -694,6 +694,8 @@ export default function KundeDetail() {
               onCreateAnyway={() => handleSave(true)}
               onCancel={() => setDuplicates(null)}
               creating={saving}
+              vorname={vorname}
+              name={name}
             />
           )}
           <button className="btn btn-primary" style={{ width: '100%', justifyContent: 'center', marginBottom: 10, opacity: saving ? 0.6 : 1, ...(isNew && duplicates && duplicates.length > 0 ? { display: 'none' } : {}) }} disabled={saving} onClick={() => handleSave()}>

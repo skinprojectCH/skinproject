@@ -133,6 +133,8 @@ export default function NewCustomerModal({ onClose, onCreated }: { onClose: () =
           onCreateAnyway={() => handleCreate(true)}
           onCancel={() => setDuplicates(null)}
           creating={saving}
+          vorname={vorname}
+          name={name}
         />
       )}
       <div style={{ display: 'flex', gap: 10, ...(duplicates && duplicates.length > 0 ? { display: 'none' } : {}) }}>
