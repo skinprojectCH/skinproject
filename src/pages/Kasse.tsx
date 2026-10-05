@@ -946,6 +946,7 @@ if (voucher.status === 'eingelöst' || voucher.remaining_value <= 0) {
   const [showAnzahlungModal, setShowAnzahlungModal] = useState(false);
   const [anzahlungPrompt, setAnzahlungPrompt] = useState<Voucher[] | null>(null);
   const [applyAnzahlung, setApplyAnzahlung] = useState<Voucher[] | null>(null);
+  const anzahlungActive = !!applyAnzahlung && applyAnzahlung.length > 0;
   const [showProductModal, setShowProductModal] = useState(false);
   const [showCheckout, setShowCheckout] = useState(false);
   const [completed, setCompleted] = useState(false);
@@ -1294,7 +1295,7 @@ setItems([]);
 }
 
 async function handleDirectCheckout() {
-if (!paymentMethod || items.length === 0) return;
+if (!paymentMethod || items.length === 0 || anzahlungActive) return;
 setCheckingOutDirect(true);
 setDirectCheckoutError(null);
 try {
@@ -1946,12 +1947,31 @@ e.target.value = '';
 <div>{chf(subtotal)}</div>
 </div>
 
-{applyAnzahlung && applyAnzahlung.length > 0 && (
+{anzahlungActive && (
 <div style={{ border: '1px solid var(--color-accent)', background: 'var(--color-accent-fill)', borderRadius: 6, padding: '10px 12px', marginBottom: 16, fontSize: 12, color: 'var(--color-primary)' }}>
-Anzahlung von {chf(applyAnzahlung.reduce((s, v) => s + v.remaining_value, 0))} wird verrechnet — bitte über "Split Payment" kassieren.
+Anzahlung von {chf(applyAnzahlung.reduce((s, v) => s + v.remaining_value, 0))} wird verrechnet — Kassieren nur über "Split Payment".
 </div>
 )}
 
+{anzahlungActive ? (
+<>
+<button
+onClick={() => setShowCheckout(true)}
+className="btn btn-primary"
+style={{ width: '100%', justifyContent: 'center', marginBottom: 10, opacity: items.length ? 1 : 0.4 }}
+disabled={items.length === 0}
+>
+<GridIcon /> Split Payment / Gutschein
+</button>
+<button
+onClick={() => setApplyAnzahlung(null)}
+style={{ width: '100%', background: 'none', border: 'none', color: '#888', fontSize: 12, textDecoration: 'underline', cursor: 'pointer', marginBottom: 10 }}
+>
+Anzahlung doch nicht verrechnen
+</button>
+</>
+) : (
+<>
 <div className="label-uppercase" style={{ marginBottom: 8 }}>
 Zahlungsart
 </div>
@@ -1983,6 +2003,8 @@ onClick={handleDirectCheckout}
 >
 {checkingOutDirect ? 'Speichert…' : 'Kassieren'}
 </button>
+</>
+)}
 
 {directCheckoutError && <div style={{ fontSize: 12, color: 'var(--color-destructive)', marginBottom: 10 }}>{directCheckoutError}</div>}
 
