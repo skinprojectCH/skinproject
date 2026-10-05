@@ -1369,6 +1369,7 @@ export default function Kalender() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [date, setDate] = useState(todayISO());
+  const datePickerRef = useRef<HTMLInputElement>(null);
   const [refreshKey, setRefreshKey] = useState(0);
   const [allActiveArtists, setAllActiveArtists] = useState<Artist[]>([]);
   const [showOpenPastPopup, setShowOpenPastPopup] = useState(false);
@@ -1464,7 +1465,36 @@ export default function Kalender() {
             >
               ‹
             </button>
-            <div style={{ border: '1px solid var(--color-border)', padding: '7px 14px', fontSize: 12, color: '#333', borderRadius: 4 }}>
+            <div
+              role="button"
+              title="Datum wählen"
+              onClick={() => {
+                const el = datePickerRef.current;
+                if (!el) return;
+                try {
+                  el.showPicker();
+                } catch {
+                  el.focus();
+                  el.click();
+                }
+              }}
+              style={{ position: 'relative', border: '1px solid var(--color-border)', padding: '7px 14px', fontSize: 12, color: '#333', borderRadius: 4, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6 }}
+            >
+              <input
+                ref={datePickerRef}
+                type="date"
+                value={date}
+                onChange={(e) => e.target.value && setDate(e.target.value)}
+                tabIndex={-1}
+                aria-hidden
+                style={{ position: 'absolute', left: 0, bottom: 0, width: '100%', height: '100%', opacity: 0, pointerEvents: 'none', border: 'none', padding: 0 }}
+              />
+              <svg aria-hidden width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ opacity: 0.55 }}>
+                <rect x="3" y="4" width="18" height="18" rx="2" />
+                <line x1="16" y1="2" x2="16" y2="6" />
+                <line x1="8" y1="2" x2="8" y2="6" />
+                <line x1="3" y1="10" x2="21" y2="10" />
+              </svg>
               {view === 'woche'
                 ? (() => {
                     const mon = new Date(startOfWeekISO(date));
