@@ -545,6 +545,12 @@ async function downloadLocationSummaryPdf(opts: {
       b.openReceivables.map((r) => ({ label: `${new Date(r.date).toLocaleDateString('de-CH')} ${r.time} · ${r.customerLabel} · ${r.artistName}`, amount: r.amount }))
     );
   }
+  if (b.paidLater.length > 0) {
+    pdfList(
+      `Später bezahlt (Umsatz am Termintag, Geld am Zahlungstag): ${formatCHF(b.paidLaterTotal)}`,
+      b.paidLater.map((r) => ({ label: `${new Date(r.date).toLocaleDateString('de-CH')} ${r.time} · ${r.customerLabel} · ${r.artistName} · bezahlt am ${new Date(r.paidAt).toLocaleDateString('de-CH')}`, amount: r.amount }))
+    );
+  }
   if (b.lateReceipts.length > 0) {
     pdfList(
       `Zahlungseingang offene Posten: ${formatCHF(b.lateReceiptsTotal)}`,
@@ -1021,6 +1027,7 @@ export default function Abrechnung() {
                     ['+ Anzahlungs-Verkäufe', billing.anzahlungSalesTotal],
                     ['+ Zahlungseingang offene Posten', billing.lateReceiptsTotal],
                     ['− offene Debitoren', -billing.openReceivablesTotal],
+                    ['− später bezahlt', -billing.paidLaterTotal],
                     ['− mit Guthaben bezahlt', -redeemedTotal],
                   ];
                   const expected = parts.reduce((x, [, v]) => x + v, 0);
@@ -1193,6 +1200,37 @@ export default function Abrechnung() {
                     </div>
                     <div style={{ fontSize: 11, color: '#999', marginTop: 6 }}>
                       Umsatz ist bereits am Termintag enthalten (Salon &amp; Artist, geplanter Preis). Das Geld fehlt aber noch in der Kasse.
+                    </div>
+                  </div>
+                )}
+
+                {billing.paidLater.length > 0 && (
+                  <div style={{ marginTop: 20 }}>
+                    <div style={{ fontSize: 12, fontWeight: 700, marginBottom: 8, color: '#7a5a00' }}>
+                      Später bezahlt · {formatCHF(billing.paidLaterTotal)}
+                    </div>
+                    <div style={{ border: '1px solid #E0B84A', borderRadius: 6, background: '#FFF9E8', overflow: 'hidden' }}>
+                      <div style={{ display: 'grid', gridTemplateColumns: '110px 1fr 1fr 110px 110px', padding: '10px 14px', fontSize: 11, textTransform: 'uppercase', letterSpacing: 0.5, color: '#999', borderBottom: '1px solid #EBD9A6', fontWeight: 600 }}>
+                        <div>Termin</div>
+                        <div>Kunde</div>
+                        <div>Artist</div>
+                        <div>Bezahlt am</div>
+                        <div style={{ textAlign: 'right' }}>Betrag</div>
+                      </div>
+                      {billing.paidLater.map((r) => (
+                        <div key={r.appointmentId} style={{ display: 'grid', gridTemplateColumns: '110px 1fr 1fr 110px 110px', padding: '12px 14px', fontSize: 13, borderBottom: '1px solid #F2E6C2', alignItems: 'center' }}>
+                          <div>
+                            {new Date(r.date).toLocaleDateString('de-CH', { day: '2-digit', month: '2-digit' })} {r.time}
+                          </div>
+                          <div>{r.customerLabel}</div>
+                          <div>{r.artistName}</div>
+                          <div style={{ fontWeight: 600, color: '#7a5a00' }}>{new Date(r.paidAt).toLocaleDateString('de-CH', { day: '2-digit', month: '2-digit', year: 'numeric' })}</div>
+                          <div style={{ textAlign: 'right', fontWeight: 600 }}>{formatCHF(r.amount)}</div>
+                        </div>
+                      ))}
+                    </div>
+                    <div style={{ fontSize: 11, color: '#999', marginTop: 6 }}>
+                      Umsatz zählt am Termintag (Salon &amp; Artist). Das Geld kam erst am Zahlungstag in die Kasse und erscheint dort unter "Zahlungseingang offene Posten".
                     </div>
                   </div>
                 )}

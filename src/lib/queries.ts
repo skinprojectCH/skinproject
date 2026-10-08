@@ -1357,6 +1357,8 @@ export interface LocationBilling {
   openReceivablesTotal: number;
   lateReceipts: LateReceiptEntry[]; // im Zeitraum eingegangene Zahlungen für Termine VOR dem Zeitraum (kein Umsatz, nur Geldeingang)
   lateReceiptsTotal: number;
+  paidLater: PaidLaterEntry[]; // Termine im Zeitraum, die erst NACH dem Zeitraum bezahlt wurden (Umsatz hier, Geld später)
+  paidLaterTotal: number;
   paymentsByMethod: { method: string; amount: number; count: number }[]; // Einnahmen nach Zahlungsart (nach Zahlungsdatum)
   legacyDeposits: { customerLabel: string; amount: number; type: 'Anzahlung' | 'Gutschein' }[]; // eingelöste Anzahlungen/Gutscheine aus der ALTEN Kasse (temporär)
   legacyDepositsTotal: number;
@@ -1369,6 +1371,16 @@ export interface OpenReceivableEntry {
   time: string;
   customerLabel: string;
   artistName: string;
+  amount: number;
+}
+
+export interface PaidLaterEntry {
+  appointmentId: string;
+  date: string;
+  time: string;
+  customerLabel: string;
+  artistName: string;
+  paidAt: string;
   amount: number;
 }
 
@@ -1400,7 +1412,7 @@ export async function fetchLocationBilling(locationId: string, startDateISO: str
   const { data: appts, error: apptError } = await supabase
     .from('appointments')
     .select(
-      `id, artist_id, start_time, status, customers(vorname, name), ${APPT_PLANNED_ITEMS}, artists(id, name, calendar_color, revenue_share_pct, is_employee), orders(total, subtotal, status, is_anzahlung, salon_share_pct, customers(vorname, name), order_line_items(service_id, product_id, line_total), payments(method, amount, voucher_id, vouchers(code, type, source)))`
+      `id, artist_id, start_time, status, customers(vorname, name), ${APPT_PLANNED_ITEMS}, artists(id, name, calendar_color, revenue_share_pct, is_employee), orders(total, subtotal, status, is_anzahlung, salon_share_pct, created_at, customers(vorname, name), order_line_items(service_id, product_id, line_total), payments(method, amount, voucher_id, vouchers(code, type, source)))`
     )
     .eq('location_id', locationId)
     .eq('type', 'termin')
@@ -1424,6 +1436,27 @@ export async function fetchLocationBilling(locationId: string, startDateISO: str
     .sort((x, y) => (x.date + x.time).localeCompare(y.date + y.time));
   const openReceivablesTotal = openReceivables.reduce((s, r) => s + r.amount, 0);
   const apptRevenue = paidApptOrders.reduce((s, o) => s + orderRevenue(o), 0) + openReceivablesTotal;
+
+  // Später bezahlt: Termin im Zeitraum, aber erst NACH dem Zeitraum kassiert. Umsatz zählt hier
+  // (Termintag), das Geld erscheint erst am Zahlungstag unter "Zahlungseingang offene Posten".
+  // Gleiche Datumsgrenze wie die lateOrders-Abfrage (Vergleich wie in der DB, UTC).
+  const periodEnd = new Date(`${end}Z`).getTime();
+  const paidLater: PaidLaterEntry[] = apptRows
+    .filter((a) => {
+      const o = a.orders?.[0];
+      return o && o.status === 'bezahlt' && !o.is_anzahlung && o.created_at && new Date(o.created_at).getTime() > periodEnd;
+    })
+    .map((a) => ({
+      appointmentId: a.id,
+      date: a.start_time.slice(0, 10),
+      time: new Date(a.start_time).toLocaleTimeString('de-CH', { hour: '2-digit', minute: '2-digit' }),
+      customerLabel: a.customers ? `${a.customers.vorname} ${a.customers.name}` : 'Laufkunde',
+      artistName: a.artists?.name || '—',
+      paidAt: a.orders[0].created_at,
+      amount: Number(a.orders[0].total),
+    }))
+    .sort((x, y) => (x.date + x.time).localeCompare(y.date + y.time));
+  const paidLaterTotal = paidLater.reduce((s, r) => s + r.amount, 0);
 
   // Laufkunden-Verkäufe ohne Termin (z.B. reiner Artikelverkauf an der Kasse) -- lassen
   // sich nicht über Termine finden, daher separat über Bestelldatum.
@@ -1596,6 +1629,8 @@ export async function fetchLocationBilling(locationId: string, startDateISO: str
     openReceivablesTotal,
     lateReceipts,
     lateReceiptsTotal,
+    paidLater,
+    paidLaterTotal,
     paymentsByMethod,
     legacyDeposits,
     legacyDepositsTotal: legacyDeposits.reduce((s, d) => s + d.amount, 0),
