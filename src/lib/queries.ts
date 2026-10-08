@@ -1337,8 +1337,14 @@ export interface LocationBillingArtistRow {
   calendarColor: string;
   revenue: number; // eigener Dienstleistungsanteil (vor Beteiligung)
   sharePct: number;
-  payout: number; // revenue * (1 - sharePct/100) -- sharePct ist der Salon-Anteil
+  payout: number; // revenue * (1 - sharePct/100) -- sharePct ist der Salon-Anteil (verdient am Termintag)
   isEmployee: boolean;
+  // Bar-Auszahlung: Artists werden erst bezahlt, wenn der Kunde bezahlt hat (gleiche Logik wie
+  // der Kassenbestand). payable = payout − notYetPayable + catchUp.
+  notYetPayable: number; // Anteil an Terminen im Zeitraum, die (im Zeitraum) noch nicht bezahlt wurden
+  catchUp: number; // Anteil an Terminen VOR dem Zeitraum, die im Zeitraum bezahlt wurden
+  catchUps: { date: string; customerLabel: string; amount: number }[];
+  payable: number; // jetzt auszuzahlen
 }
 
 export interface LocationBilling {
@@ -1399,6 +1405,23 @@ export interface RedeemedVoucherEntry {
   amount: number;
   customerLabel: string;
   source: 'kasse' | 'online';
+}
+
+function newArtistRow(artist: any): LocationBillingArtistRow {
+  return {
+    artistId: artist.id,
+    artistName: artist.name,
+    calendarColor: artist.calendar_color,
+    revenue: 0,
+    sharePct: artist.is_employee ? 100 : artist.revenue_share_pct || 0,
+    payout: 0,
+    isEmployee: !!artist.is_employee,
+    salonAmount: 0,
+    notYetPayable: 0,
+    catchUp: 0,
+    catchUps: [],
+    payable: 0,
+  } as any;
 }
 
 export async function fetchLocationBilling(locationId: string, startDateISO: string, endDateISO: string): Promise<LocationBilling> {
@@ -1480,7 +1503,7 @@ export async function fetchLocationBilling(locationId: string, startDateISO: str
   // Zählt NICHT als Umsatz (der wurde am Termintag verbucht), nur als Geldeingang.
   const { data: lateOrders, error: lateError } = await supabase
     .from('orders')
-    .select('id, total, created_at, customers(vorname, name), payments(method, amount), appointments!inner(start_time)')
+    .select('id, total, subtotal, salon_share_pct, created_at, customers(vorname, name), payments(method, amount), order_line_items(service_id, line_total), appointments!inner(start_time, artist_id, artists(id, name, calendar_color, revenue_share_pct, is_employee))')
     .eq('location_id', locationId)
     .eq('status', 'bezahlt')
     .eq('is_anzahlung', false)
@@ -1589,18 +1612,37 @@ export async function fetchLocationBilling(locationId: string, startDateISO: str
     // Anteil pro Termin (beim Kassieren gespeichert) -- nicht rückwirkend änderbar.
     const share = appointmentSalonShare(appt, artist);
     if (!byArtist[artist.id]) {
-      byArtist[artist.id] = { artistId: artist.id, artistName: artist.name, calendarColor: artist.calendar_color, revenue: 0, sharePct: artist.is_employee ? 100 : artist.revenue_share_pct || 0, payout: 0, isEmployee: !!artist.is_employee, salonAmount: 0 } as any;
+      byArtist[artist.id] = newArtistRow(artist);
     }
     byArtist[artist.id].revenue += revenue;
     byArtist[artist.id].payout += revenue * (1 - share);
     (byArtist[artist.id] as any).salonAmount += revenue * share;
+    // Noch nicht auszahlbar, solange der Kunde (im Zeitraum) nicht bezahlt hat.
+    const paidOrder = (appt.orders || []).find((o: any) => o.status === 'bezahlt');
+    const paidInPeriod = paidOrder && (!paidOrder.created_at || new Date(paidOrder.created_at).getTime() <= periodEnd);
+    if (!paidInPeriod) byArtist[artist.id].notYetPayable += revenue * (1 - share);
   }
+  // Nachzahlungen: im Zeitraum bezahlte Termine aus früheren Tagen -> jetzt auszahlen.
+  for (const o of (lateOrders as any[]) || []) {
+    const artist = o.appointments?.artists;
+    if (!artist) continue;
+    const amount = artistAmountOfOrder(o);
+    if (amount <= 0.004) continue;
+    if (!byArtist[artist.id]) byArtist[artist.id] = newArtistRow(artist);
+    byArtist[artist.id].catchUp += amount;
+    byArtist[artist.id].catchUps.push({
+      date: o.appointments?.start_time?.slice(0, 10) || '',
+      customerLabel: o.customers ? `${o.customers.vorname} ${o.customers.name}` : 'Laufkunde',
+      amount,
+    });
+  }
+  for (const r of Object.values(byArtist)) r.payable = Math.max(0, r.payout - r.notYetPayable + r.catchUp);
   const artistRows = Object.values(byArtist).sort((a, b) => b.revenue - a.revenue);
   // Anzeige-Prozentsatz = effektiver Anteil im Zeitraum (bei Wechsel mitten im Monat gemischt).
   for (const r of artistRows) {
     if (r.revenue > 0) r.sharePct = Math.round(((r as any).salonAmount / r.revenue) * 1000) / 10;
     // Als "Mitarbeiter" gruppieren, wenn im Zeitraum nichts an ihn ausbezahlt wird.
-    r.isEmployee = r.payout <= 0.005;
+    r.isEmployee = r.payout <= 0.005 && r.payable <= 0.005;
   }
   const artistRevenue = artistRows.reduce((s, r) => s + r.revenue, 0);
   // Dienstleistungen OHNE Artist (Verkauf ohne Termin, z.B. "Schmuck wechseln" direkt an der
@@ -1646,6 +1688,7 @@ export interface LocationArtistBillingEntry {
   services: string[];
   revenue: number; // eigener Dienstleistungsanteil vor Beteiligung
   payout: number; // revenue * (1 - sharePct/100) -- sharePct ist der Salon-Anteil
+  paidAt: string | null; // Zeitpunkt des Kassierens, null = noch nicht bezahlt
 }
 
 // Einzelaufschlüsselung für den "Detail"-Popup in der Abrechnung: alle Termine eines
@@ -1661,7 +1704,7 @@ export async function fetchLocationArtistBillingDetail(
   const end = `${endDateISO}T23:59:59`;
   const { data, error } = await supabase
     .from('appointments')
-    .select(`id, start_time, status, customers(vorname, name), artists(revenue_share_pct, is_employee), ${APPT_PLANNED_ITEMS}, orders(subtotal, total, status, salon_share_pct, order_line_items(service_id, product_id, line_total))`)
+    .select(`id, start_time, status, customers(vorname, name), artists(revenue_share_pct, is_employee), ${APPT_PLANNED_ITEMS}, orders(subtotal, total, status, salon_share_pct, created_at, order_line_items(service_id, product_id, line_total))`)
     .eq('location_id', locationId)
     .eq('artist_id', artistId)
     .eq('type', 'termin')
@@ -1683,6 +1726,7 @@ export async function fetchLocationArtistBillingDetail(
       services,
       revenue,
       payout: revenue * (1 - appointmentSalonShare(appt, appt.artists ?? { revenue_share_pct: sharePct })),
+      paidAt: (appt.orders || []).find((o: any) => o.status === 'bezahlt')?.created_at ?? null,
     });
   }
   return entries;

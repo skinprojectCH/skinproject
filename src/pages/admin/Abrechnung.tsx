@@ -181,7 +181,7 @@ function KassenbestandBox({ locationId, isHauptadmin, dateISO }: { locationId: s
             )}
             {!loading && cashDetail && cashDetail.artistPayout > 0.004 && (
               <div style={{ fontSize: 11, color: '#999', marginTop: 2 }}>
-                Auszahlung Artists = ihr Anteil an allen bezahlten Dienstleistungen (bar und Karte), wird automatisch abgezogen – bar aus der Kasse an die Artists.
+                Auszahlung Artists = ihr Anteil an allen bezahlten Dienstleistungen (bar und Karte), wird automatisch abgezogen, sobald der Kunde bezahlt hat – bar aus der Kasse an die Artists.
               </div>
             )}
           </div>
@@ -632,15 +632,43 @@ function ArtistDetailModal({
               <div style={{ textAlign: 'right', flexShrink: 0 }}>
                 <div style={{ fontSize: 13, fontWeight: 700 }}>{formatCHF(e.payout)}</div>
                 <div style={{ fontSize: 10, color: '#999' }}>von {formatCHF(e.revenue)}</div>
+                {!e.paidAt ? (
+                  <div style={{ fontSize: 10, fontWeight: 600, color: 'var(--color-destructive)' }}>Kunde hat noch nicht bezahlt</div>
+                ) : e.paidAt.slice(0, 10) > e.date ? (
+                  <div style={{ fontSize: 10, fontWeight: 600, color: '#7a5a00' }}>bezahlt am {new Date(e.paidAt).toLocaleDateString('de-CH', { day: '2-digit', month: '2-digit' })}</div>
+                ) : null}
               </div>
             </div>
           ))}
         </div>
       )}
 
+      {row.catchUps.length > 0 && (
+        <div style={{ marginBottom: 16 }}>
+          <div style={{ fontSize: 12, fontWeight: 700, marginBottom: 6, color: '#1a7a3f' }}>Nachzahlung – Kunde hat im Zeitraum bezahlt</div>
+          {row.catchUps.map((c, i) => (
+            <div key={i} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, padding: '4px 0' }}>
+              <span>Termin vom {c.date ? new Date(c.date).toLocaleDateString('de-CH') : '—'} · {c.customerLabel}</span>
+              <strong>{formatCHF(c.amount)}</strong>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {!row.isEmployee && Math.abs(row.payable - total) > 0.004 && (
+        <div style={{ fontSize: 12, marginBottom: 10, display: 'flex', justifyContent: 'space-between', background: 'var(--color-bg)', padding: '8px 10px', borderRadius: 6 }}>
+          <span>
+            Bar auszahlen (Artist-Anteil {formatCHF(total)}
+            {row.notYetPayable > 0.004 ? ` − Kunde zahlt später ${formatCHF(row.notYetPayable)}` : ''}
+            {row.catchUp > 0.004 ? ` + Nachzahlung ${formatCHF(row.catchUp)}` : ''})
+          </span>
+          <strong>{formatCHF(row.payable)}</strong>
+        </div>
+      )}
+
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderTop: '1px solid var(--color-border)', paddingTop: 12 }}>
         <div style={{ fontSize: 13, fontWeight: 700 }}>
-          Total Auszahlung: <span style={{ color: 'var(--color-accent)' }}>{formatCHF(total)}</span>
+          Total Artist-Anteil: <span style={{ color: 'var(--color-accent)' }}>{formatCHF(total)}</span>
         </div>
         {entries.length > 0 && (
           <button
@@ -1116,7 +1144,18 @@ export default function Abrechnung() {
             <div style={summaryCardStyle}>
               <div style={{ fontSize: 11, color: '#999', textTransform: 'uppercase', marginBottom: 8, fontWeight: 600 }}>Umsatz Artists</div>
               <div style={{ fontFamily: 'var(--font-heading)', fontSize: 22, fontWeight: 700 }}>{formatCHF(billing.artistRows.reduce((s, r) => s + r.payout, 0))}</div>
-              <div style={{ fontSize: 10, color: '#bbb', marginTop: 2 }}>Auszahlungen gesamt</div>
+              <div style={{ fontSize: 10, color: '#bbb', marginTop: 2 }}>Artist-Anteil gesamt</div>
+              {(() => {
+                const payable = billing.artistRows.filter((r) => !r.isEmployee).reduce((s, r) => s + r.payable, 0);
+                const earned = billing.artistRows.reduce((s, r) => s + r.payout, 0);
+                if (Math.abs(payable - earned) < 0.01) return null;
+                return (
+                  <div style={{ fontSize: 11, marginTop: 8, display: 'flex', justifyContent: 'space-between', color: '#555' }} title="Artists werden bar ausbezahlt, sobald der Kunde bezahlt hat">
+                    <span>Bar auszahlen</span>
+                    <strong>{formatCHF(payable)}</strong>
+                  </div>
+                );
+              })()}
             </div>
             <div style={summaryCardStyle}>
               <div style={{ fontSize: 11, color: '#999', textTransform: 'uppercase', marginBottom: 8, fontWeight: 600 }}>Verkäufe</div>
@@ -1135,11 +1174,12 @@ export default function Abrechnung() {
             const artistRows = billing.artistRows.filter((r) => !r.isEmployee);
 
             const tableHeader = (
-              <div style={{ display: 'grid', gridTemplateColumns: '1.4fr 1fr 1fr 1fr 0.7fr', padding: '10px 14px', fontSize: 11, textTransform: 'uppercase', letterSpacing: 0.5, color: '#999', borderBottom: '1px solid var(--color-border)', fontWeight: 600 }}>
+              <div style={{ display: 'grid', gridTemplateColumns: '1.4fr 1fr 1fr 1fr 1.3fr 0.6fr', padding: '10px 14px', fontSize: 11, textTransform: 'uppercase', letterSpacing: 0.5, color: '#999', borderBottom: '1px solid var(--color-border)', fontWeight: 600 }}>
                 <div>Name</div>
                 <div>Umsatz</div>
                 <div>Miet- &amp; Serviceanteil</div>
-                <div>Auszahlung</div>
+                <div>Artist-Anteil</div>
+                <div title="Bar aus der Kasse – erst wenn der Kunde bezahlt hat">Bar auszahlen</div>
                 <div></div>
               </div>
             );
@@ -1147,7 +1187,7 @@ export default function Abrechnung() {
             const renderRow = (row: LocationBillingArtistRow) => (
               <div
                 key={row.artistId}
-                style={{ display: 'grid', gridTemplateColumns: '1.4fr 1fr 1fr 1fr 0.7fr', padding: '14px', fontSize: 13, borderBottom: '1px solid var(--color-border-subtle, #eee)', alignItems: 'center' }}
+                style={{ display: 'grid', gridTemplateColumns: '1.4fr 1fr 1fr 1fr 1.3fr 0.6fr', padding: '14px', fontSize: 13, borderBottom: '1px solid var(--color-border-subtle, #eee)', alignItems: 'center' }}
               >
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                   <span style={{ width: 8, height: 8, borderRadius: '50%', background: row.calendarColor, display: 'inline-block', flexShrink: 0 }} />
@@ -1155,7 +1195,19 @@ export default function Abrechnung() {
                 </div>
                 <div>{formatCHF(row.revenue)}</div>
                 <div>{row.sharePct}%</div>
-                <div style={{ fontWeight: 600 }}>{formatCHF(row.payout)}</div>
+                <div>{formatCHF(row.payout)}</div>
+                <div>
+                  <div style={{ fontWeight: 700 }}>{row.isEmployee ? '—' : formatCHF(row.payable)}</div>
+                  {!row.isEmployee && row.notYetPayable > 0.004 && (
+                    <div style={{ fontSize: 10, color: '#7a5a00' }}>− {formatCHF(row.notYetPayable)} Kunde zahlt später</div>
+                  )}
+                  {!row.isEmployee &&
+                    row.catchUps.map((c, i) => (
+                      <div key={i} style={{ fontSize: 10, color: '#1a7a3f' }}>
+                        + {formatCHF(c.amount)} vom {c.date ? new Date(c.date).toLocaleDateString('de-CH', { day: '2-digit', month: '2-digit' }) : '—'}
+                      </div>
+                    ))}
+                </div>
                 <div onClick={() => setDetailRow(row)} style={{ color: 'var(--color-accent)', fontWeight: 600, cursor: 'pointer', textAlign: 'right' }}>
                   Detail
                 </div>
