@@ -717,7 +717,7 @@ export async function fetchAppointmentsForDay(dateISO: string, locationId?: stri
   const end = `${dateISO}T23:59:59`;
   let query = supabase
     .from('appointments')
-    .select('*, customers(vorname, name, phone), artists(name, kuenstlername, calendar_color), appointment_line_items(service_id, services(name)), orders(status, payments(method, amount))')
+    .select('*, customers(vorname, name, phone), artists(name, kuenstlername, calendar_color), appointment_line_items(service_id, services(name)), orders(status, created_at, payments(method, amount))')
     .gte('start_time', start)
     .lte('start_time', end)
     .order('start_time');

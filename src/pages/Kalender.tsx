@@ -29,6 +29,8 @@ interface LoadedAppointment {
   artistColor: string;
   status: string;
   payments: { method: string; amount: number }[];
+  /** Zahlungsdatum (YYYY-MM-DD), nur gesetzt, wenn NACH dem Termintag bezahlt wurde. */
+  paidLaterOn: string | null;
 }
 
 const PAYMENT_LABELS: Record<string, string> = { bar: 'Bar', karte: 'Karte', twint: 'TWINT', rechnung: 'Rechnung', online: 'Online', gutschein: 'Gutschein', anzahlung: 'Anzahlung', anzahlung_alt: 'Anzahlung alte Kasse', gutschein_alt: 'Gutschein alte Kasse' };
@@ -77,7 +79,21 @@ function mapAppointmentRow(a: any, dateISO: string): LoadedAppointment {
     artistColor: a.artists?.calendar_color || 'var(--color-accent)',
     status: a.status,
     payments: ((a.orders || []).find((o: any) => o.status === 'bezahlt')?.payments || []).map((p: any) => ({ method: String(p.method || '').toLowerCase(), amount: Number(p.amount) })),
+    paidLaterOn: paidLaterOn(a),
   };
+}
+
+// Lokales Datum (Europe/Zurich) als YYYY-MM-DD.
+function localDayISO(iso: string) {
+  return new Date(iso).toLocaleDateString('sv-SE', { timeZone: 'Europe/Zurich' });
+}
+
+// Wurde der Termin erst an einem späteren Tag kassiert? Dann das Zahlungsdatum, sonst null.
+function paidLaterOn(a: any): string | null {
+  const paid = (a.orders || []).find((o: any) => o.status === 'bezahlt' && o.created_at);
+  if (!paid || !a.start_time) return null;
+  const paidDay = localDayISO(paid.created_at);
+  return paidDay > localDayISO(a.start_time) ? paidDay : null;
 }
 
 function todayISO() {
@@ -1138,6 +1154,14 @@ function ListView({
           <div>
             <div style={statusPillStyle(a.status)}>{a.status}</div>
             <PaymentBadges payments={a.payments} />
+            {a.paidLaterOn && (
+              <div
+                title="Zahlung erst nach dem Termintag erfasst"
+                style={{ fontSize: 10, fontWeight: 600, marginTop: 4, padding: '2px 6px', borderRadius: 8, background: '#FFF4D6', border: '1px solid #E0B84A', color: '#7a5a00', display: 'inline-block', whiteSpace: 'nowrap' }}
+              >
+                bezahlt am {new Date(a.paidLaterOn + 'T12:00:00').toLocaleDateString('de-CH', { day: '2-digit', month: '2-digit' })}
+              </div>
+            )}
           </div>
         </div>
       ))}
