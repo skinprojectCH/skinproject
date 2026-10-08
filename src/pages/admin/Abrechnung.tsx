@@ -547,7 +547,7 @@ async function downloadLocationSummaryPdf(opts: {
   }
   if (b.paidLater.length > 0) {
     pdfList(
-      `Später bezahlt (Umsatz am Termintag, Geld am Zahlungstag): ${formatCHF(b.paidLaterTotal)}`,
+      `Bezahlt später (Umsatz am Termintag, Geld am Zahlungstag): ${formatCHF(b.paidLaterTotal)}`,
       b.paidLater.map((r) => ({ label: `${new Date(r.date).toLocaleDateString('de-CH')} ${r.time} · ${r.customerLabel} · ${r.artistName} · bezahlt am ${new Date(r.paidAt).toLocaleDateString('de-CH')}`, amount: r.amount }))
     );
   }
@@ -1008,6 +1008,19 @@ export default function Abrechnung() {
                       <div style={{ fontFamily: 'var(--font-heading)', fontSize: 18, fontWeight: 700 }}>{formatCHF(p.amount)}</div>
                     </div>
                   ))}
+                  {billing.paidLater.length > 0 && (() => {
+                    const days = [...new Set(billing.paidLater.map((r) => new Date(r.paidAt).toLocaleDateString('de-CH', { day: '2-digit', month: '2-digit' })))];
+                    return (
+                      <div title="Umsatz in diesem Zeitraum, Geld erst später eingegangen – nicht in Total Einnahmen enthalten">
+                        <div style={{ fontSize: 12, color: '#7a5a00' }}>
+                          Bezahlt später
+                          <span style={{ color: '#c9a64a' }}> · {billing.paidLater.length}×</span>
+                        </div>
+                        <div style={{ fontFamily: 'var(--font-heading)', fontSize: 18, fontWeight: 700, color: '#7a5a00' }}>{formatCHF(billing.paidLaterTotal)}</div>
+                        <div style={{ fontSize: 10, color: '#a08a4a' }}>am {days.join(', ')}</div>
+                      </div>
+                    );
+                  })()}
                   <div style={{ marginLeft: 'auto', textAlign: 'right' }}>
                     <div style={{ fontSize: 12, color: '#777' }}>Total Einnahmen</div>
                     <div style={{ fontFamily: 'var(--font-heading)', fontSize: 18, fontWeight: 700 }}>{formatCHF(totalIn)}</div>
@@ -1027,7 +1040,7 @@ export default function Abrechnung() {
                     ['+ Anzahlungs-Verkäufe', billing.anzahlungSalesTotal],
                     ['+ Zahlungseingang offene Posten', billing.lateReceiptsTotal],
                     ['− offene Debitoren', -billing.openReceivablesTotal],
-                    ['− später bezahlt', -billing.paidLaterTotal],
+                    ['− bezahlt später', -billing.paidLaterTotal],
                     ['− mit Guthaben bezahlt', -redeemedTotal],
                   ];
                   const expected = parts.reduce((x, [, v]) => x + v, 0);
@@ -1207,7 +1220,7 @@ export default function Abrechnung() {
                 {billing.paidLater.length > 0 && (
                   <div style={{ marginTop: 20 }}>
                     <div style={{ fontSize: 12, fontWeight: 700, marginBottom: 8, color: '#7a5a00' }}>
-                      Später bezahlt · {formatCHF(billing.paidLaterTotal)}
+                      Bezahlt später · {formatCHF(billing.paidLaterTotal)}
                     </div>
                     <div style={{ border: '1px solid #E0B84A', borderRadius: 6, background: '#FFF9E8', overflow: 'hidden' }}>
                       <div style={{ display: 'grid', gridTemplateColumns: '110px 1fr 1fr 110px 110px', padding: '10px 14px', fontSize: 11, textTransform: 'uppercase', letterSpacing: 0.5, color: '#999', borderBottom: '1px solid #EBD9A6', fontWeight: 600 }}>
