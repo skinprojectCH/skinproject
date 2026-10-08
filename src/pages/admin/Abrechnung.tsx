@@ -541,13 +541,13 @@ async function downloadLocationSummaryPdf(opts: {
   }
   if (b.openReceivables.length > 0) {
     pdfList(
-      `Offene Debitoren (noch nicht bezahlt): ${formatCHF(b.openReceivablesTotal)}`,
+      `Offene Debitoren – noch offen: ${formatCHF(b.openReceivablesTotal)}`,
       b.openReceivables.map((r) => ({ label: `${new Date(r.date).toLocaleDateString('de-CH')} ${r.time} · ${r.customerLabel} · ${r.artistName}`, amount: r.amount }))
     );
   }
   if (b.paidLater.length > 0) {
     pdfList(
-      `Bezahlt später (Umsatz am Termintag, Geld am Zahlungstag): ${formatCHF(b.paidLaterTotal)}`,
+      `Offene Debitoren – inzwischen bezahlt (Umsatz am Termintag, Geld am Zahlungstag): ${formatCHF(b.paidLaterTotal)}`,
       b.paidLater.map((r) => ({ label: `${new Date(r.date).toLocaleDateString('de-CH')} ${r.time} · ${r.customerLabel} · ${r.artistName} · bezahlt am ${new Date(r.paidAt).toLocaleDateString('de-CH')}`, amount: r.amount }))
     );
   }
@@ -1008,16 +1008,27 @@ export default function Abrechnung() {
                       <div style={{ fontFamily: 'var(--font-heading)', fontSize: 18, fontWeight: 700 }}>{formatCHF(p.amount)}</div>
                     </div>
                   ))}
-                  {billing.paidLater.length > 0 && (() => {
-                    const days = [...new Set(billing.paidLater.map((r) => new Date(r.paidAt).toLocaleDateString('de-CH', { day: '2-digit', month: '2-digit' })))];
+                  {(billing.openReceivables.length > 0 || billing.paidLater.length > 0) && (() => {
+                    // Offene Debitoren am Ende des Zeitraums: noch offen + inzwischen bezahlt.
+                    const byDay = new Map<string, number>();
+                    for (const r of billing.paidLater) {
+                      const d = new Date(r.paidAt).toLocaleDateString('de-CH', { day: '2-digit', month: '2-digit' });
+                      byDay.set(d, (byDay.get(d) || 0) + r.amount);
+                    }
+                    const count = billing.openReceivables.length + billing.paidLater.length;
                     return (
-                      <div title="Umsatz in diesem Zeitraum, Geld erst später eingegangen – nicht in Total Einnahmen enthalten">
+                      <div title="Umsatz in diesem Zeitraum, Geld bei Abschluss noch nicht eingegangen – nicht in Total Einnahmen enthalten">
                         <div style={{ fontSize: 12, color: '#7a5a00' }}>
-                          Bezahlt später
-                          <span style={{ color: '#c9a64a' }}> · {billing.paidLater.length}×</span>
+                          Offene Debitoren
+                          <span style={{ color: '#c9a64a' }}> · {count}×</span>
                         </div>
-                        <div style={{ fontFamily: 'var(--font-heading)', fontSize: 18, fontWeight: 700, color: '#7a5a00' }}>{formatCHF(billing.paidLaterTotal)}</div>
-                        <div style={{ fontSize: 10, color: '#a08a4a' }}>am {days.join(', ')}</div>
+                        <div style={{ fontFamily: 'var(--font-heading)', fontSize: 18, fontWeight: 700, color: '#7a5a00' }}>{formatCHF(billing.openReceivablesTotal + billing.paidLaterTotal)}</div>
+                        {[...byDay.entries()].map(([d, amt]) => (
+                          <div key={d} style={{ fontSize: 10, color: '#1a7a3f' }}>davon bezahlt am {d}: {formatCHF(amt)}</div>
+                        ))}
+                        {billing.openReceivablesTotal > 0 && (
+                          <div style={{ fontSize: 10, color: 'var(--color-destructive)' }}>noch offen: {formatCHF(billing.openReceivablesTotal)}</div>
+                        )}
                       </div>
                     );
                   })()}
@@ -1039,8 +1050,7 @@ export default function Abrechnung() {
                     ['+ Gutschein-Verkäufe', billing.voucherRevenue],
                     ['+ Anzahlungs-Verkäufe', billing.anzahlungSalesTotal],
                     ['+ Zahlungseingang offene Posten', billing.lateReceiptsTotal],
-                    ['− offene Debitoren', -billing.openReceivablesTotal],
-                    ['− bezahlt später', -billing.paidLaterTotal],
+                    ['− offene Debitoren', -(billing.openReceivablesTotal + billing.paidLaterTotal)],
                     ['− mit Guthaben bezahlt', -redeemedTotal],
                   ];
                   const expected = parts.reduce((x, [, v]) => x + v, 0);
@@ -1191,7 +1201,7 @@ export default function Abrechnung() {
                 {billing.openReceivables.length > 0 && (
                   <div style={{ marginTop: 20 }}>
                     <div style={{ fontSize: 12, fontWeight: 700, marginBottom: 8, color: 'var(--color-destructive)' }}>
-                      Offene Debitoren (noch nicht bezahlt) · {formatCHF(billing.openReceivablesTotal)}
+                      Offene Debitoren – noch offen · {formatCHF(billing.openReceivablesTotal)}
                     </div>
                     <div style={{ border: '1px solid var(--color-border)', borderRadius: 6, background: 'var(--color-surface)', overflow: 'hidden' }}>
                       <div style={{ display: 'grid', gridTemplateColumns: '110px 1fr 1fr 110px', padding: '10px 14px', fontSize: 11, textTransform: 'uppercase', letterSpacing: 0.5, color: '#999', borderBottom: '1px solid var(--color-border)', fontWeight: 600 }}>
@@ -1220,7 +1230,7 @@ export default function Abrechnung() {
                 {billing.paidLater.length > 0 && (
                   <div style={{ marginTop: 20 }}>
                     <div style={{ fontSize: 12, fontWeight: 700, marginBottom: 8, color: '#7a5a00' }}>
-                      Bezahlt später · {formatCHF(billing.paidLaterTotal)}
+                      Offene Debitoren – inzwischen bezahlt · {formatCHF(billing.paidLaterTotal)}
                     </div>
                     <div style={{ border: '1px solid #E0B84A', borderRadius: 6, background: '#FFF9E8', overflow: 'hidden' }}>
                       <div style={{ display: 'grid', gridTemplateColumns: '110px 1fr 1fr 110px 110px', padding: '10px 14px', fontSize: 11, textTransform: 'uppercase', letterSpacing: 0.5, color: '#999', borderBottom: '1px solid #EBD9A6', fontWeight: 600 }}>
