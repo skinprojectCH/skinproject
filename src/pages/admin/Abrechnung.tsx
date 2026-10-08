@@ -995,8 +995,39 @@ export default function Abrechnung() {
             const totalIn = moneyIn.reduce((s, p) => s + p.amount, 0);
             const ensure = (m: string) => (moneyIn.some((p) => p.method === m) ? [] : [{ method: m, amount: 0, count: 0 }]);
             const rows = [...ensure('bar'), ...ensure('karte'), ...moneyIn].sort((a, b) => (a.method === 'bar' ? -1 : b.method === 'bar' ? 1 : a.method === 'karte' ? -1 : b.method === 'karte' ? 1 : 0));
+            const openTotal = billing.openReceivablesTotal + billing.paidLaterTotal;
+            const openCount = billing.openReceivables.length + billing.paidLater.length;
+            const lateByDay = new Map<string, number>();
+            for (const r of billing.lateReceipts) {
+              const d = r.appointmentDate ? new Date(r.appointmentDate).toLocaleDateString('de-CH', { day: '2-digit', month: '2-digit' }) : '—';
+              lateByDay.set(d, (lateByDay.get(d) || 0) + r.amount);
+            }
             return (
-              <div style={{ ...summaryCardStyle, marginBottom: 20 }}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 16, marginBottom: 20, alignItems: 'stretch' }}>
+              {/* Debitoren: offene (Umsatz hier, Geld noch nicht da) und bezahlte (Geld heute für frühere Termine). */}
+              <div style={{ ...summaryCardStyle }}>
+                <div style={{ fontSize: 11, color: '#999', textTransform: 'uppercase', marginBottom: 10, fontWeight: 600 }}>Debitoren</div>
+                <div title="Umsatz in diesem Zeitraum, für den bei Abschluss noch kein Geld eingegangen war – nicht in Total Einnahmen enthalten">
+                  <div style={{ fontSize: 12, color: openCount > 0 ? '#7a5a00' : '#777' }}>
+                    Offene Debitoren
+                    {openCount > 0 && <span style={{ color: '#c9a64a' }}> · {openCount}×</span>}
+                  </div>
+                  <div style={{ fontFamily: 'var(--font-heading)', fontSize: 18, fontWeight: 700, color: openCount > 0 ? '#7a5a00' : undefined }}>{formatCHF(openTotal)}</div>
+                </div>
+                {billing.lateReceipts.length > 0 && (
+                  <div title="Zahlungen für Termine aus früheren Tagen – bereits in Bar/Karte und Total Einnahmen enthalten, kein Umsatz in diesem Zeitraum" style={{ marginTop: 12 }}>
+                    <div style={{ fontSize: 12, color: '#1a7a3f' }}>
+                      Bezahlte Debitoren
+                      <span style={{ color: '#8cc3a0' }}> · {billing.lateReceipts.length}×</span>
+                    </div>
+                    <div style={{ fontFamily: 'var(--font-heading)', fontSize: 18, fontWeight: 700, color: '#1a7a3f' }}>{formatCHF(billing.lateReceiptsTotal)}</div>
+                    {[...lateByDay.entries()].map(([d, amt]) => (
+                      <div key={d} style={{ fontSize: 10, color: '#1a7a3f' }}>vom {d}: {formatCHF(amt)}</div>
+                    ))}
+                  </div>
+                )}
+              </div>
+              <div style={{ ...summaryCardStyle, gridColumn: 'span 3' }}>
                 <div style={{ fontSize: 11, color: '#999', textTransform: 'uppercase', marginBottom: 10, fontWeight: 600 }}>Einnahmen nach Zahlungsart</div>
                 <div style={{ display: 'flex', gap: 28, flexWrap: 'wrap', alignItems: 'flex-end' }}>
                   {rows.map((p) => (
@@ -1008,36 +1039,6 @@ export default function Abrechnung() {
                       <div style={{ fontFamily: 'var(--font-heading)', fontSize: 18, fontWeight: 700 }}>{formatCHF(p.amount)}</div>
                     </div>
                   ))}
-                  {(billing.openReceivables.length > 0 || billing.paidLater.length > 0) && (
-                    // Offene Debitoren bei Tagesschluss (Umsatz hier, Geld noch nicht da) -- nicht in Total Einnahmen.
-                    <div title="Umsatz in diesem Zeitraum, für den bei Abschluss noch kein Geld eingegangen war – nicht in Total Einnahmen enthalten">
-                      <div style={{ fontSize: 12, color: '#7a5a00' }}>
-                        Offene Debitoren
-                        <span style={{ color: '#c9a64a' }}> · {billing.openReceivables.length + billing.paidLater.length}×</span>
-                      </div>
-                      <div style={{ fontFamily: 'var(--font-heading)', fontSize: 18, fontWeight: 700, color: '#7a5a00' }}>{formatCHF(billing.openReceivablesTotal + billing.paidLaterTotal)}</div>
-                    </div>
-                  )}
-                  {billing.lateReceipts.length > 0 && (() => {
-                    // Bezahlte Debitoren: heute eingegangenes Geld für Termine von früher -- bereits in Bar/Karte enthalten.
-                    const byDay = new Map<string, number>();
-                    for (const r of billing.lateReceipts) {
-                      const d = r.appointmentDate ? new Date(r.appointmentDate).toLocaleDateString('de-CH', { day: '2-digit', month: '2-digit' }) : '—';
-                      byDay.set(d, (byDay.get(d) || 0) + r.amount);
-                    }
-                    return (
-                      <div title="Zahlungen für Termine aus früheren Tagen – bereits in Bar/Karte und Total Einnahmen enthalten, kein Umsatz in diesem Zeitraum">
-                        <div style={{ fontSize: 12, color: '#1a7a3f' }}>
-                          Bezahlte Debitoren
-                          <span style={{ color: '#8cc3a0' }}> · {billing.lateReceipts.length}×</span>
-                        </div>
-                        <div style={{ fontFamily: 'var(--font-heading)', fontSize: 18, fontWeight: 700, color: '#1a7a3f' }}>{formatCHF(billing.lateReceiptsTotal)}</div>
-                        {[...byDay.entries()].map(([d, amt]) => (
-                          <div key={d} style={{ fontSize: 10, color: '#1a7a3f' }}>vom {d}: {formatCHF(amt)}</div>
-                        ))}
-                      </div>
-                    );
-                  })()}
                   <div style={{ marginLeft: 'auto', textAlign: 'right' }}>
                     <div style={{ fontSize: 12, color: '#777' }}>Total Einnahmen</div>
                     <div style={{ fontFamily: 'var(--font-heading)', fontSize: 18, fontWeight: 700 }}>{formatCHF(totalIn)}</div>
@@ -1078,6 +1079,7 @@ export default function Abrechnung() {
                   );
                 })()}
                 <div style={{ fontSize: 11, color: '#999', marginTop: 6 }}>Nach Zahlungsdatum – inkl. Anzahlungs-Verkäufe und nachträglich bezahlter Termine.</div>
+              </div>
               </div>
             );
           })()}
