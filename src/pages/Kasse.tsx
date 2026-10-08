@@ -1384,6 +1384,9 @@ const baseLocation = receipt?.location;
 const rateAtSale = receipt?.dateISO ? taxRateAt(receiptTaxRates.filter((r) => r.location_id === baseLocation?.id), receipt.dateISO) : null;
 const location = baseLocation ? { ...baseLocation, mwst_prozent: rateAtSale?.mwst_prozent ?? baseLocation.mwst_prozent } : baseLocation;
 const mwstActive = !!(location?.vat_number && location?.mwst_prozent);
+// Mitarbeiter (bzw. 100% Salon): keine separate Artist-Quittung, sondern "Bedient von" auf der Salon-Quittung.
+const servedByEmployee = !!receipt?.artist && sharePct >= 100;
+const servedByName = servedByEmployee ? String(receipt?.artist?.name || receipt?.artist?.kuenstlername || '').trim().split(/\s+/)[0] : '';
 
 function cardData(variant: 'salon' | 'artist') {
 const rows = (receipt?.items || [])
@@ -1414,7 +1417,7 @@ const meta = `${receipt?.date || ''}${receipt?.contextLabel ? ` · ${receipt.con
 return (['artist', 'salon'] as const)
 .map((variant) => {
 const { rows, cardTotal, mwstAmount } = cardData(variant);
-if (variant === 'artist' && rows.length === 0) return '';
+if (variant === 'artist' && (rows.length === 0 || servedByEmployee)) return '';
 const title = variant === 'salon' ? location?.name || '—' : receipt?.artist?.kuenstlername || receipt?.artist?.name || '—';
 const addr = variant === 'salon' ? [location?.strasse, location?.plz_ort].filter(Boolean).join(', ') : [receipt?.artist?.strasse, receipt?.artist?.plz_ort].filter(Boolean).join(', ');
 const rowsHtml = rows
@@ -1427,6 +1430,7 @@ return `<div style="border:1px solid #ddd;border-radius:6px;padding:16px 18px;ma
 <div style="font-size:14px;font-weight:700;">${esc(title)}</div>
 <div style="font-size:11px;color:#999;margin-bottom:10px;">${esc(addr)}</div>
 <div style="font-size:12px;color:#777;margin-bottom:10px;">${esc(meta)}</div>
+${variant === 'salon' && servedByName ? `<div style="font-size:12px;margin-bottom:10px;">Bedient von ${esc(servedByName)}</div>` : ''}
 <table style="width:100%;border-collapse:collapse;">${rowsHtml}</table>
 <table style="width:100%;border-collapse:collapse;border-top:1px solid #ddd;margin-top:8px;"><tr><td style="padding-top:8px;font-size:14px;font-weight:700;">Total</td><td style="padding-top:8px;font-size:14px;font-weight:700;text-align:right;">${chf(cardTotal)}</td></tr></table>
 ${mwstHtml}${payHtml}
@@ -1484,7 +1488,7 @@ setReceiptSending(false);
 function receiptCard(variant: 'salon' | 'artist') {
 const { rows, cardTotal, mwstAmount } = cardData(variant);
 
-if (variant === 'artist' && rows.length === 0) return null;
+if (variant === 'artist' && (rows.length === 0 || servedByEmployee)) return null;
 
 return (
 <div className="kasse-receipt-card" style={{ border: '1px solid var(--color-border)', borderRadius: 6, padding: 18, background: '#fff', flex: '1 1 320px', maxWidth: 380 }}>
@@ -1511,6 +1515,7 @@ Quittung
 {' · '}
 {receipt?.customerLabel}
 </div>
+{variant === 'salon' && servedByName && <div style={{ fontSize: 12, marginTop: -6, marginBottom: 12 }}>Bedient von {servedByName}</div>}
 <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 12 }}>
 {rows.length === 0 ? (
 <div style={{ fontSize: 12, color: '#999' }}>—</div>

@@ -48,7 +48,7 @@ Web-App unter sknpr.ch. Sprache: Deutsch (Schweiz, "ss" statt "ß"). Beträge in
 - **Gutschein alte Kasse** (temporär, nur Admin sichtbar): Gutschein aus der alten Kassensoftware ohne Code. Im Dialog "Split Payment / Gutschein" Zahlungsart "Gutschein alte Kasse" wählen und Betrag eingeben. Kein Geldeingang; erscheint in der Abrechnung im gelben Block "Alte Kasse eingelöst".
 - **Gutschein einlösen**: Zahlungsart Gutschein, Code eingeben, das System prüft Restwert und Ablaufdatum. Gutscheine mit "nur Produkte" können nur für Artikel eingesetzt werden.
 - **Anzahlung** (Kunden-Guthaben): "+ Anzahlung" braucht einen ausgewählten Kunden. Eine Anzahlung zählt beim Verkauf NICHT als Umsatz, erst wenn sie später als Zahlungsart eingesetzt wird. Hat ein Kunde offenes Guthaben, fragt die Kasse beim Kassieren "Anzahlung verrechnen?".
-- Nach dem Kassieren: Quittung (Artist-Teil und Salon-Teil mit MWST).
+- Nach dem Kassieren: Quittung (Artist-Teil und Salon-Teil mit MWST). Bei Mitarbeitern (100% Salon) gibt es nur die Salon-Quittung mit dem Hinweis "Bedient von <Vorname>".
   - "Quittungen drucken": für den Quittungsdrucker (Rolle 80 mm). Im Druckdialog den Quittungsdrucker wählen, Papier 80 mm, Ränder "Keine".
   - "Quittung senden": per E-Mail. Hat der Kunde eine E-Mail → bestätigen. Fehlt sie → eingeben, wird im Kundenprofil gespeichert. Bei Laufkunden wird sie nur zum Senden verwendet, nicht gespeichert.
 - Termin in der Kasse: "Nicht erschienen" oder "Löschen" möglich, solange er nicht kassiert ist.
