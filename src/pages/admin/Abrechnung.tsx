@@ -553,7 +553,7 @@ async function downloadLocationSummaryPdf(opts: {
   }
   if (b.lateReceipts.length > 0) {
     pdfList(
-      `Zahlungseingang offene Posten: ${formatCHF(b.lateReceiptsTotal)}`,
+      `Bezahlte Debitoren (Termine von früher, in den Einnahmen enthalten): ${formatCHF(b.lateReceiptsTotal)}`,
       b.lateReceipts.map((r) => ({ label: `Termin vom ${r.appointmentDate ? new Date(r.appointmentDate).toLocaleDateString('de-CH') : '—'} · ${r.customerLabel} · ${r.payments.map((p) => p.method).join(', ')}`, amount: r.amount }))
     );
   }
@@ -1008,27 +1008,33 @@ export default function Abrechnung() {
                       <div style={{ fontFamily: 'var(--font-heading)', fontSize: 18, fontWeight: 700 }}>{formatCHF(p.amount)}</div>
                     </div>
                   ))}
-                  {(billing.openReceivables.length > 0 || billing.paidLater.length > 0) && (() => {
-                    // Offene Debitoren am Ende des Zeitraums: noch offen + inzwischen bezahlt.
+                  {(billing.openReceivables.length > 0 || billing.paidLater.length > 0) && (
+                    // Offene Debitoren bei Tagesschluss (Umsatz hier, Geld noch nicht da) -- nicht in Total Einnahmen.
+                    <div title="Umsatz in diesem Zeitraum, für den bei Abschluss noch kein Geld eingegangen war – nicht in Total Einnahmen enthalten">
+                      <div style={{ fontSize: 12, color: '#7a5a00' }}>
+                        Offene Debitoren
+                        <span style={{ color: '#c9a64a' }}> · {billing.openReceivables.length + billing.paidLater.length}×</span>
+                      </div>
+                      <div style={{ fontFamily: 'var(--font-heading)', fontSize: 18, fontWeight: 700, color: '#7a5a00' }}>{formatCHF(billing.openReceivablesTotal + billing.paidLaterTotal)}</div>
+                    </div>
+                  )}
+                  {billing.lateReceipts.length > 0 && (() => {
+                    // Bezahlte Debitoren: heute eingegangenes Geld für Termine von früher -- bereits in Bar/Karte enthalten.
                     const byDay = new Map<string, number>();
-                    for (const r of billing.paidLater) {
-                      const d = new Date(r.paidAt).toLocaleDateString('de-CH', { day: '2-digit', month: '2-digit' });
+                    for (const r of billing.lateReceipts) {
+                      const d = r.appointmentDate ? new Date(r.appointmentDate).toLocaleDateString('de-CH', { day: '2-digit', month: '2-digit' }) : '—';
                       byDay.set(d, (byDay.get(d) || 0) + r.amount);
                     }
-                    const count = billing.openReceivables.length + billing.paidLater.length;
                     return (
-                      <div title="Umsatz in diesem Zeitraum, Geld bei Abschluss noch nicht eingegangen – nicht in Total Einnahmen enthalten">
-                        <div style={{ fontSize: 12, color: '#7a5a00' }}>
-                          Offene Debitoren
-                          <span style={{ color: '#c9a64a' }}> · {count}×</span>
+                      <div title="Zahlungen für Termine aus früheren Tagen – bereits in Bar/Karte und Total Einnahmen enthalten, kein Umsatz in diesem Zeitraum">
+                        <div style={{ fontSize: 12, color: '#1a7a3f' }}>
+                          Bezahlte Debitoren
+                          <span style={{ color: '#8cc3a0' }}> · {billing.lateReceipts.length}×</span>
                         </div>
-                        <div style={{ fontFamily: 'var(--font-heading)', fontSize: 18, fontWeight: 700, color: '#7a5a00' }}>{formatCHF(billing.openReceivablesTotal + billing.paidLaterTotal)}</div>
+                        <div style={{ fontFamily: 'var(--font-heading)', fontSize: 18, fontWeight: 700, color: '#1a7a3f' }}>{formatCHF(billing.lateReceiptsTotal)}</div>
                         {[...byDay.entries()].map(([d, amt]) => (
-                          <div key={d} style={{ fontSize: 10, color: '#1a7a3f' }}>davon bezahlt am {d}: {formatCHF(amt)}</div>
+                          <div key={d} style={{ fontSize: 10, color: '#1a7a3f' }}>vom {d}: {formatCHF(amt)}</div>
                         ))}
-                        {billing.openReceivablesTotal > 0 && (
-                          <div style={{ fontSize: 10, color: 'var(--color-destructive)' }}>noch offen: {formatCHF(billing.openReceivablesTotal)}</div>
-                        )}
                       </div>
                     );
                   })()}
@@ -1049,7 +1055,7 @@ export default function Abrechnung() {
                     ['Umsatz', billing.salonRevenue],
                     ['+ Gutschein-Verkäufe', billing.voucherRevenue],
                     ['+ Anzahlungs-Verkäufe', billing.anzahlungSalesTotal],
-                    ['+ Zahlungseingang offene Posten', billing.lateReceiptsTotal],
+                    ['+ bezahlte Debitoren', billing.lateReceiptsTotal],
                     ['− offene Debitoren', -(billing.openReceivablesTotal + billing.paidLaterTotal)],
                     ['− mit Guthaben bezahlt', -redeemedTotal],
                   ];
@@ -1253,7 +1259,7 @@ export default function Abrechnung() {
                       ))}
                     </div>
                     <div style={{ fontSize: 11, color: '#999', marginTop: 6 }}>
-                      Umsatz zählt am Termintag (Salon &amp; Artist). Das Geld kam erst am Zahlungstag in die Kasse und erscheint dort unter "Zahlungseingang offene Posten".
+                      Umsatz zählt am Termintag (Salon &amp; Artist). Das Geld kam erst am Zahlungstag in die Kasse und erscheint dort unter "Bezahlte Debitoren".
                     </div>
                   </div>
                 )}
@@ -1261,7 +1267,7 @@ export default function Abrechnung() {
                 {billing.lateReceipts.length > 0 && (
                   <div style={{ marginTop: 20 }}>
                     <div style={{ fontSize: 12, fontWeight: 700, marginBottom: 8, color: '#1a7a3f' }}>
-                      Zahlungseingang offene Posten · {formatCHF(billing.lateReceiptsTotal)}
+                      Bezahlte Debitoren · {formatCHF(billing.lateReceiptsTotal)}
                     </div>
                     <div style={{ border: '1px solid var(--color-border)', borderRadius: 6, background: 'var(--color-surface)', overflow: 'hidden' }}>
                       <div style={{ display: 'grid', gridTemplateColumns: '110px 1fr 1fr 110px', padding: '10px 14px', fontSize: 11, textTransform: 'uppercase', letterSpacing: 0.5, color: '#999', borderBottom: '1px solid var(--color-border)', fontWeight: 600 }}>
