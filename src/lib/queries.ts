@@ -255,14 +255,22 @@ export async function fetchCustomers() {
 // Name und Vorname, unabhängig von Gross-/Kleinschreibung. Begrenzt auf `limit`
 // Treffer, da Personal ohnehin gezielt nach einem Namen sucht.
 export async function searchCustomers(query: string, limit = 50) {
-  const q = query.trim().replace(/,/g, '');
+  const q = query.trim().replace(/[,()]/g, ' ');
   if (!q) return [] as Customer[];
-  const { data, error } = await supabase
-    .from('customers')
-    .select('*')
-    .or(`name.ilike.%${q}%,vorname.ilike.%${q}%,phone.ilike.%${q}%`)
-    .order('name')
-    .limit(limit);
+  let req = supabase.from('customers').select('*');
+  // Telefonnummer (z.B. "079 123 45 67" oder "+41 79 …"): nur Ziffern vergleichen, ohne führende 0 / 41.
+  const digits = q.replace(/\D/g, '');
+  if (/^[\d\s+/.-]+$/.test(q) && digits.length >= 3) {
+    const core = digits.replace(/^0041/, '').replace(/^41(?=\d{9})/, '').replace(/^0/, '');
+    req = req.ilike('phone', `%${core.split('').join('%')}%`);
+  } else {
+    // Mehrere Wörter (z.B. "Roger Staub" oder "Staub Roger"): jedes Wort muss in Vorname,
+    // Name oder Telefon vorkommen -- Reihenfolge egal.
+    for (const word of q.split(/\s+/).filter(Boolean)) {
+      req = req.or(`name.ilike.%${word}%,vorname.ilike.%${word}%,phone.ilike.%${word}%`);
+    }
+  }
+  const { data, error } = await req.order('name').limit(limit);
   if (error) throw error;
   return data as Customer[];
 }
@@ -1741,7 +1749,7 @@ export async function fetchCustomerIdsWithMissingDocs(): Promise<Set<string>> {
     .from('appointments')
     .select('id, customer_id')
     .eq('type', 'termin')
-    .neq('status', 'storniert')
+    .not('status', 'in', '(storniert,nicht_erschienen)') // nicht erschienen -> keine Dokumente nötig
     .lt('start_time', nowIso)
     .not('customer_id', 'is', null);
   if (apptError) throw apptError;

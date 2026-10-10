@@ -218,7 +218,7 @@ export default function KundeDetail() {
 
         {appt.notes && <div style={{ fontSize: 12, color: '#777', marginTop: 4 }}>Notiz: {appt.notes}</div>}
 
-        {appt.status !== 'storniert' && (
+        {appt.status !== 'storniert' && appt.status !== 'nicht_erschienen' && (
           <div
             style={{
               display: 'inline-flex',

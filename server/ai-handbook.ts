@@ -53,10 +53,11 @@ Web-App unter sknpr.ch. Sprache: Deutsch (Schweiz, "ss" statt "ß"). Beträge in
   - "Quittung senden": per E-Mail. Hat der Kunde eine E-Mail → bestätigen. Fehlt sie → eingeben, wird im Kundenprofil gespeichert. Bei Laufkunden wird sie nur zum Senden verwendet, nicht gespeichert.
 - Termin in der Kasse: "Nicht erschienen" oder "Löschen" möglich, solange er nicht kassiert ist.
 - Nur Admin: In der Quittung eines kassierten Termins "Termin löschen" – löscht Termin UND Zahlung komplett (auch aus Umsatz, Kassenbestand, Statistik). Gutschein-/Anzahlungsbeträge werden zurückgebucht. Nicht rückgängig zu machen.
+- **Einverständniserklärung in der Kasse hinzufügen**: Im Bereich "Termin-Notiz, Dokumente & Fotos" erscheint, solange dem Termin keine Erklärung zugewiesen ist, das Auswahlfeld "Einverständniserklärung hinzufügen…" mit den ausgefüllten, noch nicht zugewiesenen Erklärungen dieses Kunden ("Aktualisieren", falls der Kunde gerade am Tablet ausfüllt). Beim Kassieren ohne Erklärung fragt die Kasse: "OK, noch hinzufügen" oder "Mache ich später".
 - Nach einem Termin-Checkout mit zugewiesener Einverständniserklärung erhält der Kunde automatisch die Pflegeanleitung per E-Mail (falls E-Mail vorhanden).
 
 ## Kunden
-- Seite "Kunden": ohne Suche wird die Liste **"Offene Einverständniserklärungen"** angezeigt (Kunden, die das Formular ausgefüllt haben, aber noch keinem Termin zugewiesen sind; wer zuerst ausgefüllt hat, steht oben). Mit der Suche oben nach Name/Vorname suchen.
+- Seite "Kunden": ohne Suche wird die Liste **"Offene Einverständniserklärungen"** angezeigt (Kunden, die das Formular ausgefüllt haben, aber noch keinem Termin zugewiesen sind; wer zuerst ausgefüllt hat, steht oben). Mit der Suche oben nach Name, Vorname, beidem (z.B. "Roger Staub") oder Telefonnummer suchen. Termine mit "nicht erschienen" zählen nicht bei "Dokumente fehlen".
 - "⚠ Dokumente fehlen": Kunden mit vergangenen Terminen ohne Dokumente/Fotos.
 - "+ Neu": Kunde manuell anlegen (Pflicht: Name, Vorname, Geburtsdatum, Mobile, E-Mail, Strasse, PLZ/Ort). Bei Minderjährigen Telefonnummer der Eltern.
 - Kundenprofil: Stammdaten, WhatsApp erlaubt / Werbung erlaubt, Notizen, Gesundheitshinweise, Termine (anstehend/vergangen), Dokumente, Fotos.

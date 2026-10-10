@@ -32,6 +32,8 @@ taxRateAt,
 type TaxRate,
 updateCustomer,
 fetchDocumentsForAppointment,
+fetchCustomersWithPendingHealthDocs,
+assignDocumentToAppointment,
 uploadCustomerFile,
 getCustomerFileUrl,
 deleteCustomerDocument,
@@ -1004,6 +1006,13 @@ if (voucher.status === 'eingelöst' || voucher.remaining_value <= 0) {
   const [apptPhotoUrls, setApptPhotoUrls] = useState<Record<string, string>>({});
   const [apptLightboxUrl, setApptLightboxUrl] = useState<string | null>(null);
   const apptPhotoInputRef = useRef<HTMLInputElement>(null);
+  const apptSectionRef = useRef<HTMLDivElement>(null);
+  // Offene (noch keinem Termin zugewiesene) Einverständniserklärungen dieses Kunden.
+  const [pendingConsents, setPendingConsents] = useState<{ docId: string; createdAt: string }[]>([]);
+  const [pendingConsentsLoading, setPendingConsentsLoading] = useState(false);
+  const [assigningConsent, setAssigningConsent] = useState(false);
+  // Hinweis beim Kassieren ohne Einverständniserklärung: gemerkte Aktion (Kassieren / Split Payment).
+  const [consentWarnAction, setConsentWarnAction] = useState<(() => void) | null>(null);
 
   useEffect(() => {
   Promise.all([fetchServices(), fetchProducts(), fetchServiceCategories(), fetchProductCategories(), fetchLocations(), fetchCurrentUserLocationId()])
@@ -1157,6 +1166,45 @@ if (voucher.status === 'eingelöst' || voucher.remaining_value <= 0) {
   reloadApptFiles();
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [appointmentId]);
+
+  function reloadPendingConsents() {
+  if (!appointmentId || !selectedCustomerId) {
+  setPendingConsents([]);
+  return;
+  }
+  setPendingConsentsLoading(true);
+  fetchCustomersWithPendingHealthDocs()
+  .then((all) => setPendingConsents(all.filter((d) => d.customerId === selectedCustomerId).map((d) => ({ docId: d.docId, createdAt: d.createdAt })).reverse()))
+  .catch(() => setPendingConsents([]))
+  .finally(() => setPendingConsentsLoading(false));
+  }
+
+  useEffect(() => {
+  reloadPendingConsents();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [appointmentId, selectedCustomerId]);
+
+  async function handleAssignConsent(docId: string) {
+  if (!docId || !appointmentId) return;
+  setAssigningConsent(true);
+  setApptFileError(null);
+  try {
+  await assignDocumentToAppointment(docId, appointmentId);
+  reloadApptFiles();
+  reloadPendingConsents();
+  } catch (e: any) {
+  setApptFileError(e.message);
+  } finally {
+  setAssigningConsent(false);
+  }
+  }
+
+  // Termin mit Kundenprofil, aber noch ohne Einverständniserklärung -> vor dem Kassieren nachfragen.
+  const consentMissing = !!appointmentId && !!selectedCustomerId && !apptFilesLoading && apptDocuments.length === 0;
+  function withConsentCheck(action: () => void) {
+  if (consentMissing) setConsentWarnAction(() => action);
+  else action();
+  }
 
   useEffect(() => {
   const missing = apptPhotos.filter((p) => !apptPhotoUrls[p.id]);
@@ -1866,7 +1914,7 @@ setShowAnzahlungModal(true);
 )}
 
 {appointmentId && selectedCustomerId && (
-<div style={{ border: '1px solid var(--color-border)', borderRadius: 6, padding: 14, marginBottom: 20, background: 'var(--color-surface)' }}>
+<div ref={apptSectionRef} style={{ border: '1px solid var(--color-border)', borderRadius: 6, padding: 14, marginBottom: 20, background: 'var(--color-surface)' }}>
 <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 10 }}>Termin-Notiz, Dokumente &amp; Fotos</div>
 
 <textarea
@@ -1898,6 +1946,33 @@ marginBottom: 10,
 >
 {apptDocuments.length > 0 ? '✓ Alle Dokumente ok' : '⚠ Achtung: es fehlen noch die Gesundheitsdokumente'}
 </div>
+
+{apptDocuments.length === 0 && (
+<div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap', marginBottom: 12 }}>
+{pendingConsents.length > 0 ? (
+<select
+value=""
+disabled={assigningConsent}
+onChange={(e) => handleAssignConsent(e.target.value)}
+style={{ flex: 1, minWidth: 220, border: '1px solid var(--color-border)', borderRadius: 4, padding: '8px 10px', fontSize: 13, background: '#fff' }}
+>
+<option value="">{assigningConsent ? 'Wird hinzugefügt…' : 'Einverständniserklärung hinzufügen…'}</option>
+{pendingConsents.map((d) => (
+<option key={d.docId} value={d.docId}>
+Ausgefüllt am {new Date(d.createdAt).toLocaleString('de-CH', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
+</option>
+))}
+</select>
+) : (
+<div style={{ fontSize: 12, color: '#777', flex: 1 }}>
+{pendingConsentsLoading ? 'Sucht Einverständniserklärung…' : 'Noch keine ausgefüllte Einverständniserklärung – Kunde füllt sie am Tablet aus.'}
+</div>
+)}
+<button type="button" className="btn btn-outline" style={{ padding: '6px 10px', fontSize: 12 }} onClick={reloadPendingConsents} disabled={pendingConsentsLoading}>
+Aktualisieren
+</button>
+</div>
+)}
 
 {apptPhotos.length > 0 && (
 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(6, 1fr)', gap: 6, marginBottom: 10 }}>
@@ -1961,7 +2036,7 @@ Anzahlung von {chf(applyAnzahlung.reduce((s, v) => s + v.remaining_value, 0))} w
 {anzahlungActive ? (
 <>
 <button
-onClick={() => setShowCheckout(true)}
+onClick={() => withConsentCheck(() => setShowCheckout(true))}
 className="btn btn-primary"
 style={{ width: '100%', justifyContent: 'center', marginBottom: 10, opacity: items.length ? 1 : 0.4 }}
 disabled={items.length === 0}
@@ -1993,7 +2068,7 @@ className={`payment-method-btn${paymentMethod === m ? ' payment-method-btn--sele
 </div>
 
 <button
-onClick={() => setShowCheckout(true)}
+onClick={() => withConsentCheck(() => setShowCheckout(true))}
 className="btn btn-outline"
 style={{ width: '100%', justifyContent: 'center', marginBottom: 10 }}
 >
@@ -2004,7 +2079,7 @@ style={{ width: '100%', justifyContent: 'center', marginBottom: 10 }}
 className="btn btn-primary"
 style={{ width: '100%', justifyContent: 'center', marginBottom: 10, opacity: items.length && paymentMethod ? 1 : 0.4 }}
 disabled={items.length === 0 || !paymentMethod || checkingOutDirect}
-onClick={handleDirectCheckout}
+onClick={() => withConsentCheck(handleDirectCheckout)}
 >
 {checkingOutDirect ? 'Speichert…' : 'Kassieren'}
 </button>
@@ -2058,6 +2133,37 @@ onClick={handleDeleteAppointmentFromKasse}
 )}
 {showProductModal && (
 <AddProductModal products={products} categories={productCategories} onClose={() => setShowProductModal(false)} onAdd={(newItems) => setItems((prev) => [...prev, ...newItems])} />
+)}
+{consentWarnAction && (
+<Modal title="Einverständniserklärung fehlt" onClose={() => setConsentWarnAction(null)} width={400}>
+<div style={{ fontSize: 13, marginBottom: 20 }}>
+Die Einverständniserklärung wurde diesem Termin noch nicht hinzugefügt.
+</div>
+<div style={{ display: 'flex', gap: 10 }}>
+<button
+className="btn btn-primary"
+style={{ flex: 1, justifyContent: 'center' }}
+onClick={() => {
+setConsentWarnAction(null);
+reloadPendingConsents();
+apptSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+}}
+>
+OK, noch hinzufügen
+</button>
+<button
+className="btn btn-secondary"
+style={{ flex: 1, justifyContent: 'center' }}
+onClick={() => {
+const action = consentWarnAction;
+setConsentWarnAction(null);
+action();
+}}
+>
+Mache ich später
+</button>
+</div>
+</Modal>
 )}
 {anzahlungPrompt && (
 <Modal title="Anzahlung verrechnen?" onClose={() => setAnzahlungPrompt(null)} width={380}>
