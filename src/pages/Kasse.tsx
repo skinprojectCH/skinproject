@@ -1013,6 +1013,8 @@ if (voucher.status === 'eingelöst' || voucher.remaining_value <= 0) {
   const [assigningConsent, setAssigningConsent] = useState(false);
   // Hinweis beim Kassieren ohne Einverständniserklärung: gemerkte Aktion (Kassieren / Split Payment).
   const [consentWarnAction, setConsentWarnAction] = useState<(() => void) | null>(null);
+  const [consentHighlight, setConsentHighlight] = useState(false);
+  const consentSelectRef = useRef<HTMLSelectElement>(null);
 
   useEffect(() => {
   Promise.all([fetchServices(), fetchProducts(), fetchServiceCategories(), fetchProductCategories(), fetchLocations(), fetchCurrentUserLocationId()])
@@ -1190,6 +1192,7 @@ if (voucher.status === 'eingelöst' || voucher.remaining_value <= 0) {
   setApptFileError(null);
   try {
   await assignDocumentToAppointment(docId, appointmentId);
+  setConsentHighlight(false);
   reloadApptFiles();
   reloadPendingConsents();
   } catch (e: any) {
@@ -1948,13 +1951,27 @@ marginBottom: 10,
 </div>
 
 {apptDocuments.length === 0 && (
-<div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap', marginBottom: 12 }}>
+<div
+className={consentHighlight ? 'kasse-consent-highlight' : undefined}
+style={{
+display: 'flex',
+gap: 8,
+alignItems: 'center',
+flexWrap: 'wrap',
+marginBottom: 12,
+...(consentHighlight ? { background: '#FFF4D6', border: '2px solid #E0B84A', borderRadius: 6, padding: 10 } : {}),
+}}
+>
+{consentHighlight && (
+<style>{`@keyframes kasseConsentPulse { 0%, 100% { box-shadow: 0 0 0 0 rgba(224,184,74,0.0); } 50% { box-shadow: 0 0 0 6px rgba(224,184,74,0.35); } } .kasse-consent-highlight { animation: kasseConsentPulse 1.2s ease-in-out 3; }`}</style>
+)}
 {pendingConsents.length > 0 ? (
 <select
+ref={consentSelectRef}
 value=""
 disabled={assigningConsent}
 onChange={(e) => handleAssignConsent(e.target.value)}
-style={{ flex: 1, minWidth: 220, border: '1px solid var(--color-border)', borderRadius: 4, padding: '8px 10px', fontSize: 13, background: '#fff' }}
+style={{ flex: 1, minWidth: 220, border: consentHighlight ? '2px solid #E0B84A' : '1px solid var(--color-border)', borderRadius: 4, padding: '8px 10px', fontSize: 13, background: '#fff', fontWeight: consentHighlight ? 600 : 400 }}
 >
 <option value="">{assigningConsent ? 'Wird hinzugefügt…' : 'Einverständniserklärung hinzufügen…'}</option>
 {pendingConsents.map((d) => (
@@ -2145,8 +2162,10 @@ className="btn btn-primary"
 style={{ flex: 1, justifyContent: 'center' }}
 onClick={() => {
 setConsentWarnAction(null);
+setConsentHighlight(true);
 reloadPendingConsents();
 apptSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+setTimeout(() => consentSelectRef.current?.focus(), 400);
 }}
 >
 OK, noch hinzufügen
