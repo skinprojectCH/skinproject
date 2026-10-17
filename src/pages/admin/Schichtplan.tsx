@@ -1,5 +1,13 @@
 import { useEffect, useState } from 'react';
-import { fetchLocations, fetchArtists, fetchShiftDaysForMonth, replaceArtistShiftDaysForMonth, type Location, type Artist } from '../../lib/queries';
+import {
+  fetchLocations,
+  fetchArtists,
+  fetchShiftDaysForMonth,
+  fetchArtistIdsWithShiftsInMonth,
+  replaceArtistShiftDaysForMonth,
+  type Location,
+  type Artist,
+} from '../../lib/queries';
 
 interface Slot {
   id: string;
@@ -102,6 +110,12 @@ export default function Schichtplan() {
   const [locations, setLocations] = useState<Location[]>([]);
   const [artists, setArtists] = useState<Artist[]>([]);
   const [selectedArtistId, setSelectedArtistId] = useState('');
+  // Standort-Filter: '' = alle Standorte. Schränkt die Artist-Auswahl unten auf Artists ein,
+  // die im gerade angezeigten Monat tatsächlich an diesem Standort eine Schicht haben
+  // (nicht nur auf ihren fest zugeordneten Stammdaten-Standort) -- so tauchen auch Artists
+  // auf, die diesen Monat mal am anderen Standort aushelfen.
+  const [filterLocationId, setFilterLocationId] = useState('');
+  const [artistIdsAtFilterLocation, setArtistIdsAtFilterLocation] = useState<Set<string> | null>(null);
 
   const today = new Date();
   const [year, setYear] = useState(today.getFullYear());
@@ -129,15 +143,34 @@ export default function Schichtplan() {
 
   const activeArtists = artists.filter((a) => a.status === 'active');
 
+  // Bei "alle Standorte" (filterLocationId === '') keine Einschränkung; sonst nur Artists mit
+  // mind. einer Schicht an diesem Standort in diesem Monat (artistIdsAtFilterLocation, siehe
+  // useEffect unten -- null solange der Abgleich noch lädt, dann wie "keine Treffer").
+  const visibleArtists = !filterLocationId
+    ? activeArtists
+    : activeArtists.filter((a) => artistIdsAtFilterLocation?.has(a.id));
+
   useEffect(() => {
-    if (activeArtists.length && !activeArtists.some((a) => a.id === selectedArtistId)) {
-      setSelectedArtistId(activeArtists[0].id);
-    } else if (activeArtists.length === 0) {
+    if (!filterLocationId) {
+      setArtistIdsAtFilterLocation(null);
+      return;
+    }
+    const { start, end } = monthBounds(year, month0);
+    fetchArtistIdsWithShiftsInMonth(filterLocationId, start, end)
+      .then(setArtistIdsAtFilterLocation)
+      .catch((e) => setError(e.message));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filterLocationId, year, month0]);
+
+  useEffect(() => {
+    if (visibleArtists.length && !visibleArtists.some((a) => a.id === selectedArtistId)) {
+      setSelectedArtistId(visibleArtists[0].id);
+    } else if (visibleArtists.length === 0) {
       setSelectedArtistId('');
       setSchedule(emptySchedule(year, month0));
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeArtists.length]);
+  }, [visibleArtists.map((a) => a.id).join(',')]);
 
   function monthBounds(y: number, m0: number) {
     return { start: isoDate(y, m0, 1), end: isoDate(y, m0, daysInMonth(y, m0)) };
@@ -257,11 +290,27 @@ export default function Schichtplan() {
       <div style={{ border: '1px solid var(--color-border)', borderRadius: 6, padding: 14, marginBottom: 20, background: 'var(--color-surface)', display: 'flex', gap: 14, flexWrap: 'wrap', alignItems: 'flex-end' }}>
         <div>
           <div className="label-uppercase" style={{ marginBottom: 4 }}>
+            Standort
+          </div>
+          <select value={filterLocationId} onChange={(e) => setFilterLocationId(e.target.value)} style={selectStyle} disabled={locations.length === 0}>
+            <option value="">Alle Standorte</option>
+            {locations.map((l) => (
+              <option key={l.id} value={l.id}>
+                {l.name}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        <div>
+          <div className="label-uppercase" style={{ marginBottom: 4 }}>
             Artist
           </div>
-          <select value={selectedArtistId} onChange={(e) => setSelectedArtistId(e.target.value)} style={selectStyle} disabled={activeArtists.length === 0}>
-            {activeArtists.length === 0 && <option value="">Kein aktiver Artist erfasst</option>}
-            {activeArtists.map((a) => (
+          <select value={selectedArtistId} onChange={(e) => setSelectedArtistId(e.target.value)} style={selectStyle} disabled={visibleArtists.length === 0}>
+            {visibleArtists.length === 0 && (
+              <option value="">{filterLocationId ? 'Kein Artist diesen Monat an diesem Standort' : 'Kein aktiver Artist erfasst'}</option>
+            )}
+            {visibleArtists.map((a) => (
               <option key={a.id} value={a.id}>
                 {a.name}
               </option>

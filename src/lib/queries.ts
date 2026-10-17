@@ -1107,6 +1107,21 @@ export async function fetchShiftDaysForMonth(artistId: string, monthStart: strin
   return data as (ShiftDay & { locations: { name: string } | null })[];
 }
 
+// Artist-IDs, die in einem bestimmten Kalendermonat mindestens eine Schicht an einem
+// bestimmten Standort haben -- für den Standort-Filter im Schichtplan (Admin → Schichtplan),
+// damit dort nur Artists auswählbar sind, die diesen Monat tatsächlich an diesem Standort
+// eingeplant sind (statt nur nach ihrem fest zugeordneten Stammdaten-Standort zu filtern).
+export async function fetchArtistIdsWithShiftsInMonth(locationId: string, monthStart: string, monthEnd: string) {
+  const { data, error } = await supabase
+    .from('shift_days')
+    .select('artist_id')
+    .eq('location_id', locationId)
+    .gte('shift_date', monthStart)
+    .lte('shift_date', monthEnd);
+  if (error) throw error;
+  return new Set((data as { artist_id: string }[]).map((r) => r.artist_id));
+}
+
 // Ersetzt den KOMPLETTEN Monatsplan eines Artists (alle Locations, alle Tage im Bereich
 // monthStart..monthEnd) durch die übergebenen Einträge. Wird für "Speichern", "Monat leeren"
 // (entries = []) und nach "Monat kopieren" verwendet.
