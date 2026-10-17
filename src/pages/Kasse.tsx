@@ -982,7 +982,7 @@ if (voucher.status === 'eingelöst' || voucher.remaining_value <= 0) {
   const [receiptSendError, setReceiptSendError] = useState<string | null>(null);
   const [receiptSentTo, setReceiptSentTo] = useState<string | null>(null);
   // Nur Admin (nicht Manager) darf bereits kassierte Termine löschen.
-  const { isAdmin } = useLocationContext();
+  const { isAdmin, selectedLocationId: globalLocationId } = useLocationContext();
   const [selectedCustomerId, setSelectedCustomerId] = useState<string>('');
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
   const [locations, setLocations] = useState<Location[]>([]);
@@ -1024,8 +1024,15 @@ if (voucher.status === 'eingelöst' || voucher.remaining_value <= 0) {
   setServiceCategories(sc);
   setProductCategories(pc);
   setLocations(locs);
+  // Bei Termin- oder Order-Checkout bestimmt der untenstehende Effect den Standort
+  // (appt.location_id bzw. order.location_id) -- hier NICHT überschreiben, sonst
+  // Race Condition: dieser Fetch (6 Abfragen) kann später auflösen als der
+  // Termin-/Order-Fetch (weniger Abfragen) und den korrekten Standort wieder
+  // auf den Default zurücksetzen.
+  if (!appointmentId && !directOrderId) {
   const accountValid = accountLocationId && locs.some((l) => l.id === accountLocationId);
-  setSelectedLocationId(accountValid ? accountLocationId! : locs[0]?.id || '');
+  setSelectedLocationId(accountValid ? accountLocationId! : (globalLocationId || locs[0]?.id || ''));
+  }
   })
   .finally(() => setLoading(false));
   }, []);
