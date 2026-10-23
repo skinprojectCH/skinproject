@@ -18,10 +18,18 @@ function normalizePhone(raw: string): string {
   return digits ? `+${digits}` : '';
 }
 
+// Verkaufsfenster Halloween-Special: ab sofort bis 1.11.2026 23:59 (Europe/Zurich = UTC+1
+// im November). Serverseitig geprüft, damit sich das Ticket nach Ablauf nicht mehr kaufen
+// lässt, selbst wenn die Aktions-Karte clientseitig noch sichtbar wäre (Cache etc.).
+const HALLOWEEN_DEAL_CUTOFF = new Date('2026-11-01T23:59:00+01:00');
+const HALLOWEEN_DEAL_PRICE = 31;
+const HALLOWEEN_CAMPAIGN = 'halloween_piercing_2026';
+
 // Läuft als Vercel Serverless Function unter /api/create-voucher-checkout.
-// Erstellt eine Stripe-Checkout-Session für einen online gekauften Gutschein ODER eine
-// online getätigte Anzahlung, und gibt die Checkout-URL zurück, zu der der Browser
-// weiterleiten soll. purchaseType steuert, welcher Fall es ist.
+// Erstellt eine Stripe-Checkout-Session für einen online gekauften Gutschein, eine online
+// getätigte Anzahlung, ODER das Halloween-Piercing-Ticket (Fixpreis-Aktion), und gibt die
+// Checkout-URL zurück, zu der der Browser weiterleiten soll. purchaseType steuert, welcher
+// Fall es ist.
 export default async function handler(req: any, res: any) {
   if (req.method !== 'POST') {
     res.status(405).json({ error: 'Method not allowed' });
@@ -29,9 +37,16 @@ export default async function handler(req: any, res: any) {
   }
 
   const { purchaseType, amount, buyerName, buyerEmail, customer } = req.body || {};
-  const type: 'gutschein' | 'anzahlung' = purchaseType === 'anzahlung' ? 'anzahlung' : 'gutschein';
+  const type: 'gutschein' | 'anzahlung' | 'halloween' =
+    purchaseType === 'anzahlung' ? 'anzahlung' : purchaseType === 'halloween' ? 'halloween' : 'gutschein';
 
-  const parsedAmount = Number(amount);
+  if (type === 'halloween' && new Date() > HALLOWEEN_DEAL_CUTOFF) {
+    res.status(400).json({ error: 'Das Halloween-Special ist leider abgelaufen (gültig bis 1.11.2026, 23:59 Uhr).' });
+    return;
+  }
+
+  // Beim Halloween-Ticket ist der Preis fix -- unabhängig davon, was der Client schickt.
+  const parsedAmount = type === 'halloween' ? HALLOWEEN_DEAL_PRICE : Number(amount);
   if (!parsedAmount || !Number.isFinite(parsedAmount) || parsedAmount < 10 || parsedAmount > 2000) {
     res.status(400).json({ error: 'Ungültiger Betrag (10–2000 CHF).' });
     return;
@@ -40,13 +55,17 @@ export default async function handler(req: any, res: any) {
   let metadata: Record<string, string> = { purchaseType: type, amount: String(parsedAmount) };
   let customerEmailForStripe: string | undefined;
 
-  if (type === 'gutschein') {
+  if (type === 'gutschein' || type === 'halloween') {
     if (!buyerName || !String(buyerName).trim() || !buyerEmail || !String(buyerEmail).trim()) {
       res.status(400).json({ error: 'Name und E-Mail sind erforderlich.' });
       return;
     }
     metadata.buyerName = String(buyerName).trim();
     customerEmailForStripe = String(buyerEmail).trim();
+    if (type === 'halloween') {
+      metadata.campaign = HALLOWEEN_CAMPAIGN;
+      metadata.dealFullCoverage = 'true';
+    }
   } else {
     // Anzahlung: die Anzahlung muss zwingend einem Kundenprofil zugeordnet werden können,
     // daher braucht es alle Angaben, die für ein Kundenprofil nötig sind.
@@ -84,8 +103,17 @@ export default async function handler(req: any, res: any) {
 
   const origin = req.headers.origin || `https://${req.headers.host}`;
   const productName =
-    type === 'anzahlung' ? `SkinProject Anzahlung — CHF ${parsedAmount.toFixed(2)}` : `SkinProject Gutschein — CHF ${parsedAmount.toFixed(2)}`;
-  const productDescription = type === 'anzahlung' ? 'Guthaben für einen künftigen Termin bei SkinProject.' : 'Einlösbar an jedem SkinProject-Standort.';
+    type === 'anzahlung'
+      ? `SkinProject Anzahlung — CHF ${parsedAmount.toFixed(2)}`
+      : type === 'halloween'
+        ? 'SkinProject Halloween-Piercing-Special'
+        : `SkinProject Gutschein — CHF ${parsedAmount.toFixed(2)}`;
+  const productDescription =
+    type === 'anzahlung'
+      ? 'Guthaben für einen künftigen Termin bei SkinProject.'
+      : type === 'halloween'
+        ? '1x Piercing deiner Wahl inkl. Titanschmuck, jederzeit einlösbar. Ausgenommen Intim-/Wohlfühl-Piercings.'
+        : 'Einlösbar an jedem SkinProject-Standort.';
 
   try {
     const session = await stripe.checkout.sessions.create({

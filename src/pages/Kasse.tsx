@@ -82,6 +82,7 @@ voucherRemaining?: number | null;
 voucherValue?: number | null;
 voucherChecking?: boolean;
 voucherError?: string | null;
+voucherDealFullCoverage?: boolean;
 }
 
 function chf(n: number) {
@@ -588,7 +589,7 @@ const total = roundToRappen(subtotal);
 const paid = payments.reduce((sum, p) => sum + p.amount, 0);
 const gutscheinRowsValid = payments
 .filter((p) => p.method === 'Gutschein' || p.method === 'Anzahlung')
-.every((p) => p.voucherId && p.voucherRemaining != null && p.amount <= p.voucherRemaining + 0.001);
+.every((p) => p.voucherId && p.voucherRemaining != null && (p.voucherDealFullCoverage || p.amount <= p.voucherRemaining + 0.001));
 const fullyPaid = Math.abs(paid - total) < 0.01 && gutscheinRowsValid;
 
 useEffect(() => {
@@ -644,8 +645,11 @@ if (voucher.status === 'eingelöst' || voucher.remaining_value <= 0) {
   updatePayment(id, { voucherChecking: false, voucherError: 'Dieser Gutschein ist abgelaufen.' });
   return;
   }
-  const cappedAmount = Math.min(payment.amount, voucher.remaining_value);
-  updatePayment(id, { voucherChecking: false, voucherError: null, voucherId: voucher.id, voucherRemaining: voucher.remaining_value, voucherValue: voucher.value, amount: cappedAmount });
+  // Ticket-Gutscheine (deal_full_coverage, z.B. Halloween-Special) decken den eingesetzten
+  // Betrag immer vollständig ab -- keine Deckelung auf remaining_value wie bei normalen
+  // Betrags-Gutscheinen.
+  const cappedAmount = voucher.deal_full_coverage ? payment.amount : Math.min(payment.amount, voucher.remaining_value);
+  updatePayment(id, { voucherChecking: false, voucherError: null, voucherId: voucher.id, voucherRemaining: voucher.remaining_value, voucherValue: voucher.value, voucherDealFullCoverage: voucher.deal_full_coverage, amount: cappedAmount });
   } catch (e: any) {
   updatePayment(id, { voucherChecking: false, voucherError: e.message });
   }
@@ -796,7 +800,12 @@ if (voucher.status === 'eingelöst' || voucher.remaining_value <= 0) {
   <div style={{ marginTop: 4, paddingLeft: 2 }}>
   {p.voucherChecking && <div style={{ fontSize: 11, color: '#999' }}>Prüft Gutschein…</div>}
   {p.voucherError && <div style={{ fontSize: 11, color: 'var(--color-destructive)' }}>{p.voucherError}</div>}
-  {p.voucherId && p.voucherRemaining != null && (
+  {p.voucherId && p.voucherRemaining != null && p.voucherDealFullCoverage && (
+  <div style={{ fontSize: 11, color: '#a35b00' }}>
+  🎃 Ticket-Gutschein — deckt den vollen Posten ab, einmalig einlösbar. Gilt nicht für Intim-/Wohlfühl-Piercings.
+  </div>
+  )}
+  {p.voucherId && p.voucherRemaining != null && !p.voucherDealFullCoverage && (
   <div style={{ fontSize: 11, color: p.amount > p.voucherRemaining ? 'var(--color-destructive)' : '#777' }}>
   Restwert {p.method === 'Anzahlung' ? 'Anzahlung' : 'Gutschein'}: {chf(Math.max(0, p.voucherRemaining - p.amount))} von {chf(p.voucherValue ?? p.voucherRemaining)}
   {p.amount > p.voucherRemaining && ' — Betrag übersteigt Guthaben'}

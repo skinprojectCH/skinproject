@@ -197,6 +197,8 @@ export interface Voucher {
   buyer_email: string | null;
   type: 'gutschein' | 'anzahlung';
   location_id: string | null;
+  deal_full_coverage: boolean;
+  campaign: string | null;
 }
 
 // ---------- Artists ----------

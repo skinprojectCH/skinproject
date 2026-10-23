@@ -55,7 +55,8 @@ export default async function handler(req: any, res: any) {
   }
 
   const session = event.data.object as Stripe.Checkout.Session;
-  const purchaseType = session.metadata?.purchaseType === 'anzahlung' ? 'anzahlung' : 'gutschein';
+  const purchaseType =
+    session.metadata?.purchaseType === 'anzahlung' ? 'anzahlung' : session.metadata?.purchaseType === 'halloween' ? 'halloween' : 'gutschein';
   const amount = Number(session.metadata?.amount || (session.amount_total ? session.amount_total / 100 : 0));
 
   const supabaseUrl = process.env.VITE_SUPABASE_URL;
@@ -193,9 +194,11 @@ export default async function handler(req: any, res: any) {
       return;
     }
 
-    // Gutschein (Standardfall)
+    // Gutschein (Standardfall) ODER Halloween-Piercing-Ticket (Fixpreis-Aktion)
     const buyerName = session.metadata?.buyerName || null;
     const buyerEmail = session.customer_details?.email || null;
+    const isHalloween = purchaseType === 'halloween';
+    const campaign = isHalloween ? session.metadata?.campaign || 'halloween_piercing_2026' : null;
 
     const { data: voucher, error: voucherError } = await admin
       .from('vouchers')
@@ -209,6 +212,8 @@ export default async function handler(req: any, res: any) {
         buyer_email: buyerEmail,
         buyer_name: buyerName,
         stripe_session_id: session.id,
+        deal_full_coverage: isHalloween,
+        campaign,
       })
       .select()
       .single();
@@ -231,7 +236,7 @@ export default async function handler(req: any, res: any) {
       order_id: order.id,
       service_id: null,
       product_id: null,
-      description: `Gutschein ${code} (Online-Kauf)`,
+      description: isHalloween ? `Halloween-Piercing-Ticket ${code} (Online-Kauf)` : `Gutschein ${code} (Online-Kauf)`,
       quantity: 1,
       unit_price: amount,
       line_total: amount,
@@ -241,10 +246,23 @@ export default async function handler(req: any, res: any) {
 
     if (buyerEmail) {
       try {
-        await sendEmail({
-          to: buyerEmail,
-          subject: 'Dein SkinProject-Gutschein',
-          html: emailLayout(`
+        const html = isHalloween
+          ? emailLayout(`
+            <h2 style="font-size: 18px; margin: 0 0 4px;">🎃 Dein Halloween-Ticket ist bereit!</h2>
+            <p style="font-size: 14px; color: #555; margin: 0 0 20px;">Danke für deinen Kauf -- hier die Bestätigung und Quittung.</p>
+            <div style="padding: 18px 20px; background: #1a1a1a; border-radius: 8px; text-align: center;">
+              <div style="font-size: 13px; letter-spacing: 2px; color: #e67e22; text-transform: uppercase; margin-bottom: 6px;">Halloween Piercing Special</div>
+              <div style="font-size: 22px; font-weight: 700; letter-spacing: 1px; color: #fff;">${code}</div>
+              <div style="font-size: 13px; color: #ccc; margin-top: 6px;">CHF ${amount.toFixed(2)}</div>
+            </div>
+            <table style="width: 100%; font-size: 13px; border-collapse: collapse; margin-top: 16px;">
+              <tr><td style="padding: 4px 0; color: #888;">Käufer</td><td style="padding: 4px 0; text-align: right;">${buyerName || '—'}</td></tr>
+              <tr><td style="padding: 4px 0; color: #888;">Datum</td><td style="padding: 4px 0; text-align: right;">${new Date().toLocaleDateString('de-CH')}</td></tr>
+            </table>
+            <p style="font-size: 13px; color: #888; margin-top: 16px;">Jederzeit einlösbar für 1x Piercing deiner Wahl inkl. Titanschmuck, an beiden SkinProject-Standorten (Zürich Oerlikon &amp; Wädenswil). Ausgenommen Intim- und Wohlfühl-Piercings. Es gelten unsere Altersregelungen.</p>
+            <p style="font-size: 13px; color: #888; margin-top: 8px;">Die druckbare PDF-Quittung findest du auf der Bestätigungsseite direkt nach dem Kauf zum Download.</p>
+          `)
+          : emailLayout(`
             <h2 style="font-size: 18px; margin: 0 0 4px;">Danke für deinen Kauf!</h2>
             <p style="font-size: 14px; color: #555; margin: 0 0 20px;">Dein Gutschein ist bereit -- hier die Bestätigung und Quittung.</p>
             <div style="padding: 18px 20px; border: 2px dashed #111; border-radius: 8px; text-align: center;">
@@ -256,8 +274,8 @@ export default async function handler(req: any, res: any) {
               <tr><td style="padding: 4px 0; color: #888;">Datum</td><td style="padding: 4px 0; text-align: right;">${new Date().toLocaleDateString('de-CH')}</td></tr>
             </table>
             <p style="font-size: 13px; color: #888; margin-top: 16px;">Die druckbare PDF-Quittung findest du auf der Bestätigungsseite direkt nach dem Kauf zum Download.</p>
-          `),
-        });
+          `);
+        await sendEmail({ to: buyerEmail, subject: isHalloween ? 'Dein SkinProject Halloween-Ticket' : 'Dein SkinProject-Gutschein', html });
       } catch (emailError: any) {
         // eslint-disable-next-line no-console
         console.error('Gutschein-Bestätigungsmail fehlgeschlagen:', emailError.message);

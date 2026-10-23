@@ -2,6 +2,159 @@ import { useState } from 'react';
 
 const PRESET_AMOUNTS = [50, 100, 150, 200];
 
+// Verkaufsfenster Halloween-Special (muss mit api/create-voucher-checkout.ts übereinstimmen) --
+// hier nur fürs Ein-/Ausblenden der Promo-Karte, die eigentliche Durchsetzung passiert serverseitig.
+const HALLOWEEN_DEAL_CUTOFF = new Date('2026-11-01T23:59:00+01:00');
+const HALLOWEEN_DEAL_PRICE = 31;
+
+const halloweenCard: React.CSSProperties = {
+  width: '100%',
+  maxWidth: 420,
+  margin: '0 auto 20px',
+  background: 'radial-gradient(circle at 50% 0%, #2b2220 0%, #141010 70%)',
+  borderRadius: 20,
+  overflow: 'hidden',
+  fontFamily: "'Work Sans', sans-serif",
+  boxShadow: '0 1px 3px rgba(0,0,0,0.3)',
+  border: '1px solid #3a2e28',
+  color: '#f1e9e0',
+};
+
+function HalloweenDealCard() {
+  const [open, setOpen] = useState(false);
+  const [buyerName, setBuyerName] = useState('');
+  const [buyerEmail, setBuyerEmail] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  if (new Date() > HALLOWEEN_DEAL_CUTOFF) return null;
+
+  async function handleBuy() {
+    if (!buyerName.trim() || !buyerEmail.trim()) {
+      setError('Bitte Name und E-Mail angeben.');
+      return;
+    }
+    setLoading(true);
+    setError(null);
+    try {
+      const res = await fetch('/api/create-voucher-checkout', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ purchaseType: 'halloween', buyerName: buyerName.trim(), buyerEmail: buyerEmail.trim() }),
+      });
+      const body = await res.json();
+      if (!res.ok) throw new Error(body.error || 'Unbekannter Fehler.');
+      window.location.href = body.url;
+    } catch (e: any) {
+      setError(e.message);
+      setLoading(false);
+    }
+  }
+
+  return (
+    <div style={halloweenCard}>
+      <div style={{ padding: '28px 24px 24px', textAlign: 'center' }}>
+        <div
+          style={{
+            fontFamily: "'Georgia', serif",
+            fontSize: 30,
+            fontWeight: 700,
+            letterSpacing: 1,
+            textTransform: 'uppercase',
+            color: '#f1e9e0',
+            marginBottom: 2,
+          }}
+        >
+          Halloween
+        </div>
+        <div style={{ fontSize: 13, letterSpacing: 4, textTransform: 'uppercase', color: '#cbb89a', marginBottom: 18 }}>Special</div>
+
+        <div style={{ fontSize: 14, fontWeight: 700, letterSpacing: 1, color: '#ff9a3c', marginBottom: 4 }}>HALLOWEEN PIERCING SPECIAL</div>
+        <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 40, fontWeight: 700, color: '#ff8c1a', textShadow: '0 0 18px rgba(255,140,26,0.45)', marginBottom: 6 }}>
+          NUR CHF {HALLOWEEN_DEAL_PRICE}.–
+        </div>
+        <div style={{ fontSize: 12, color: '#cbb89a', marginBottom: 14, lineHeight: 1.5 }}>
+          Teuflisch guter Style. Höllisch kleiner Preis.
+          <br />
+          Schnapp Dir Dein Wunschpiercing inklusive Titanschmuck!
+          <br />
+          Jetzt sichern, jederzeit einlösen.
+        </div>
+
+        {!open ? (
+          <button
+            onClick={() => setOpen(true)}
+            style={{
+              background: '#ff8c1a',
+              color: '#1a1510',
+              textAlign: 'center',
+              padding: 14,
+              fontSize: 13,
+              fontWeight: 700,
+              letterSpacing: 1,
+              borderRadius: 8,
+              border: 'none',
+              cursor: 'pointer',
+              width: '100%',
+            }}
+          >
+            HOL DIR DEIN TICKET!
+          </button>
+        ) : (
+          <div style={{ textAlign: 'left' }}>
+            <div style={{ marginBottom: 12 }}>
+              <div style={{ fontSize: 10, textTransform: 'uppercase', color: '#cbb89a', marginBottom: 4, fontWeight: 600, letterSpacing: 0.3 }}>Dein Name</div>
+              <input
+                value={buyerName}
+                onChange={(e) => setBuyerName(e.target.value)}
+                style={{ border: 'none', borderBottom: '1.5px solid #5a4a3f', padding: '8px 2px', fontSize: 14, width: '100%', background: 'transparent', color: '#f1e9e0' }}
+              />
+            </div>
+            <div style={{ marginBottom: 16 }}>
+              <div style={{ fontSize: 10, textTransform: 'uppercase', color: '#cbb89a', marginBottom: 4, fontWeight: 600, letterSpacing: 0.3 }}>E-Mail (für Ticket)</div>
+              <input
+                value={buyerEmail}
+                onChange={(e) => setBuyerEmail(e.target.value)}
+                type="email"
+                style={{ border: 'none', borderBottom: '1.5px solid #5a4a3f', padding: '8px 2px', fontSize: 14, width: '100%', background: 'transparent', color: '#f1e9e0' }}
+              />
+            </div>
+            {error && <div style={{ fontSize: 12, color: '#ff6b6b', marginBottom: 12 }}>{error}</div>}
+            <button
+              onClick={handleBuy}
+              disabled={loading}
+              style={{
+                background: '#ff8c1a',
+                color: '#1a1510',
+                textAlign: 'center',
+                padding: 14,
+                fontSize: 13,
+                fontWeight: 700,
+                letterSpacing: 1,
+                borderRadius: 8,
+                border: 'none',
+                cursor: 'pointer',
+                width: '100%',
+                opacity: loading ? 0.6 : 1,
+              }}
+            >
+              {loading ? 'Weiterleitung…' : `JETZT SICHERN — CHF ${HALLOWEEN_DEAL_PRICE}.00`}
+            </button>
+          </div>
+        )}
+
+        <div style={{ fontSize: 11, color: '#9a8a7a', marginTop: 16, lineHeight: 1.5 }}>
+          SkinProject Zürich Oerlikon &amp; Wädenswil
+          <br />
+          Ausgenommen Intim- und Wohlfühl-Piercings. Es gelten unsere Altersregelungen.
+        </div>
+
+        <img src="/logo-skinproject.png" alt="SkinProject" style={{ width: 40, height: 40, marginTop: 18, opacity: 0.85 }} />
+      </div>
+    </div>
+  );
+}
+
 const card: React.CSSProperties = { width: '100%', maxWidth: 420, margin: '0 auto', background: '#fff', borderRadius: 20, overflow: 'hidden', fontFamily: "'Work Sans', sans-serif", boxShadow: '0 1px 3px rgba(0,0,0,0.08)' };
 const cardInner: React.CSSProperties = { padding: 28 };
 const heading: React.CSSProperties = { fontFamily: "'Space Grotesk', sans-serif", fontSize: 22, fontWeight: 700, marginBottom: 6 };
@@ -132,7 +285,8 @@ export default function GutscheinKaufen() {
   }
 
   return (
-    <div style={{ minHeight: '100vh', background: 'var(--color-bg)', padding: '40px 16px', display: 'flex', alignItems: 'flex-start', justifyContent: 'center' }}>
+    <div style={{ minHeight: '100vh', background: 'var(--color-bg)', padding: '40px 16px', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+      <HalloweenDealCard />
       <div style={card}>
         <div style={cardInner}>
           <img src="/logo-skinproject.png" alt="SkinProject" style={{ width: 64, height: 64, marginBottom: 16 }} />

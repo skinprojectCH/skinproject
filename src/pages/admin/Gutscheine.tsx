@@ -94,7 +94,10 @@ export default function Gutscheine() {
               style={{ display: 'grid', gridTemplateColumns: '110px 1fr 100px 90px 90px 80px 90px', gap: 10, padding: '14px 12px', fontSize: 13, borderBottom: '1px solid #eee', alignItems: 'center', color: v.status === 'eingelöst' ? '#999' : '#111' }}
             >
               <div style={{ fontFamily: 'monospace' }}>{v.code}</div>
-              <div>{buyerName(v)}</div>
+              <div>
+                {v.deal_full_coverage && <span title="Halloween Piercing Special">🎃 </span>}
+                {buyerName(v)}
+              </div>
               <div>{formatCHF(v.value)}</div>
               <div>{formatCHF(v.remaining_value)}</div>
               <div>{new Date(v.created_at).toLocaleDateString('de-CH')}</div>
