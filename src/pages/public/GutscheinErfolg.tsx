@@ -40,56 +40,65 @@ async function downloadHalloweenTicketPdf(voucher: VoucherInfo) {
   const { jsPDF } = await import('jspdf');
   const doc = new jsPDF();
 
-  // Dunkler Hintergrund über die ganze Seite.
-  doc.setFillColor(20, 16, 16);
-  doc.rect(0, 0, 210, 297, 'F');
+  // Nur die Karte selbst ist dunkel eingefärbt (abgerundetes Rechteck), der Rest der A4-Seite
+  // bleibt weiss -- beim Ausdrucken (z.B. zuhause vom Kunden) deutlich weniger Tintenverbrauch
+  // als eine komplett schwarz gefüllte Seite.
+  const cardX = 12;
+  const cardY = 20;
+  const cardW = 186;
+  const cardH = 178;
 
-  // Orangener Rahmen, passend zum Halloween-Video.
+  doc.setFillColor(20, 16, 16);
+  doc.roundedRect(cardX, cardY, cardW, cardH, 6, 6, 'F');
   doc.setDrawColor(255, 140, 26);
   doc.setLineWidth(1);
-  doc.rect(12, 12, 186, 130);
+  doc.roundedRect(cardX, cardY, cardW, cardH, 6, 6, 'S');
 
   doc.setTextColor(255, 255, 255);
   doc.setFontSize(26);
   doc.setFont('helvetica', 'bold');
-  doc.text('HALLOWEEN', 105, 40, { align: 'center' });
+  doc.text('HALLOWEEN', 105, 48, { align: 'center' });
   doc.setFontSize(13);
   doc.setFont('helvetica', 'normal');
   doc.setTextColor(203, 184, 154);
-  doc.text('S P E C I A L', 105, 50, { align: 'center' });
+  doc.text('S P E C I A L', 105, 58, { align: 'center' });
 
   doc.setFontSize(12);
   doc.setFont('helvetica', 'bold');
   doc.setTextColor(255, 255, 255);
-  doc.text('HALLOWEEN PIERCING SPECIAL', 105, 66, { align: 'center' });
+  doc.text('HALLOWEEN PIERCING SPECIAL', 105, 74, { align: 'center' });
 
   doc.setFontSize(34);
   doc.setTextColor(255, 140, 26);
-  doc.text(`NUR CHF ${voucher.value.toFixed(2)}.–`, 105, 82, { align: 'center' });
+  doc.text(`NUR CHF ${voucher.value.toFixed(2)}.–`, 105, 90, { align: 'center' });
 
   doc.setFontSize(10);
   doc.setFont('helvetica', 'normal');
   doc.setTextColor(203, 184, 154);
-  doc.text('1x Piercing deiner Wahl inkl. Titanschmuck — jederzeit einlösbar.', 105, 92, { align: 'center' });
+  doc.text('1x Piercing deiner Wahl inkl. Titanschmuck — jederzeit einlösbar.', 105, 100, { align: 'center' });
 
   doc.setFontSize(13);
   doc.setFont('courier', 'bold');
   doc.setTextColor(255, 255, 255);
-  doc.text(`Code: ${voucher.code}`, 105, 106, { align: 'center' });
+  doc.text(`Code: ${voucher.code}`, 105, 114, { align: 'center' });
 
   doc.setFontSize(9);
   doc.setFont('helvetica', 'normal');
   doc.setTextColor(203, 184, 154);
-  doc.text(`Gekauft am: ${new Date(voucher.created_at).toLocaleDateString('de-CH')}`, 105, 114, { align: 'center' });
-  doc.text('SkinProject Zürich Oerlikon & Wädenswil', 105, 121, { align: 'center' });
+  doc.text(`Gekauft am: ${new Date(voucher.created_at).toLocaleDateString('de-CH')}`, 105, 122, { align: 'center' });
+  doc.text('SkinProject Zürich Oerlikon & Wädenswil', 105, 129, { align: 'center' });
 
   doc.setFontSize(8);
   doc.setTextColor(150, 135, 120);
-  doc.text('Ausgenommen Intim- und Wohlfühl-Piercings. Es gelten unsere Altersregelungen.', 105, 130, { align: 'center' });
+  doc.text('Ausgenommen Intim- und Wohlfühl-Piercings. Es gelten unsere Altersregelungen.', 105, 138, { align: 'center' });
 
   try {
-    const logoDataUrl = await loadImageAsDataUrl('/logo-skinproject.png');
-    doc.addImage(logoDataUrl, 'PNG', 90, 146, 30, 30);
+    // logo-email.png (quadratisches Logo mit QR-Element) hat einen weissen Hintergrund --
+    // daher auf einem eigenen weissen Chip platziert, statt direkt auf der dunklen Karte.
+    const logoDataUrl = await loadImageAsDataUrl('/logo-email.png');
+    doc.setFillColor(255, 255, 255);
+    doc.roundedRect(90, 148, 30, 42, 3, 3, 'F');
+    doc.addImage(logoDataUrl, 'PNG', 93, 151, 24, 36.02);
   } catch {
     // Logo ist rein dekorativ -- Download soll nicht daran scheitern, falls es nicht lädt.
   }
