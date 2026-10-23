@@ -53,22 +53,16 @@ function HalloweenDealCard() {
 
   return (
     <div style={halloweenCard}>
-      <div style={{ padding: '28px 24px 24px', textAlign: 'center' }}>
-        <div
-          style={{
-            fontFamily: "'Georgia', serif",
-            fontSize: 30,
-            fontWeight: 700,
-            letterSpacing: 1,
-            textTransform: 'uppercase',
-            color: '#f1e9e0',
-            marginBottom: 2,
-          }}
-        >
-          Halloween
-        </div>
-        <div style={{ fontSize: 13, letterSpacing: 4, textTransform: 'uppercase', color: '#cbb89a', marginBottom: 18 }}>Special</div>
-
+      <video
+        src="/halloween-special.mp4"
+        poster="/halloween-special-poster.jpg"
+        autoPlay
+        muted
+        loop
+        playsInline
+        style={{ display: 'block', width: '100%', aspectRatio: '9 / 16', objectFit: 'cover' }}
+      />
+      <div style={{ padding: '20px 24px 24px', textAlign: 'center' }}>
         <div style={{ fontSize: 14, fontWeight: 700, letterSpacing: 1, color: '#ff9a3c', marginBottom: 4 }}>HALLOWEEN PIERCING SPECIAL</div>
         <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 40, fontWeight: 700, color: '#ff8c1a', textShadow: '0 0 18px rgba(255,140,26,0.45)', marginBottom: 6 }}>
           NUR CHF {HALLOWEEN_DEAL_PRICE}.–
