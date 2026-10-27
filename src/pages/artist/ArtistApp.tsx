@@ -810,8 +810,12 @@ function TermineTab({ artistId, locationId, artistColor, isEmployee }: { artistI
         fetchAppointmentIdsWithPhotos(appts.map((a: any) => a.id)).then((withPhotos) => {
           setIdsWithPhotos(withPhotos);
           // Mitarbeiter-Ansicht: nur Termine mit fehlenden Fotos anzeigen, als Fang-Netz
-          // für vergessene Fotos -- egal welcher Artist.
-          setAppointments(isEmployee ? appts.filter((a: any) => !withPhotos.has(a.id) && a.status !== 'storniert' && a.customer_id) : appts);
+          // für vergessene Fotos -- egal welcher Artist. "Nicht erschienen" raus, denn dort
+          // gibt es naturgemäss nie Fotos -- der Termin würde sonst für immer im Fangnetz
+          // hängen bleiben, auch wenn an der Kasse längst als No-Show abgeschlossen.
+          setAppointments(
+            isEmployee ? appts.filter((a: any) => !withPhotos.has(a.id) && a.status !== 'storniert' && a.status !== 'nicht_erschienen' && a.customer_id) : appts
+          );
         });
       })
       .catch((e) => setError(e.message))
