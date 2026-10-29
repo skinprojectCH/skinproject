@@ -1010,6 +1010,14 @@ export async function fetchVouchers() {
   return data as Voucher[];
 }
 
+// Alle Gutscheine einer bestimmten Aktion/Kampagne (z.B. 'halloween_piercing_2026'),
+// unabhängig vom Standort -- für den Aktions-Reiter in den Statistiken.
+export async function fetchVouchersByCampaign(campaign: string) {
+  const { data, error } = await supabase.from('vouchers').select('*').eq('campaign', campaign).order('created_at', { ascending: false });
+  if (error) throw error;
+  return data as Voucher[];
+}
+
 export interface VoucherRedemption {
   locationName: string;
   amount: number;

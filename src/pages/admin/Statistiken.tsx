@@ -12,15 +12,21 @@ import {
   fetchDiscountStats,
   fetchPaymentMethodStats,
   fetchDailySales,
+  fetchVouchersByCampaign,
+  fetchVoucherRedemptions,
   type DailySaleRow,
   type PaymentMethodStats,
   type CustomerStats,
   type ServiceProductPerformance,
   type DiscountStats,
+  type Voucher,
+  type VoucherRedemption,
 } from '../../lib/queries';
 import { formatCHF } from '../../lib/format';
 
 const MONTH_NAMES = ['Januar', 'Februar', 'März', 'April', 'Mai', 'Juni', 'Juli', 'August', 'September', 'Oktober', 'November', 'Dezember'];
+
+const HALLOWEEN_CAMPAIGN = 'halloween_piercing_2026';
 
 const navBtnStyle: React.CSSProperties = {
   width: 30,
@@ -864,14 +870,121 @@ function ZahlungsartStatistik() {
   );
 }
 
+function AktionStatistik() {
+  const [vouchers, setVouchers] = useState<Voucher[]>([]);
+  const [redemptions, setRedemptions] = useState<Record<string, VoucherRedemption[]>>({});
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    fetchVouchersByCampaign(HALLOWEEN_CAMPAIGN)
+      .then((v) => {
+        setVouchers(v);
+        return fetchVoucherRedemptions(v.map((row) => row.id));
+      })
+      .then(setRedemptions)
+      .catch((e) => setError(e.message))
+      .finally(() => setLoading(false));
+  }, []);
+
+  const totalSoldCount = vouchers.length;
+  const totalSoldCHF = vouchers.reduce((sum, v) => sum + v.value, 0);
+  const redeemedVouchers = vouchers.filter((v) => v.status === 'eingelöst');
+  const totalRedeemedCount = redeemedVouchers.length;
+
+  const locationMap: Record<string, { count: number; amount: number }> = {};
+  for (const rows of Object.values(redemptions)) {
+    for (const r of rows) {
+      const key = r.locationName || '—';
+      if (!locationMap[key]) locationMap[key] = { count: 0, amount: 0 };
+      locationMap[key].count += 1;
+      locationMap[key].amount += r.amount;
+    }
+  }
+  const locationRows = Object.entries(locationMap).sort((a, b) => b[1].amount - a[1].amount);
+  const redeemedServiceValue = locationRows.reduce((sum, [, s]) => sum + s.amount, 0);
+
+  const KPIS = [
+    { label: 'Verkauft (Anzahl)', value: String(totalSoldCount) },
+    { label: 'Verkauft (CHF)', value: formatCHF(totalSoldCHF) },
+    { label: 'Eingelöst (Anzahl)', value: String(totalRedeemedCount) },
+    { label: 'Noch offen', value: String(totalSoldCount - totalRedeemedCount) },
+  ];
+
+  return (
+    <div>
+      <div style={{ fontSize: 12, color: 'var(--color-text-muted)', marginBottom: 20 }}>
+        🎃 Halloween Piercing Special — online verkaufte Ticket-Gutscheine (CHF 31, volle Deckung für Piercing + Titan-Schmuck). "Eingelöst" zählt vollständig verbrauchte Tickets; der CHF-Wert bei den Standorten ist der Gegenwert der damit bezahlten Leistung.
+      </div>
+      {loading ? (
+        <div style={{ fontSize: 13, color: '#999' }}>Lädt…</div>
+      ) : error ? (
+        <div style={{ fontSize: 13, color: 'var(--color-destructive)' }}>Fehler: {error}</div>
+      ) : (
+        <>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 16, marginBottom: 24 }}>
+            {KPIS.map((k) => (
+              <div key={k.label} style={{ border: '1px solid var(--color-border)', background: 'var(--color-surface)', borderRadius: 6, padding: 16 }}>
+                <div className="label-uppercase" style={{ marginBottom: 8 }}>
+                  {k.label}
+                </div>
+                <div style={{ fontFamily: 'var(--font-heading)', fontSize: 22, fontWeight: 700 }}>{k.value}</div>
+              </div>
+            ))}
+          </div>
+
+          <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 8 }}>Eingelöst nach Standort</div>
+          <div style={{ border: '1px solid var(--color-border)', borderRadius: 6, background: 'var(--color-surface)', overflow: 'hidden' }}>
+            <div
+              style={{
+                display: 'grid',
+                gridTemplateColumns: '1fr 1fr 1fr',
+                padding: '10px 14px',
+                fontSize: 11,
+                textTransform: 'uppercase',
+                letterSpacing: 0.5,
+                color: '#999',
+                borderBottom: '1px solid var(--color-border)',
+                fontWeight: 600,
+              }}
+            >
+              <div>Standort</div>
+              <div style={{ textAlign: 'right' }}>Anzahl</div>
+              <div style={{ textAlign: 'right' }}>Gegenwert</div>
+            </div>
+            {locationRows.length === 0 ? (
+              <div style={{ padding: 16, fontSize: 12, color: '#999' }}>Noch keine Einlösungen.</div>
+            ) : (
+              locationRows.map(([name, stats]) => (
+                <div key={name} style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', padding: '12px 14px', fontSize: 13, borderBottom: '1px solid #eee' }}>
+                  <div>{name}</div>
+                  <div style={{ textAlign: 'right' }}>{stats.count}</div>
+                  <div style={{ textAlign: 'right' }}>{formatCHF(stats.amount)}</div>
+                </div>
+              ))
+            )}
+            {locationRows.length > 0 && (
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', padding: '12px 14px', fontSize: 13, fontWeight: 700, borderTop: '1px solid var(--color-border)' }}>
+                <div>Total</div>
+                <div style={{ textAlign: 'right' }}>{totalRedeemedCount}</div>
+                <div style={{ textAlign: 'right' }}>{formatCHF(redeemedServiceValue)}</div>
+              </div>
+            )}
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
 export default function Statistiken() {
-  const [tab, setTab] = useState<'kunden' | 'performance' | 'umsatz' | 'artists' | 'rabatt' | 'zahlungsart'>('kunden');
+  const [tab, setTab] = useState<'kunden' | 'performance' | 'umsatz' | 'artists' | 'rabatt' | 'zahlungsart' | 'aktion'>('kunden');
 
   return (
     <div>
       <h1 style={{ fontSize: 24, marginBottom: 4 }}>Statistiken</h1>
       <div style={{ display: 'flex', borderBottom: '1px solid var(--color-border)', marginBottom: 20, fontSize: 13, flexWrap: 'wrap' }}>
-        {(['kunden', 'performance', 'umsatz', 'artists', 'rabatt', 'zahlungsart'] as const).map((t) => (
+        {(['kunden', 'performance', 'umsatz', 'artists', 'rabatt', 'zahlungsart', 'aktion'] as const).map((t) => (
           <div
             key={t}
             onClick={() => setTab(t)}
@@ -883,7 +996,19 @@ export default function Statistiken() {
               cursor: 'pointer',
             }}
           >
-            {t === 'kunden' ? 'Kunden' : t === 'performance' ? 'Dienstleistungen & Produkte' : t === 'umsatz' ? 'Umsatzverlauf' : t === 'artists' ? 'Artist-Umsatz' : t === 'rabatt' ? 'Rabatte' : 'Zahlungsart'}
+            {t === 'kunden'
+              ? 'Kunden'
+              : t === 'performance'
+              ? 'Dienstleistungen & Produkte'
+              : t === 'umsatz'
+              ? 'Umsatzverlauf'
+              : t === 'artists'
+              ? 'Artist-Umsatz'
+              : t === 'rabatt'
+              ? 'Rabatte'
+              : t === 'zahlungsart'
+              ? 'Zahlungsart'
+              : '🎃 Halloween-Aktion'}
           </div>
         ))}
       </div>
@@ -898,8 +1023,10 @@ export default function Statistiken() {
         <ArtistUmsatzStatistik />
       ) : tab === 'rabatt' ? (
         <RabattStatistik />
-      ) : (
+      ) : tab === 'zahlungsart' ? (
         <ZahlungsartStatistik />
+      ) : (
+        <AktionStatistik />
       )}
     </div>
   );
