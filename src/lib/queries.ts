@@ -1010,6 +1010,35 @@ export async function fetchVouchers() {
   return data as Voucher[];
 }
 
+export interface VoucherRedemption {
+  locationName: string;
+  amount: number;
+  createdAt: string;
+}
+
+// Wo (an welchem Standort) ein Gutschein eingesetzt wurde -- über die Zahlungen, die auf ihn
+// verweisen, und deren Bestellung (die den Standort trägt). Ein Gutschein kann mehrfach
+// teileingelöst worden sein, ggf. auch an unterschiedlichen Standorten -- darum pro Gutschein
+// eine Liste statt eines einzelnen Standorts.
+export async function fetchVoucherRedemptions(voucherIds: string[]): Promise<Record<string, VoucherRedemption[]>> {
+  const map: Record<string, VoucherRedemption[]> = {};
+  if (voucherIds.length === 0) return map;
+  const { data, error } = await supabase
+    .from('payments')
+    .select('voucher_id, amount, orders!inner(created_at, locations(name))')
+    .in('voucher_id', voucherIds);
+  if (error) throw error;
+  for (const p of (data as any[]) || []) {
+    if (!p.voucher_id) continue;
+    (map[p.voucher_id] ||= []).push({
+      locationName: p.orders?.locations?.name || '—',
+      amount: Number(p.amount),
+      createdAt: p.orders?.created_at,
+    });
+  }
+  return map;
+}
+
 // Übersicht aller Anzahlungen (Kunden-Guthaben) -- separat von den normalen Gutscheinen.
 export async function fetchAnzahlungen() {
   const { data, error } = await supabase.from('vouchers').select('*').eq('type', 'anzahlung').order('created_at', { ascending: false });

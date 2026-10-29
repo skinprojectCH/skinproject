@@ -1,11 +1,12 @@
 import { useEffect, useState } from 'react';
-import { fetchVouchers, fetchCustomersByIds, type Voucher, type Customer } from '../../lib/queries';
+import { fetchVouchers, fetchCustomersByIds, fetchVoucherRedemptions, type Voucher, type Customer, type VoucherRedemption } from '../../lib/queries';
 import { formatCHF } from '../../lib/format';
 
 export default function Gutscheine() {
   const [filter, setFilter] = useState<'alle' | 'aktiv' | 'eingelöst'>('aktiv');
   const [vouchers, setVouchers] = useState<Voucher[]>([]);
   const [customers, setCustomers] = useState<Customer[]>([]);
+  const [redemptions, setRedemptions] = useState<Record<string, VoucherRedemption[]>>({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -14,12 +15,21 @@ export default function Gutscheine() {
       .then((v) => {
         setVouchers(v);
         const ids = Array.from(new Set(v.map((row) => row.buyer_customer_id).filter((id): id is string => !!id)));
+        fetchVoucherRedemptions(v.map((row) => row.id))
+          .then(setRedemptions)
+          .catch(() => setRedemptions({}));
         return fetchCustomersByIds(ids);
       })
       .then(setCustomers)
       .catch((e) => setError(e.message))
       .finally(() => setLoading(false));
   }, []);
+
+  function redeemedAt(v: Voucher) {
+    const rows = redemptions[v.id];
+    if (!rows || rows.length === 0) return '—';
+    return Array.from(new Set(rows.map((r) => r.locationName))).join(', ');
+  }
 
   const filtered = vouchers.filter((v) => filter === 'alle' || v.status === filter);
   const totalSold = vouchers.reduce((sum, v) => sum + v.value, 0);
@@ -78,12 +88,13 @@ export default function Gutscheine() {
       {!loading && !error && (
         <>
           <div style={{ border: '1px solid var(--color-border)', borderRadius: 6, background: 'var(--color-surface)', overflow: 'hidden' }}>
-          <div style={{ display: 'grid', gridTemplateColumns: '110px 1fr 100px 90px 90px 80px 90px', gap: 10, padding: '10px 12px', fontSize: 11, textTransform: 'uppercase', letterSpacing: 0.5, color: '#999', borderBottom: '1px solid var(--color-border)', fontWeight: 600 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: '110px 1fr 100px 90px 90px 90px 80px 90px', gap: 10, padding: '10px 12px', fontSize: 11, textTransform: 'uppercase', letterSpacing: 0.5, color: '#999', borderBottom: '1px solid var(--color-border)', fontWeight: 600 }}>
             <div>Code</div>
             <div>Käufer</div>
             <div>Verkaufswert</div>
             <div>Restwert</div>
             <div>Verkauft am</div>
+            <div>Eingelöst bei</div>
             <div>Herkunft</div>
             <div>Status</div>
           </div>
@@ -91,7 +102,7 @@ export default function Gutscheine() {
           {filtered.map((v) => (
             <div
               key={v.id}
-              style={{ display: 'grid', gridTemplateColumns: '110px 1fr 100px 90px 90px 80px 90px', gap: 10, padding: '14px 12px', fontSize: 13, borderBottom: '1px solid #eee', alignItems: 'center', color: v.status === 'eingelöst' ? '#999' : '#111' }}
+              style={{ display: 'grid', gridTemplateColumns: '110px 1fr 100px 90px 90px 90px 80px 90px', gap: 10, padding: '14px 12px', fontSize: 13, borderBottom: '1px solid #eee', alignItems: 'center', color: v.status === 'eingelöst' ? '#999' : '#111' }}
             >
               <div style={{ fontFamily: 'monospace' }}>{v.code}</div>
               <div>
@@ -101,6 +112,7 @@ export default function Gutscheine() {
               <div>{formatCHF(v.value)}</div>
               <div>{formatCHF(v.remaining_value)}</div>
               <div>{new Date(v.created_at).toLocaleDateString('de-CH')}</div>
+              <div style={{ fontSize: 12, color: '#777' }}>{redeemedAt(v)}</div>
               <div>
                 {v.source === 'online' ? (
                   <span style={{ border: '1px solid var(--color-accent)', color: 'var(--color-accent)', borderRadius: 10, padding: '2px 8px', fontSize: 10, fontWeight: 600 }}>Online</span>
