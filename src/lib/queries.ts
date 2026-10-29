@@ -248,9 +248,24 @@ export async function setArtistServiceIds(artistId: string, serviceIds: string[]
 
 // ---------- Customers ----------
 export async function fetchCustomers() {
-  const { data, error } = await supabase.from('customers').select('*').order('name');
-  if (error) throw error;
-  return data as Customer[];
+  // Supabase/PostgREST liefert pro Anfrage max. 1000 Zeilen -- bei 8000+ Kunden muss
+  // daher seitenweise geladen werden, bis eine Seite nicht mehr voll ist.
+  const pageSize = 1000;
+  const all: Customer[] = [];
+  let from = 0;
+  while (true) {
+    const { data, error } = await supabase
+      .from('customers')
+      .select('*')
+      .order('name')
+      .order('id')
+      .range(from, from + pageSize - 1);
+    if (error) throw error;
+    all.push(...((data as Customer[]) || []));
+    if (!data || data.length < pageSize) break;
+    from += pageSize;
+  }
+  return all;
 }
 
 // Serverseitige Suche statt alle 8000+ Kunden ins Frontend zu laden -- sucht in
