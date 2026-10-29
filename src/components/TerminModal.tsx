@@ -56,7 +56,7 @@ export default function TerminModal({ onClose, onSave, locationId, initialDate, 
   const [categoryFilter, setCategoryFilter] = useState<string>('');
 
   useEffect(() => {
-    Promise.all([fetchArtists(), fetchServices(), fetchServiceCategories(), fetchArtistIdsWithAnyShifts(), fetchCustomersWithPendingHealthDocs()])
+    Promise.all([fetchArtists(), fetchServices(), fetchServiceCategories(), fetchArtistIdsWithAnyShifts(), fetchCustomersWithPendingHealthDocs(locationId)])
       .then(([a, s, cats, withShifts, pending]) => {
         const active = a.filter((art) => art.status === 'active');
         setAllArtists(active);

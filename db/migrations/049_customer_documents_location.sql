@@ -1,0 +1,12 @@
+-- customer_documents (u.a. die online ausgefüllte Registrierung/Einverständniserklärung
+-- vom Check-in-Tablet) hatte bisher keinen Standort-Bezug. Dadurch zeigte das
+-- "Ausgefüllte Einverständniserklärungen"-Dropdown beim Erfassen eines neuen Termins
+-- IMMER alle offenen Registrierungen über BEIDE Standorte an -- z.B. wurde ein Kunde,
+-- der in Oerlikon eingecheckt hatte, auch beim Termin-Erfassen in Wädenswil als
+-- "offen" vorgeschlagen (Beispiel: Cristina Ashley Ianiri).
+--
+-- location_id ist nullable: bestehende/alte Dokumente ohne Standort bleiben wie bisher
+-- an beiden Standorten sichtbar (gleiches "NULL = überall sichtbar"-Prinzip wie bei den
+-- anderen Standort-Policies in dieser App), neue Registrierungen bekommen den Standort
+-- des Check-in-Tablets mitgegeben.
+alter table customer_documents add column if not exists location_id uuid references locations(id);

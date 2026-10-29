@@ -150,6 +150,7 @@ async function getImageDimensions(dataUrl: string): Promise<{ width: number; hei
 
 async function buildAndUploadPdf(opts: {
   customerId: string;
+  locationId: string | null;
   vorname: string;
   name: string;
   locationName: string;
@@ -275,7 +276,7 @@ async function buildAndUploadPdf(opts: {
   await fetch('/api/registration-upload', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ customerId: opts.customerId, type: 'document', fileName, mimeType: 'application/pdf', dataBase64 }),
+    body: JSON.stringify({ customerId: opts.customerId, locationId: opts.locationId, type: 'document', fileName, mimeType: 'application/pdf', dataBase64 }),
   });
 }
 
@@ -570,6 +571,7 @@ export default function RegisterCustomer() {
       try {
         await buildAndUploadPdf({
           customerId,
+          locationId: locationId || null,
           vorname,
           name,
           locationName,

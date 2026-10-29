@@ -534,13 +534,20 @@ export interface PendingHealthDoc {
 // Für "Neuer Termin": Kunden, die bereits eine Einverständniserklärung ausgefüllt haben, die
 // aber noch keinem Termin zugewiesen ist (z.B. sitzen gerade im Salon und füllen es am
 // Tablet aus, bevor der Termin erfasst wird). Älteste zuerst -- die zuerst dran waren.
-export async function fetchCustomersWithPendingHealthDocs(): Promise<PendingHealthDoc[]> {
-  const { data, error } = await supabase
+// locationId optional: wenn gesetzt, werden nur Registrierungen vom selben Standort (oder
+// ohne Standort-Zuordnung, z.B. ältere Einträge von vor der Standort-Erfassung) angezeigt --
+// sonst würde z.B. eine in Oerlikon ausgefüllte Einverständniserklärung auch beim
+// Termin-Erfassen in Wädenswil als "offen" erscheinen.
+export async function fetchCustomersWithPendingHealthDocs(locationId?: string): Promise<PendingHealthDoc[]> {
+  let query = supabase
     .from('customer_documents')
     .select('id, created_at, customer_id, customers(vorname, name)')
     .eq('type', 'document')
-    .is('appointment_id', null)
-    .order('created_at', { ascending: true });
+    .is('appointment_id', null);
+  if (locationId) {
+    query = query.or(`location_id.eq.${locationId},location_id.is.null`);
+  }
+  const { data, error } = await query.order('created_at', { ascending: true });
   if (error) throw error;
 
   const pending = ((data as any[]) || [])

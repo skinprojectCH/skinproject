@@ -9,7 +9,7 @@ export default async function handler(req: any, res: any) {
     return;
   }
 
-  const { customerId, type, fileName, mimeType, dataBase64 } = req.body || {};
+  const { customerId, type, fileName, mimeType, dataBase64, locationId } = req.body || {};
   if (!customerId || !type || !dataBase64 || !['id_photo', 'signature', 'document'].includes(type)) {
     res.status(400).json({ error: 'Angaben unvollständig.' });
     return;
@@ -43,7 +43,7 @@ export default async function handler(req: any, res: any) {
 
     const { data: doc, error: insertError } = await admin
       .from('customer_documents')
-      .insert({ customer_id: customerId, type, storage_path: path, file_name: fileName || null })
+      .insert({ customer_id: customerId, type, storage_path: path, file_name: fileName || null, location_id: locationId || null })
       .select('id')
       .single();
     if (insertError || !doc) {
