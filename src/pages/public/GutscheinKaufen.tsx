@@ -179,7 +179,7 @@ function BrandHeader() {
           }}
         />
         <div style={{ position: 'relative', height: '100%', display: 'flex', flexDirection: 'column', justifyContent: 'flex-end', padding: '24px 26px 24px' }}>
-          <img src="/logo-email.png" alt="SkinProject" style={{ width: 36, height: 'auto', filter: 'invert(1)', opacity: 0.92, marginBottom: 14 }} />
+          <img src="/logo-email.png" alt="SkinProject" style={{ width: 84, height: 'auto', filter: 'invert(1)', opacity: 0.92, marginBottom: 14 }} />
           <div style={{ fontFamily: "'Anton', Impact, sans-serif", textTransform: 'uppercase', letterSpacing: '0.01em', lineHeight: 0.95, fontSize: 32, color: '#EDE8DF' }}>
             Gutschein
             <br />
@@ -329,8 +329,6 @@ export default function GutscheinKaufen() {
       <HalloweenDealCard />
       <div style={card}>
         <div style={cardInner}>
-          <img src="/logo-skinproject.png" alt="SkinProject" style={{ width: 64, height: 64, marginBottom: 16 }} />
-
           <div style={{ display: 'flex', border: '1.5px solid #ddd', borderRadius: 8, overflow: 'hidden', marginBottom: 20 }}>
             {(['gutschein', 'anzahlung'] as const).map((m) => (
               <div
