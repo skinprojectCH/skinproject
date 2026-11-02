@@ -149,6 +149,51 @@ function HalloweenDealCard() {
   );
 }
 
+const brandHeaderWrap: React.CSSProperties = {
+  width: '100%',
+  maxWidth: 420,
+  margin: '0 auto 20px',
+  borderRadius: 20,
+  overflow: 'hidden',
+  background: '#0B0B0B',
+  boxShadow: '0 1px 3px rgba(0,0,0,0.3)',
+};
+
+function BrandHeader() {
+  return (
+    <div style={brandHeaderWrap}>
+      <div
+        style={{
+          position: 'relative',
+          aspectRatio: '4 / 5',
+          backgroundImage: 'url(/gutschein-header.jpg)',
+          backgroundSize: 'cover',
+          backgroundPosition: 'center 18%',
+        }}
+      >
+        <div
+          style={{
+            position: 'absolute',
+            inset: 0,
+            background: 'linear-gradient(180deg, rgba(11,11,11,.15) 0%, rgba(11,11,11,.1) 28%, rgba(11,11,11,.88) 72%, #0B0B0B 100%)',
+          }}
+        />
+        <div style={{ position: 'relative', height: '100%', display: 'flex', flexDirection: 'column', justifyContent: 'flex-end', padding: '24px 26px 24px' }}>
+          <img src="/logo-email.png" alt="SkinProject" style={{ width: 36, height: 'auto', filter: 'invert(1)', opacity: 0.92, marginBottom: 14 }} />
+          <div style={{ fontFamily: "'Anton', Impact, sans-serif", textTransform: 'uppercase', letterSpacing: '0.01em', lineHeight: 0.95, fontSize: 32, color: '#EDE8DF' }}>
+            Gutschein
+            <br />
+            <span style={{ color: '#C9A24D' }}>verschenken.</span>
+          </div>
+          <div style={{ fontFamily: 'Archivo, sans-serif', fontSize: 11, letterSpacing: '0.24em', textTransform: 'uppercase', color: '#A8A39A', marginTop: 12 }}>
+            Oerlikon · Wädenswil
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 const card: React.CSSProperties = { width: '100%', maxWidth: 420, margin: '0 auto', background: '#fff', borderRadius: 20, overflow: 'hidden', fontFamily: "'Work Sans', sans-serif", boxShadow: '0 1px 3px rgba(0,0,0,0.08)' };
 const cardInner: React.CSSProperties = { padding: 28 };
 const heading: React.CSSProperties = { fontFamily: "'Space Grotesk', sans-serif", fontSize: 22, fontWeight: 700, marginBottom: 6 };
@@ -280,6 +325,7 @@ export default function GutscheinKaufen() {
 
   return (
     <div style={{ minHeight: '100vh', background: 'var(--color-bg)', padding: '40px 16px', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+      <BrandHeader />
       <HalloweenDealCard />
       <div style={card}>
         <div style={cardInner}>
