@@ -116,34 +116,56 @@ async function downloadVoucherPdf(voucher: VoucherInfo) {
   const doc = new jsPDF();
   const isAnzahlung = voucher.type === 'anzahlung';
 
-  // Rahmen
+  // Gleiches Karten-Prinzip wie beim Halloween-Ticket -- nur die Karte ist dunkel eingefärbt
+  // (abgerundetes Rechteck mit neuem Header-Bild vom skinproject.ch-Relaunch), der Rest der
+  // A4-Seite bleibt weiss, um beim Ausdrucken Tinte zu sparen.
+  const cardX = 12;
+  const cardY = 18;
+  const cardW = 186;
+  const cardH = 215;
+
+  doc.setFillColor(14, 13, 12);
+  doc.roundedRect(cardX, cardY, cardW, cardH, 6, 6, 'F');
   doc.setDrawColor(176, 141, 61);
-  doc.setLineWidth(1);
-  doc.rect(12, 12, 186, 105);
+  doc.setLineWidth(0.8);
+  doc.roundedRect(cardX, cardY, cardW, cardH, 6, 6, 'S');
 
-  doc.setFontSize(20);
+  try {
+    const headerDataUrl = await loadImageAsDataUrl('/gutschein-header-pdf.jpg');
+    doc.addImage(headerDataUrl, 'JPEG', 18, 24, 174, 90);
+  } catch {
+    // Header-Bild ist rein dekorativ -- Download soll nicht daran scheitern, falls es nicht lädt.
+  }
+
+  doc.setFontSize(15);
   doc.setFont('helvetica', 'bold');
-  doc.text('SKINPROJECT', 105, 35, { align: 'center' });
-  doc.setFontSize(11);
-  doc.setFont('helvetica', 'normal');
-  doc.text('Tattoo & Piercing', 105, 43, { align: 'center' });
+  doc.setTextColor(201, 162, 77);
+  doc.text(isAnzahlung ? 'BESTÄTIGUNG ANZAHLUNG' : 'GUTSCHEIN', 105, 130, { align: 'center' });
 
-  doc.setFontSize(14);
-  doc.text(isAnzahlung ? 'Bestätigung Anzahlung' : 'Gutschein', 105, 58, { align: 'center' });
+  doc.setFontSize(30);
+  doc.setTextColor(255, 255, 255);
+  doc.text(`CHF ${voucher.value.toFixed(2)}`, 105, 150, { align: 'center' });
 
-  doc.setFontSize(28);
-  doc.setFont('helvetica', 'bold');
-  doc.text(`CHF ${voucher.value.toFixed(2)}`, 105, 74, { align: 'center' });
-
-  doc.setFontSize(11);
-  doc.setFont('helvetica', 'normal');
-  doc.text(`Code: ${voucher.code}`, 105, 88, { align: 'center' });
+  doc.setFontSize(12);
+  doc.setFont('courier', 'bold');
+  doc.text(`Code: ${voucher.code}`, 105, 163, { align: 'center' });
 
   doc.setFontSize(9);
-  doc.text(`${isAnzahlung ? 'Bezahlt am' : 'Gekauft am'}: ${new Date(voucher.created_at).toLocaleDateString('de-CH')}`, 105, 96, { align: 'center' });
+  doc.setFont('helvetica', 'normal');
+  doc.setTextColor(203, 184, 154);
+  doc.text(`${isAnzahlung ? 'Bezahlt am' : 'Gekauft am'}: ${new Date(voucher.created_at).toLocaleDateString('de-CH')}`, 105, 172, { align: 'center' });
+  doc.text(isAnzahlung ? 'Einsetzbar bei deinem nächsten Termin.' : 'Einlösbar an jedem SkinProject-Standort.', 105, 179, { align: 'center' });
 
-  doc.setTextColor(120);
-  doc.text(isAnzahlung ? 'Einsetzbar bei deinem nächsten Termin.' : 'Einlösbar an jedem SkinProject-Standort.', 105, 104, { align: 'center' });
+  try {
+    // logo-email.png (quadratisches Logo mit QR-Element) hat einen weissen Hintergrund --
+    // daher auf einem eigenen weissen Chip platziert, statt direkt auf der dunklen Karte.
+    const logoDataUrl = await loadImageAsDataUrl('/logo-email.png');
+    doc.setFillColor(255, 255, 255);
+    doc.roundedRect(92, 187, 26, 36, 3, 3, 'F');
+    doc.addImage(logoDataUrl, 'PNG', 95, 190, 20, 30.02);
+  } catch {
+    // Logo ist rein dekorativ -- Download soll nicht daran scheitern, falls es nicht lädt.
+  }
 
   doc.save(`SkinProject_${isAnzahlung ? 'Anzahlung' : 'Gutschein'}_${voucher.code}.pdf`);
 }
